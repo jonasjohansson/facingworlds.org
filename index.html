@@ -35,8 +35,8 @@
     <!-- Add camera-manager on the scene -->
     <a-scene renderer="colorManagement:true" camera-manager>
       <a-assets>
-        <a-asset-item id="world-gltf" src="Dungeon.gltf"></a-asset-item>
-        <a-asset-item id="navmesh-gltf" src="DungeonNavmesh.gltf"></a-asset-item>
+        <a-asset-item id="world-gltf" src="FacingWorlds2.gltf"></a-asset-item>
+        <a-asset-item id="navmesh-gltf" src="FacingWorlds2Navmesh.gltf"></a-asset-item>
       </a-assets>
 
       <!-- Lights -->
@@ -58,7 +58,7 @@
       <!-- Player rig (built-in movement-controls) -->
       <a-entity
         id="rig"
-        movement-controls="constrainToNavMesh: true; speed: 0.8"
+        movement-controls="constrainToNavMesh: true; speed: 0.4"
         navmesh-constraint="navmesh: #navmesh; fall: 8; height: 0.12"
         rotate-yaw
         position="0 0 0">
