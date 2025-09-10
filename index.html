@@ -2,75 +2,86 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Facing Worlds Mini Game</title>
+    <title>Dungeon + NavMesh — 1st/3rd + Map View</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <!-- A-Frame + Extras -->
+    <!-- Load ONCE -->
     <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
 
-    <!-- Spawns the rig onto the navmesh center by raycast -->
-    <script src="build-navmesh.js"></script>
-    <script src="spawn-on-navmesh.js"></script>
-    <script src="stick-to-navmesh.js"></script>
+    <!-- Your scripts -->
+    <script src="debug.js"></script>
+    <script src="player.js"></script>
+    <script src="spawn.js"></script>
 
-    <link rel="icon" href="data:," />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+      }
+      .hint {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        color: #9effff;
+        font: 14px/1.2 monospace;
+        opacity: 0.75;
+      }
+    </style>
   </head>
   <body>
-    <a-scene
-      responsive-immersive
-      xrextras-gesture-detector
-      landing-page
-      xrextras-loading
-      xrextras-runtime-error
-      renderer="colorManagement:true"
-      xrweb="allowedDevices: any; defaultEnvironmentFloorScale: 0.25">
+    <!-- Add camera-manager on the scene -->
+    <a-scene renderer="colorManagement:true" camera-manager>
       <a-assets>
-        <a-asset-item id="robot_model" src="Character.glb"></a-asset-item>
-
-        <!-- Ideally this is a simplified walkable mesh, but can be the same GLB for now -->
-        <a-asset-item id="navmesh-glb" src="FacingWorlds.glb"></a-asset-item>
-        <a-asset-item id="model-glb" src="FacingWorlds.glb"></a-asset-item>
+        <a-asset-item id="world-gltf" src="Dungeon.gltf"></a-asset-item>
+        <a-asset-item id="navmesh-gltf" src="DungeonNavmesh.gltf"></a-asset-item>
       </a-assets>
 
-      <!-- Lighting -->
+      <!-- Lights -->
+      <a-entity light="type: directional; intensity: 0.9" position="5 10 5"></a-entity>
+      <a-light type="ambient" intensity="0.35"></a-light>
+
+      <!-- World + NavMesh -->
+      <a-entity id="world" gltf-model="#world-gltf" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
       <a-entity
-        light="type: directional;
-               shadowBias: -0.0001;
-               intensity: 0.65;
-               castShadow: true;
-               shadowMapHeight:2048;
-               shadowMapWidth:2048;
-               shadowCameraTop: 40;
-               shadowCameraBottom: -40;
-               shadowCameraRight: 40;
-               shadowCameraLeft: 40;
-               target: #model"
-        xrextras-attach="target: model; offset: 8 15 4"
-        position="1 4.3 2.5"
-        shadow>
-      </a-entity>
-      <a-light type="ambient" intensity="0.4"></a-light>
+        id="navmesh"
+        gltf-model="#navmesh-gltf"
+        nav-mesh
+        debug-material
+        visible="true"
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"></a-entity>
 
-      <!-- Mark this as the NAVMESH -->
-      <!-- Make it visible first to verify alignment -->
-      <a-entity id="navmesh" class="navmesh" gltf-model="#navmesh-glb" build-navmesh="slopeMax: 35; debug: true" visible="true"></a-entity>
-
-      <!-- Environment -->
-      <a-entity id="model" gltf-model="#model-glb" shadow></a-entity>
-
-      <!-- THIRD-PERSON RIG constrained to the navmesh -->
+      <!-- Player rig (built-in movement-controls) -->
       <a-entity
         id="rig"
-        position="0 1.2 0"
-        movement-controls="constrainToNavMesh: true; speed: 0.1"
-        navmesh-constraint="navmesh: #navmesh; fall: 6; height: 0.11"
-        stick-to-navmesh="navmesh: #navmesh; height: 0.11; fallMax: 8; stepMax: 0.35">
-        <a-entity camera look-controls position="0 2 4"></a-entity>
-        <a-entity id="character" gltf-model="#robot_model" scale="0.05 0.05 0.05"></a-entity>
+        movement-controls="constrainToNavMesh: true; speed: 0.8"
+        navmesh-constraint="navmesh: #navmesh; fall: 8; height: 0.12"
+        rotate-yaw
+        position="0 0 0">
+        <a-box id="character" width="0.6" height="1.2" depth="0.6" position="0 0.6 0" color="#58a6ff" shadow></a-box>
+
+        <!-- Player camera: third-person by default; Space toggles 1st/3rd -->
+        <a-entity
+          id="cam"
+          camera
+          look-controls="pointerLockEnabled: true"
+          camera-toggle="third: 0 1.8 3; first: 0 1.6 0; lerp: 0.15"
+          position="0 1.8 3"></a-entity>
       </a-entity>
 
-      <!-- Optional shadow receiver -->
-      <a-plane id="ground" rotation="-90 0 0" position="0 -.1 0" width="1000" height="1000" material="shader: shadow" shadow></a-plane>
+      <a-entity id="fixedcam" camera="active: false" frame-map="target: #world; pad: 1.2; topDown: true"> </a-entity>
+      <!-- Map camera: orbit around the rig, top-downish. Starts inactive. -->
+      <a-entity
+        id="mapcam"
+        camera="active: false"
+        orbit-camera="target: #rig; radius: 10; minRadius: 4; maxRadius: 30; polar: 65; azimuth: 30; rotateSpeed: 0.25; zoomSpeed: 1; height: 0">
+      </a-entity>
     </a-scene>
+
+    <div class="hint">Move: W/A/S/D · Rotate: Q/E · Toggle 1st/3rd: Space · Toggle Map View: M · Toggle NavMesh: G</div>
   </body>
 </html>

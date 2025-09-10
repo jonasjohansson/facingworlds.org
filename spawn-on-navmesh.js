@@ -1,59 +1,55 @@
-AFRAME.registerComponent("stick-to-navmesh", {
-  schema: {
-    navmesh: { type: "selector" }, // e.g. #navmesh
-    height: { default: 0.12 }, // lift above surface
-    fallMax: { default: 8 }, // max downward snap per frame (m)
-    stepMax: { default: 0.35 }, // max horizontal step per frame (m)
-  },
-  init() {
-    this.prev = new THREE.Vector3();
-    this.tmp = new THREE.Vector3();
-    this.down = new THREE.Vector3(0, -1, 0);
-    this.ray = new THREE.Raycaster();
-    this.meshes = [];
-    this.ready = false;
+// spawn-on-navmesh.js
+(function () {
+  const NAV = "#navmesh";
+  const RIG = "#rig";
+  const ABOVE = 10; // cast from ABOVE metres above the top
+  const LIFT = 0.05; // nudge up to avoid z-fighting
 
-    const navEl = this.data.navmesh;
-    if (!navEl) return;
-    const ensure = () => {
-      const root = navEl.getObject3D("mesh");
-      if (!root) return;
-      root.traverse((n) => {
-        if (n.isMesh) this.meshes.push(n);
-      });
-      this.ready = this.meshes.length > 0;
-      this.prev.copy(this.el.object3D.position);
-    };
-    navEl.getObject3D("mesh") ? ensure() : navEl.addEventListener("model-loaded", ensure, { once: true });
-  },
-  tick(_, dt) {
-    if (!this.ready) return;
-    const pos = this.el.object3D.position;
-    const dtSec = Math.max(0.001, dt / 1000);
+  function whenMesh(el) {
+    return new Promise((res) => {
+      const m = el && el.getObject3D("mesh");
+      if (m) return res(m);
+      el && el.addEventListener("model-loaded", () => res(el.getObject3D("mesh")), { once: true });
+    });
+  }
+  function collectMeshes(root) {
+    const out = [];
+    root.traverse((n) => {
+      if (n.isMesh) out.push(n);
+    });
+    return out;
+  }
 
-    // 1) Clamp horizontal step size
-    this.tmp.copy(pos).sub(this.prev);
-    this.tmp.y = 0;
-    const maxStep = this.data.stepMax; // fixed; you can also use speed*dtSec*1.2
-    const len = this.tmp.length();
-    if (len > maxStep) {
-      this.tmp.multiplyScalar(maxStep / len);
-      pos.set(this.prev.x + this.tmp.x, pos.y, this.prev.z + this.tmp.z);
-    }
+  async function place() {
+    const navEl = document.querySelector(NAV);
+    const rigEl = document.querySelector(RIG);
+    if (!navEl || !rigEl) return;
 
-    // 2) Raycast straight down from a bit above current pos
-    const start = new THREE.Vector3(pos.x, pos.y + 1.0, pos.z);
-    this.ray.set(start, this.down);
-    this.ray.far = 1.0 + this.data.fallMax;
+    const navMesh = await whenMesh(navEl);
+    const meshes = collectMeshes(navMesh);
+    if (!meshes.length) return console.warn("[spawn] navmesh has no meshes");
 
-    const hits = this.ray.intersectObjects(this.meshes, true);
-    if (hits.length) {
-      const y = hits[0].point.y + this.data.height;
-      pos.y = y;
-      this.prev.set(pos.x, pos.y, pos.z);
-    } else {
-      // No ground found within fallMax — gently revert horizontal move
-      pos.set(this.prev.x, pos.y, this.prev.z);
-    }
-  },
-});
+    const box = new THREE.Box3().setFromObject(navMesh);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    const start = new THREE.Vector3(center.x, box.max.y + ABOVE, center.z);
+
+    const ray = new THREE.Raycaster(start, new THREE.Vector3(0, -1, 0), 0, box.max.y - box.min.y + ABOVE * 2);
+    const hits = ray.intersectObjects(meshes, true);
+    if (!hits.length) return console.warn("[spawn] no hit when raycasting onto navmesh");
+
+    const hit = hits[0].point.clone();
+    hit.y += LIFT;
+    rigEl.setAttribute("position", `${hit.x} ${hit.y} ${hit.z}`);
+
+    // small fall keeps you snapped without fighting placement
+    const cur = rigEl.getAttribute("navmesh-constraint") || {};
+    const height = cur.height != null ? cur.height : 0.12;
+    rigEl.setAttribute("navmesh-constraint", `navmesh:${NAV}; fall: 0.5; height: ${height}`);
+
+    console.log("[spawn] rig placed on navmesh at", hit);
+  }
+
+  if (document.readyState === "complete") place();
+  else window.addEventListener("load", place);
+})();
