@@ -8,10 +8,10 @@
       <a-assets>
         <a-asset-item
           id="world-gltf"
-          src="map.gltf"></a-asset-item>
+          src="src/3d/map.gltf"></a-asset-item>
         <a-asset-item
           id="navmesh-gltf"
-          src="map_navmesh.gltf"></a-asset-item>
+          src="src/3d/map_navmesh.gltf"></a-asset-item>
       </a-assets>
 
       <!-- fixed camera (no look-controls) -->
@@ -23,14 +23,6 @@
       <a-entity
         light="type:directional; intensity:3; castShadow:true"
         position="-2 5 -3"></a-entity>
-
-      <!-- ground -->
-      <a-plane
-        rotation="-90 0 0"
-        width="200"
-        height="200"
-        checker-floor="squares:16; color1:#808080; color2:#505050"
-        shadow="receive:true"></a-plane>
 
       <!-- World + NavMesh -->
       <a-entity
@@ -56,6 +48,7 @@
         id="rig"
         movement-controls="constrainToNavMesh: true; speed: 0.4"
         navmesh-constraint="navmesh: #navmesh; fall: 8; height: 0.12"
+        rotate-yaw
         position="0 0 0">
         <a-entity
           id="soldier"
@@ -94,6 +87,6 @@
     </a-scene>
     <script
       type="module"
-      src="./js/main.js"></script>
+      src="./src/core/main.js"></script>
   </body>
 </html>

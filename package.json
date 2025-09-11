@@ -1,0 +1,36 @@
+{
+  "name": "unrealfest-avatar",
+  "version": "1.0.0",
+  "description": "A multiplayer 3D avatar game built with A-Frame and WebSockets",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server . -p 8080 -c-1",
+    "dev": "npx http-server . -p 8080 -c-1 --cors",
+    "build": "echo 'No build step required for this project'",
+    "test": "echo 'No tests specified'"
+  },
+  "keywords": [
+    "aframe",
+    "webgl",
+    "websocket",
+    "multiplayer",
+    "3d",
+    "game"
+  ],
+  "author": "UnrealFest Team",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/unrealfest-avatar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/unrealfest-avatar/issues"
+  },
+  "homepage": "https://github.com/your-username/unrealfest-avatar#readme"
+}

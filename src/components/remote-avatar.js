@@ -21,7 +21,6 @@ AFRAME.registerComponent("remote-avatar", {
     this.actions = { Idle: null, Walk: null, Run: null };
     this.weights = { Idle: 1, Walk: 0, Run: 0 };
     this.target = { Idle: 1, Walk: 0, Run: 0 };
-    this.targetRotation = 0;
 
     this.el.addEventListener("model-loaded", (e) => {
       const mesh = this.el.getObject3D("mesh") || e.detail.model;
@@ -54,29 +53,13 @@ AFRAME.registerComponent("remote-avatar", {
 
     this.targetPos.set(p.x || 0, p.y || 0, p.z || 0);
 
-    // Set rotation on the parent rig
+    // Set rotation on the parent rig, not the soldier entity
     const rig = this.el.parentNode;
     if (rig && rig.object3D) {
       // Use quaternion for smoother rotation
       const quaternion = new AFRAME.THREE.Quaternion();
       quaternion.setFromAxisAngle(new AFRAME.THREE.Vector3(0, 1, 0), p.ry || 0);
       rig.object3D.quaternion.copy(quaternion);
-
-      // Store the target rotation for smooth interpolation
-      this.targetRotation = p.ry || 0;
-
-      // Debug: log rotation changes
-      console.log(`[remote-avatar] Setting rotation to ${p.ry} for player ${rig.dataset.playerId}`);
-      console.log(`[remote-avatar] Rig quaternion after set:`, rig.object3D.quaternion);
-      console.log(`[remote-avatar] Rig rotation after set:`, rig.object3D.rotation);
-    }
-
-    // Also set rotation directly on the soldier entity as backup
-    if (this.el && this.el.object3D) {
-      // Try different rotation offsets to see which one works
-      const rotationY = (p.ry || 0) + Math.PI; // Add 180 degrees offset
-      this.el.object3D.rotation.set(0, rotationY, 0);
-      console.log(`[remote-avatar] Also set soldier rotation to ${rotationY} (original: ${p.ry})`);
     }
   },
 
@@ -109,19 +92,6 @@ AFRAME.registerComponent("remote-avatar", {
     // Use frame-rate independent blending like local character
     const damp = 1 - Math.exp(-this.data.fadeLerp * dt);
     blendAnimations(this.actions, this.weights, this.target, damp);
-
-    // Keep soldier entity at origin relative to rig
-    this.el.object3D.position.set(0, 0, 0);
-    // Don't reset rotation - let it be controlled by setNetPose
-
-    // Debug: check if rig rotation is being maintained
-    const parentRig = this.el.parentNode;
-    if (parentRig && parentRig.object3D && this.targetRotation !== undefined) {
-      const currentRotation = parentRig.object3D.rotation.y;
-      if (Math.abs(currentRotation - this.targetRotation) > 0.1) {
-        console.log(`[remote-avatar] Rotation mismatch! Expected: ${this.targetRotation}, Current: ${currentRotation}`);
-      }
-    }
 
     this.mixer.update(dt);
   },

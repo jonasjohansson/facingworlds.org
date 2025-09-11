@@ -35,6 +35,13 @@ AFRAME.registerComponent("character", {
     runThreshold: { type: "number", default: 2.4 }, // switch to run above this
   },
 
+  _updateCadence() {
+    const { minTimeScale, maxTimeScale, walkCycleMps, runCycleMps } = this.data;
+    const wantsRun = this.target.Run > this.target.Walk;
+    const ref = wantsRun ? runCycleMps : walkCycleMps;
+    updateTimeScale(this.actions, this.speedMps, ref, minTimeScale, maxTimeScale);
+  },
+
   init() {
     const T = (this.THREE = AFRAME.THREE);
 
@@ -64,8 +71,26 @@ AFRAME.registerComponent("character", {
     this.speedMps = 0;
     this.rawSpeed = 0;
 
+    // Movement direction for facing
+    this.velocity = createVector3();
+    this.targetQuat = createQuaternion();
+    this.currentQuat = createQuaternion();
+
     // Facing trim to world -Z
     this.facingFix = 0;
+
+    // Movement state
+    this.isMoving = false;
+    this.isRunning = false;
+
+    // Listen for movement events from the built-in movement-controls component
+    if (this.rig) {
+      this.rig.addEventListener("movement", (event) => {
+        this.isMoving = event.detail.moving;
+        this.rawSpeed = event.detail.velocity.length();
+        this.isRunning = this.rawSpeed > this.data.runThreshold;
+      });
+    }
 
     // Setup once model is ready
     this.el.addEventListener("model-loaded", (e) => {
@@ -113,13 +138,6 @@ AFRAME.registerComponent("character", {
     });
   },
 
-  _updateCadence() {
-    const { minTimeScale, maxTimeScale, walkCycleMps, runCycleMps } = this.data;
-    const wantsRun = this.target.Run > this.target.Walk;
-    const ref = wantsRun ? runCycleMps : walkCycleMps;
-    updateTimeScale(this.actions, this.speedMps, ref, minTimeScale, maxTimeScale);
-  },
-
   tick() {
     if (!this.mixer || !this.rig) return;
 
@@ -127,51 +145,63 @@ AFRAME.registerComponent("character", {
     if (!isFinite(dt) || dt <= 0) return;
     dt = Math.min(dt, 1 / 20); // cap 50ms
 
-    // Measure rig displacement (world space)
-    this.rig.object3D.getWorldPosition(this.curr);
-    const dx = this.curr.x - this.prev.x;
-    const dz = this.curr.z - this.prev.z;
-    const speed = dt > 0 ? Math.sqrt(dx * dx + dz * dz) / dt : 0;
-
-    // Decide state
-    const moving = speed > this.data.moveThreshold;
-    const running = speed > this.data.runThreshold;
-
-    this.target.Idle = moving ? 0 : 1;
-    this.target.Walk = moving && !running ? 1 : 0;
-    this.target.Run = running ? 1 : 0;
+    // Update animation state based on movement
+    this.target.Idle = this.isMoving ? 0 : 1;
+    this.target.Walk = this.isMoving && !this.isRunning ? 1 : 0;
+    this.target.Run = this.isRunning ? 1 : 0;
 
     // Blend weights (frame-rate independent)
     const damp = 1 - Math.exp(-this.data.fadeLerp * dt);
     blendAnimations(this.actions, this.weights, this.target, damp);
     normalizeWeights(this.weights);
 
-    // Face travel direction (only for local player, not remote avatars)
-    if (speed > 0.01 && !this.el.hasAttribute("remote-avatar")) {
-      const angle = Math.atan2(dx, dz) + this.facingFix;
-      this.targetQuat.setFromAxisAngle(createVector3(0, 1, 0), angle);
-
-      // Only rotate the character, not the rig (rig contains camera and controls)
-      this.el.object3D.quaternion.slerp(this.targetQuat, 1 - Math.exp(-8 * dt));
-    }
-
     // Keep character glued to rig origin
     this.el.object3D.position.set(0, 0, 0);
 
+    // Get current rig position for movement detection
+    this.rig.object3D.getWorldPosition(this.curr);
+
+    // Calculate velocity (movement direction)
+    this.velocity.subVectors(this.curr, this.prev);
+    const speed = this.velocity.length();
+
+    // Convert to meters per second (speed was calculated per frame)
+    const speedMps = dt > 0 ? speed / dt : 0;
+
+    // Always use our own movement detection (more reliable)
+    this.isMoving = speedMps > this.data.moveThreshold;
+    this.rawSpeed = speedMps;
+    this.isRunning = speedMps > this.data.runThreshold;
+
+    // Calculate movement direction and face that direction
+    if (this.isMoving) {
+      // Only rotate if there's significant movement
+      if (this.velocity.lengthSq() > 0.001) {
+        // Calculate target rotation based on movement direction
+        const angle = Math.atan2(this.velocity.x, this.velocity.z) + this.facingFix;
+        this.targetQuat.setFromAxisAngle(this.up, angle);
+
+        // Smoothly rotate towards movement direction
+        this.currentQuat.slerp(this.targetQuat, 0.1);
+        this.el.object3D.quaternion.copy(this.currentQuat);
+      }
+    }
+
+    // Update previous position
+    this.prev.copy(this.curr);
+
     // Cadence + smoothed speed for events/UI
-    this.rawSpeed = speed;
     const spDamp = 1 - Math.exp(-this.data.smoothSpeedLerp * dt);
     this.speedMps += (this.rawSpeed - this.speedMps) * spDamp;
     this._updateCadence();
     this.el.emit("speed", {
       mps: this.speedMps,
       normalized: Math.min(1, this.speedMps / Math.max(this.data.runSpeed, 0.001)),
-      running,
+      running: this.isRunning,
       dt,
     });
 
-    // Advance and store prev
+    // Advance animation
     this.mixer.update(dt);
-    this.prev.copy(this.curr);
   },
 });

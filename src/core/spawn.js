@@ -1,6 +1,6 @@
 // spawn.js (ES module)
-import { waitForModelLoaded } from "./js/utils/dom-helpers.js";
-import { createVector3, createRaycaster } from "./js/utils/three-helpers.js";
+import { waitForModelLoaded } from "../utils/dom-helpers.js";
+import { createVector3, createRaycaster } from "../utils/three-helpers.js";
 
 const NAV = "#navmesh";
 const RIG = "#rig";

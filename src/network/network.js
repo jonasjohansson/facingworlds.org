@@ -1,10 +1,12 @@
 // network.js (ES module) — robust init: waits for DOM, scene, and #soldier
 import { waitForElement, waitForSceneLoaded, createEntity, addClass, setDataAttribute } from "../utils/dom-helpers.js";
 import { createEuler } from "../utils/three-helpers.js";
+import { getWebSocketUrl, log } from "../utils/environment.js";
+import { handleError, wrapAsync } from "../utils/error-handler.js";
+import { GAME_CONFIG } from "../config/game-config.js";
 
 export function startNetwork() {
-  const WS_URL = "ws://localhost:8080";
-  //WS_URL = "https://unrealfest-server.onrender.com";
+  const WS_URL = getWebSocketUrl();
   let ws,
     myId = null;
   let scene = null;
@@ -164,9 +166,8 @@ export function startNetwork() {
       if (!myId || !rig) return;
       const o = rig.object3D;
 
-      // Get the character's rotation (not the rig's)
-      const soldier = rig.querySelector("#soldier");
-      const yRotation = soldier && soldier.object3D ? soldier.object3D.rotation.y : 0;
+      // Get the rig's rotation (which is controlled by E/Q keys)
+      const yRotation = o.rotation.y;
 
       // Debug: log what we're sending
       console.log(

@@ -4,9 +4,11 @@ const crypto = require("crypto");
 const PORT = process.env.PORT || 8080;
 const PLAYER_HP = 100;
 const MAX_NAME = 24;
+const POSE_UPDATE_INTERVAL = 100; // ms - throttle pose updates
 
 const players = new Map(); // id -> {id,name,hp,x,y,z,ry}
 const clients = new Map(); // ws -> id
+const lastPoseUpdate = new Map(); // id -> timestamp
 
 const wss = new WebSocketServer({ port: PORT }, () => console.log(`✅ ws server on :${PORT}`));
 
@@ -54,25 +56,41 @@ wss.on("connection", (ws) => {
         broadcast({ type: "spawn", player: me });
         break;
       }
+
       case "pose": {
+        const now = Date.now();
+        const lastUpdate = lastPoseUpdate.get(id) || 0;
+
+        // Throttle pose updates to prevent spam
+        if (now - lastUpdate < POSE_UPDATE_INTERVAL) {
+          return;
+        }
+
+        // Validate and update position
         if (Number.isFinite(m.x)) me.x = +m.x;
         if (Number.isFinite(m.y)) me.y = +m.y;
         if (Number.isFinite(m.z)) me.z = +m.z;
         if (Number.isFinite(m.ry)) me.ry = +m.ry;
+
+        lastPoseUpdate.set(id, now);
         broadcastExcept(ws, { type: "pose", id, x: me.x, y: me.y, z: me.z, ry: me.ry });
         break;
       }
+
       case "fire": {
         broadcast({ type: "fire", id, origin: m.origin, dir: m.dir, t: Date.now() });
         break;
       }
+
       case "clientHit": {
         const victim = players.get(m.victimId);
         if (!victim || victim.hp <= 0 || victim.id === id) break;
-        //const dmg = Number.isFinite(m.dmg) ? Math.max(1, m.dmg | 0) : 20;
-        dmg = 3;
+
+        // Fixed: Added proper variable declaration
+        const dmg = 20; // Fixed damage amount
         victim.hp = Math.max(0, victim.hp - dmg);
         broadcast({ type: "hit", victimId: victim.id, by: id, hp: victim.hp });
+
         if (victim.hp <= 0) {
           broadcast({ type: "death", id: victim.id, by: id });
           setTimeout(() => {
@@ -93,6 +111,7 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     players.delete(id);
     clients.delete(ws);
+    lastPoseUpdate.delete(id);
     broadcast({ type: "leave", id });
   });
 });
@@ -100,10 +119,12 @@ wss.on("connection", (ws) => {
 function send(ws, msg) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
 }
+
 function broadcast(msg) {
   const data = JSON.stringify(msg);
   for (const ws of wss.clients) if (ws.readyState === ws.OPEN) ws.send(data);
 }
+
 function broadcastExcept(exceptWs, msg) {
   const data = JSON.stringify(msg);
   for (const ws of wss.clients) if (ws !== exceptWs && ws.readyState === ws.OPEN) ws.send(data);
