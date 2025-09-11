@@ -23,8 +23,8 @@ AFRAME.registerComponent("rotate-yaw", {
     if (!dt) return;
     let d = 0;
     const step = this.data.speed * (dt / 1000);
-    if (this.keys["KeyQ"]) d -= step;
-    if (this.keys["KeyE"]) d += step;
+    if (this.keys["KeyQ"]) d += step;
+    if (this.keys["KeyE"]) d -= step;
     if (d !== 0) {
       this.yaw += d;
       this.el.setAttribute("rotation", `0 ${this.yaw} 0`);
