@@ -9,6 +9,9 @@
     <script src="./checker.js"></script>
     <script src="./targets.js"></script>
     <script src="./blaster.js"></script>
+    <script src="./health.js"></script>
+    <script src="./remote-avatar.js"></script>
+    <script src="./network.js"></script>
     <style>
       body {
         margin: 0;
@@ -37,10 +40,11 @@
       <a-entity
         id="soldier"
         gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
-        position="0 0 0"
-        shadow="cast:true"
+        class="avatar"
+        data-player-id="LOCAL"
         minichar="idleIdx:0; walkIdx:3; runIdx:1"
-        blaster="bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00">
+        blaster="bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:true"
+        health="max:100; current:100">
       </a-entity>
     </a-scene>
     <script>
