@@ -1,6 +1,6 @@
 // network.js (robust init: waits for DOM, scene, and #soldier)
 (() => {
-  WS_URL = "ws://localhost:8080";
+  WS_URL = "https://unrealfest-server.onrender.com";
 
   let ws,
     myId = null;
