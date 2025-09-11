@@ -2,86 +2,46 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Dungeon + NavMesh — 1st/3rd + Map View</title>
+    <title>A-Frame — Minimal Soldier (Idle/Walk/Run)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-    <!-- Load ONCE -->
     <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
-
-    <!-- Your scripts -->
-    <script src="debug.js"></script>
-    <script src="player.js"></script>
-    <script src="spawn.js"></script>
-
+    <script src="./character.js"></script>
     <style>
-      html,
       body {
         margin: 0;
-        height: 100%;
-        background: #000;
-      }
-      .hint {
-        position: fixed;
-        left: 12px;
-        bottom: 12px;
-        color: #9effff;
-        font: 14px/1.2 monospace;
-        opacity: 0.75;
+        background: #5e5d5d;
+        font-family: system-ui;
       }
     </style>
   </head>
   <body>
-    <!-- Add camera-manager on the scene -->
-    <a-scene renderer="colorManagement:true" camera-manager>
-      <a-assets>
-        <a-asset-item id="world-gltf" src="FacingWorlds2.gltf"></a-asset-item>
-        <a-asset-item id="navmesh-gltf" src="FacingWorlds2Navmesh.gltf"></a-asset-item>
-      </a-assets>
+    <a-scene background="color: #5e5d5d" shadow="type: pcfsoft">
+      <!-- STATIC camera (no look-controls, no WASD) -->
+      <a-entity id="cam" camera look-controls="enabled:false" position="0 1.8 6"></a-entity>
 
-      <!-- Lights -->
-      <a-entity light="type: directional; intensity: 0.9" position="5 10 5"></a-entity>
-      <a-light type="ambient" intensity="0.35"></a-light>
+      <!-- lights + ground -->
+      <a-entity light="type: hemisphere; intensity: 1.5; color: #fff; groundColor: #888" position="0 10 0"></a-entity>
+      <a-entity light="type: directional; intensity: 3; castShadow: true" position="-2 5 -3"></a-entity>
+      <a-plane
+        rotation="-90 0 0"
+        width="200"
+        height="200"
+        material="color: #808080; metalness: 0; roughness: 1"
+        shadow="receive: true"></a-plane>
 
-      <!-- World + NavMesh -->
-      <a-entity id="world" gltf-model="#world-gltf" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
+      <!-- character -->
       <a-entity
-        id="navmesh"
-        gltf-model="#navmesh-gltf"
-        nav-mesh
-        debug-material
-        visible="true"
+        id="soldier"
+        gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
         position="0 0 0"
-        rotation="0 0 0"
-        scale="1 1 1"></a-entity>
-
-      <!-- Player rig (built-in movement-controls) -->
-      <a-entity
-        id="rig"
-        movement-controls="constrainToNavMesh: true; speed: 0.4"
-        navmesh-constraint="navmesh: #navmesh; fall: 8; height: 0.12"
-        rotate-yaw
-        position="0 0 0">
-        <a-box id="character" width="0.6" height="1.2" depth="0.6" position="0 0.6 0" color="#58a6ff" shadow></a-box>
-
-        <!-- Player camera: third-person by default; Space toggles 1st/3rd -->
-        <a-entity
-          id="cam"
-          camera
-          look-controls="pointerLockEnabled: true"
-          camera-toggle="third: 0 1.8 3; first: 0 1.6 0; lerp: 0.15"
-          position="0 1.8 3"></a-entity>
-      </a-entity>
-
-      <a-entity id="fixedcam" camera="active: false" frame-map="target: #world; pad: 1.2; topDown: true"> </a-entity>
-      <!-- Map camera: orbit around the rig, top-downish. Starts inactive. -->
-      <a-entity
-        id="mapcam"
-        camera="active: false"
-        orbit-camera="target: #rig; radius: 10; minRadius: 4; maxRadius: 30; polar: 65; azimuth: 30; rotateSpeed: 0.25; zoomSpeed: 1; height: 0">
+        shadow="cast: true"
+        minichar="
+        idleIdx: 0; walkIdx: 3; runIdx: 1;  /* matches the three.js demo */
+        yawOffsetDeg: 180;                   /* flip if facing backwards (try 0 or 180) */
+        fade: 0.35; walkSpeed: 1.6; runSpeed: 3.2;  /* slower, stays in frame */
+        boundsRadius: 5                      /* keep in view; set -1 to disable */
+      ">
       </a-entity>
     </a-scene>
-
-    <div class="hint">Move: W/A/S/D · Rotate: Q/E · Toggle 1st/3rd: Space · Toggle Map View: M · Toggle NavMesh: G</div>
   </body>
 </html>

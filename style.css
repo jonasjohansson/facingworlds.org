@@ -1,0 +1,14 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+}
+.hint {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  color: #9effff;
+  font: 14px/1.2 monospace;
+  opacity: 0.75;
+}

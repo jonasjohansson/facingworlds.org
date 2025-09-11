@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>A-Frame Soldier — stable minimal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+    <script src="./character.js"></script>
+    <script src="./checker.js"></script>
+    <style>
+      body {
+        margin: 0;
+        background: #5e5d5d;
+      }
+    </style>
+  </head>
+  <body>
+    <a-scene background="color:#5e5d5d" shadow="type:pcfsoft" tabindex="0">
+      <!-- fixed camera (no look-controls) -->
+      <a-entity camera position="0 2 8" look-controls="enabled:false"></a-entity>
+
+      <!-- lights -->
+      <a-entity light="type:hemisphere; intensity:1.5; color:#fff; groundColor:#888" position="0 10 0"></a-entity>
+      <a-entity light="type:directional; intensity:3; castShadow:true" position="-2 5 -3"></a-entity>
+
+      <!-- ground -->
+      <a-plane
+        rotation="-90 0 0"
+        width="200"
+        height="200"
+        checker-floor="squares:16; color1:#808080; color2:#505050"
+        shadow="receive:true"></a-plane>
+
+      <!-- soldier -->
+      <a-entity
+        gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
+        minichar="walkSpeed:1.9; runSpeed:4.5; jumpHeight:1.4; gravity:9.8; jumpTimeScale:2.0; takeoffBoost:1.1; airDrag:0.05; airAccel:7.0">
+      </a-entity>
+    </a-scene>
+  </body>
+</html>
