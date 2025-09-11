@@ -8,7 +8,7 @@
       <a-assets>
         <a-asset-item
           id="world-gltf"
-          src="src/3d/map.gltf"></a-asset-item>
+          src="src/3d/map_pbr.gltf"></a-asset-item>
         <a-asset-item
           id="navmesh-gltf"
           src="src/3d/map_navmesh.gltf"></a-asset-item>
@@ -28,6 +28,8 @@
       <a-entity
         id="world"
         gltf-model="#world-gltf"
+        gltf-animation-pointer="enabled:true; autoPlay:true; speed:1.0"
+        advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.3; maxValue:1.0; emissiveGlow:true"
         position="0 0 0"
         rotation="0 0 0"
         scale="1 1 1"></a-entity>
@@ -82,8 +84,16 @@
         rotation="-90 0 0">
       </a-entity>
 
+      <!-- Animated Curtain -->
+      <a-entity
+        animated-curtain="width:12; height:8; windStrength:1.5; windSpeed:1.2; color:#8B4513; texture:fabric; opacity:0.8; position:8 4 0; rotation:0 90 0">
+      </a-entity>
+
       <!-- Camera Controls (press C to cycle) -->
       <a-entity camera-controls="cycleKey: KeyC"></a-entity>
+
+      <!-- GUI Controls -->
+      <a-entity gui-controls="enabled:true; position:10 10 0"></a-entity>
     </a-scene>
     <script
       type="module"

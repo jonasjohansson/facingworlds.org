@@ -20,6 +20,12 @@ import "../components/health.js";
 import "../components/remote-avatar.js";
 import "../components/camera-controls.js";
 import "../components/rotate-yaw.js";
+import "../components/animation-pointer.js";
+import "../components/animated-materials.js";
+import "../components/animated-curtain.js";
+import "../components/gltf-animation-pointer.js";
+import "../components/advanced-material-animation.js";
+import "../components/gui-controls.js";
 
 // Import network and spawn modules
 import startNetwork from "../network/network.js";
