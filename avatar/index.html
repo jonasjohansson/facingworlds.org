@@ -1,32 +1,28 @@
-<!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="utf-8" />
-    <title>A-Frame Soldier — stable minimal</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
-    <script src="./character.js"></script>
-    <script src="./checker.js"></script>
-    <script src="./targets.js"></script>
-    <script src="./blaster.js"></script>
-    <script src="./health.js"></script>
-    <script src="./remote-avatar.js"></script>
-    <script src="./network.js"></script>
-    <style>
-      body {
-        margin: 0;
-        background: #5e5d5d;
-      }
-    </style>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
   </head>
   <body>
-    <a-scene background="color:#5e5d5d" shadow="type:pcfsoft" tabindex="0">
+    <a-scene background="color:black">
+      <a-assets>
+        <a-asset-item
+          id="world-gltf"
+          src="map.gltf"></a-asset-item>
+        <a-asset-item
+          id="navmesh-gltf"
+          src="map_navmesh.gltf"></a-asset-item>
+      </a-assets>
+
       <!-- fixed camera (no look-controls) -->
-      <a-entity camera position="0 2 8" look-controls="enabled:false"></a-entity>
 
       <!-- lights -->
-      <a-entity light="type:hemisphere; intensity:1.5; color:#fff; groundColor:#888" position="0 10 0"></a-entity>
-      <a-entity light="type:directional; intensity:3; castShadow:true" position="-2 5 -3"></a-entity>
+      <a-entity
+        light="type:hemisphere; intensity:1.5; color:#fff; groundColor:#888"
+        position="0 10 0"></a-entity>
+      <a-entity
+        light="type:directional; intensity:3; castShadow:true"
+        position="-2 5 -3"></a-entity>
 
       <!-- ground -->
       <a-plane
@@ -36,27 +32,68 @@
         checker-floor="squares:16; color1:#808080; color2:#505050"
         shadow="receive:true"></a-plane>
 
-      <!-- soldier -->
+      <!-- World + NavMesh -->
       <a-entity
-        id="soldier"
-        gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
-        class="avatar"
-        data-player-id="LOCAL"
-        minichar="idleIdx:0; walkIdx:3; runIdx:1"
-        blaster="bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:true"
-        health="max:100; current:100">
+        id="world"
+        gltf-model="#world-gltf"
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"></a-entity>
+      <a-entity
+        id="navmesh"
+        gltf-model="#navmesh-gltf"
+        nav-mesh
+        debug-material
+        visible="true"
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"></a-entity>
+
+      <!-- soldier -->
+
+      <!-- Player rig (built-in movement-controls) -->
+      <a-entity
+        id="rig"
+        movement-controls="constrainToNavMesh: true; speed: 0.4"
+        navmesh-constraint="navmesh: #navmesh; fall: 8; height: 0.12"
+        position="0 0 0">
+        <a-entity
+          id="soldier"
+          gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
+          blaster="bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:true"
+          character="idleIdx:0; walkIdx:3; runIdx:1"
+          health="max:100; current:100">
+        </a-entity>
+
+        <!-- 1st Person Camera -->
+        <a-entity
+          id="cam"
+          camera="active: true"
+          look-controls="pointerLockEnabled: true"
+          position="0 1.8 0">
+        </a-entity>
       </a-entity>
+
+      <!-- 3rd Person Camera (orbit around rig) -->
+      <a-entity
+        id="mapcam"
+        camera="active: false"
+        orbit-camera="target: #rig; radius: 6; minRadius: 3; maxRadius: 15; polar: 15; azimuth: 0; rotateSpeed: 0.25; zoomSpeed: 1; height: 1.5">
+      </a-entity>
+
+      <!-- Fixed Overhead Camera -->
+      <a-entity
+        id="fixedcam"
+        camera="active: false"
+        position="0 40 0"
+        rotation="-90 0 0">
+      </a-entity>
+
+      <!-- Camera Controls (press C to cycle) -->
+      <a-entity camera-controls="cycleKey: KeyC"></a-entity>
     </a-scene>
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        const scene = document.querySelector("a-scene");
-        const spawn = () => {
-          // make sure targets.js is loaded BEFORE this runs
-          scene.systems["target-spawner"].spawnRandom(25, { radiusMin: 6, radiusMax: 18 });
-        };
-        if (scene.hasLoaded) spawn();
-        else scene.addEventListener("loaded", spawn);
-      });
-    </script>
+    <script
+      type="module"
+      src="./js/main.js"></script>
   </body>
 </html>

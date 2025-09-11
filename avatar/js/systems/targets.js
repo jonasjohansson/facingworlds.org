@@ -1,4 +1,6 @@
 // targets.js — target cubes that react to hits and despawn after 10
+import { createEntity } from "../utils/dom-helpers.js";
+import { createBox3, createSphere } from "../utils/three-helpers.js";
 
 AFRAME.registerSystem("target-spawner", {
   spawnRandom(count = 20, { radiusMin = 6, radiusMax = 15, y = 0.5, size = 1.0 } = {}) {
@@ -9,12 +11,13 @@ AFRAME.registerSystem("target-spawner", {
       const x = Math.cos(ang) * r;
       const z = Math.sin(ang) * r;
       const s = 0.6 + Math.random() * 0.8;
-      const e = document.createElement("a-entity");
-      e.setAttribute("position", `${x} ${y} ${z}`);
-      e.setAttribute("geometry", `primitive: box; width:${s}; height:${2 + s}; depth:${s}`);
-      e.setAttribute("material", `color: #4CC3D9; metalness: 0; roughness: 1`);
-      e.setAttribute("shadow", "cast:true; receive:true");
-      e.setAttribute("target", `maxHits:10`);
+      const e = createEntity("a-entity", {
+        position: `${x} ${y} ${z}`,
+        geometry: `primitive: box; width:${s}; height:${2 + s}; depth:${s}`,
+        material: `color: #4CC3D9; metalness: 0; roughness: 1`,
+        shadow: "cast:true; receive:true",
+        target: `maxHits:10`,
+      });
       scene.appendChild(e);
     }
   },
@@ -26,8 +29,8 @@ AFRAME.registerComponent("target", {
   },
   init() {
     this.hits = 0;
-    this._box = new AFRAME.THREE.Box3();
-    this._sphere = new AFRAME.THREE.Sphere();
+    this._box = createBox3();
+    this._sphere = createSphere();
     this._color = new AFRAME.THREE.Color();
     // For collision queries by bullets:
     this.el.classList.add("target");

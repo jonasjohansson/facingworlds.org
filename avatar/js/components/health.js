@@ -20,7 +20,7 @@ AFRAME.registerComponent("health", {
     this.el.appendChild(this.label);
 
     // global damage screen overlay (for local player only)
-    if (this.el.id === "soldier") {
+    if (this.el.id === "soldier" && this.el.closest("#rig")) {
       this.flashOverlay = document.createElement("div");
       Object.assign(this.flashOverlay.style, {
         position: "fixed",
@@ -46,7 +46,7 @@ AFRAME.registerComponent("health", {
 
       this.updateLabel();
 
-      if (tookDamage && this.el.id === "soldier") {
+      if (tookDamage && this.el.id === "soldier" && this.el.closest("#rig")) {
         this.flashScreen();
       }
 

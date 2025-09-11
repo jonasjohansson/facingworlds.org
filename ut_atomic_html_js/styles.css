@@ -1,0 +1,5 @@
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:#0b0e15;color:#e7ebf1;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#0f1422;border-bottom:1px solid #1b2236}
+#hud{display:flex;gap:16px;font-variant-numeric:tabular-nums}
+footer{position:fixed;bottom:0;left:0;right:0;padding:6px 12px;font-size:12px;opacity:.75;background:linear-gradient(180deg,transparent,rgba(0,0,0,.25))}
+a-scene{position:fixed;inset:48px 0 28px 0}
