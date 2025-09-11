@@ -7,6 +7,8 @@
     <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
     <script src="./character.js"></script>
     <script src="./checker.js"></script>
+    <script src="./targets.js"></script>
+    <script src="./blaster.js"></script>
     <style>
       body {
         margin: 0;
@@ -33,9 +35,24 @@
 
       <!-- soldier -->
       <a-entity
+        id="soldier"
         gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
-        minichar="walkSpeed:1.9; runSpeed:4.5; jumpHeight:1.4; gravity:9.8; jumpTimeScale:2.0; takeoffBoost:1.1; airDrag:0.05; airAccel:7.0">
+        position="0 0 0"
+        shadow="cast:true"
+        minichar="idleIdx:0; walkIdx:3; runIdx:1"
+        blaster="bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00">
       </a-entity>
     </a-scene>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const scene = document.querySelector("a-scene");
+        const spawn = () => {
+          // make sure targets.js is loaded BEFORE this runs
+          scene.systems["target-spawner"].spawnRandom(25, { radiusMin: 6, radiusMax: 18 });
+        };
+        if (scene.hasLoaded) spawn();
+        else scene.addEventListener("loaded", spawn);
+      });
+    </script>
   </body>
 </html>
