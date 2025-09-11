@@ -2,6 +2,13 @@
 import { GAME_CONFIG } from "../config/game-config.js";
 
 export function isDevelopment() {
+  // Check for URL parameter override
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has("mode")) {
+    return urlParams.get("mode") === "dev";
+  }
+
+  // Default hostname-based detection
   return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
 }
 
