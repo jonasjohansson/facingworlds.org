@@ -4,7 +4,13 @@
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
   </head>
   <body>
-    <a-scene background="color:black">
+    <a-scene>
+      <!-- Space Environment -->
+      <a-entity
+        space-environment="enabled:true; starCount:2000; asteroidCount:15; asteroidSpeed:0.5; nebulaEnabled:true; backgroundColor:#000011"></a-entity>
+
+      <!-- Background Music -->
+      <a-entity background-music="enabled:true; volume:0.8; loop:true; autoplay:false; startOnFirstBullet:true"></a-entity>
       <a-assets>
         <a-asset-item
           id="world-gltf"
@@ -12,6 +18,16 @@
         <a-asset-item
           id="navmesh-gltf"
           src="src/3d/map_navmesh.gltf"></a-asset-item>
+
+        <!-- Audio Assets -->
+        <audio
+          id="background-music"
+          src="src/audio/110-van_den_bos--foregone_destruction-i.mp3"
+          preload="auto"></audio>
+        <audio
+          id="fire-sound"
+          src="src/audio/fire.wav"
+          preload="auto"></audio>
       </a-assets>
 
       <!-- fixed camera (no look-controls) -->
@@ -93,7 +109,7 @@
       <a-entity camera-controls="cycleKey: KeyC"></a-entity>
 
       <!-- GUI Controls -->
-      <a-entity gui-controls="enabled:true; position:10 10 0"></a-entity>
+      <a-entity gui-controls="enabled:false; position:10 10 0"></a-entity>
     </a-scene>
     <script
       type="module"

@@ -19,6 +19,57 @@ AFRAME.registerComponent("bullet", {
     this._sphere = createSphere(this.data.radius);
     this._tmp = createVector3();
     this._box = createBox3();
+
+    // Play bullet sound when created
+    this.playBulletSound();
+
+    // Emit bullet-fired event for background music
+    this.el.sceneEl.emit("bullet-fired");
+  },
+
+  playBulletSound() {
+    // Use HTML5 audio for simpler, more reliable sound playback
+    try {
+      const audio = new Audio("src/audio/fire.wav");
+      audio.volume = 0.3;
+      audio.play().catch((error) => {
+        console.warn("[bullet] Failed to play fire.wav, using fallback:", error);
+        this.createFallbackSound();
+      });
+    } catch (error) {
+      console.warn("[bullet] Audio error, using fallback:", error);
+      this.createFallbackSound();
+    }
+  },
+
+  createFallbackSound() {
+    // Create a simple bullet sound effect as fallback
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+      if (audioContext.state === "suspended") {
+        audioContext.resume();
+      }
+
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      // High frequency sound for bullet
+      oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.1);
+      oscillator.type = "square";
+
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (error) {
+      console.warn("[bullet] Fallback sound failed:", error);
+    }
   },
 
   tick(time, dtMs) {

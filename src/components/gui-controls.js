@@ -40,6 +40,7 @@ AFRAME.registerComponent("gui-controls", {
     // Create controls for animated materials
     this.createMaterialControls();
     this.createCurtainControls();
+    this.createAudioControls();
     this.createGeneralControls();
 
     // Add to document
@@ -183,6 +184,35 @@ AFRAME.registerComponent("gui-controls", {
     // Hide/Show GUI
     this.addButton(section, "Hide GUI", () => {
       this.toggleGUI();
+    });
+  },
+
+  createAudioControls() {
+    const section = this.createSection("Audio");
+
+    // Background music volume
+    this.addSlider(section, "Music Volume", "musicVolume", 0.3, 0, 1, 0.1, (value) => {
+      this.updateBackgroundMusic("volume", value);
+    });
+
+    // Start music on first bullet
+    this.addToggle(section, "Start Music on First Bullet", "startOnFirstBullet", true, (value) => {
+      this.updateBackgroundMusic("startOnFirstBullet", value);
+    });
+
+    // Space environment toggle
+    this.addToggle(section, "Space Environment", "spaceEnvironment", true, (value) => {
+      this.updateSpaceEnvironment("enabled", value);
+    });
+
+    // Asteroid count
+    this.addSlider(section, "Asteroid Count", "asteroidCount", 15, 0, 30, 1, (value) => {
+      this.updateSpaceEnvironment("asteroidCount", value);
+    });
+
+    // Asteroid speed
+    this.addSlider(section, "Asteroid Speed", "asteroidSpeed", 0.5, 0, 2, 0.1, (value) => {
+      this.updateSpaceEnvironment("asteroidSpeed", value);
     });
   },
 
@@ -356,6 +386,26 @@ AFRAME.registerComponent("gui-controls", {
       worldEntity.setAttribute("advanced-material-animation", property, value);
     } else {
       console.warn("[gui-controls] World entity or advanced-material-animation component not found");
+    }
+  },
+
+  updateBackgroundMusic(property, value) {
+    const musicEntity = document.querySelector("[background-music]");
+    if (musicEntity && musicEntity.components["background-music"]) {
+      console.log(`[gui-controls] Updating background-music: ${property} = ${value}`);
+      musicEntity.setAttribute("background-music", property, value);
+    } else {
+      console.warn("[gui-controls] Background music entity not found");
+    }
+  },
+
+  updateSpaceEnvironment(property, value) {
+    const spaceEntity = document.querySelector("[space-environment]");
+    if (spaceEntity && spaceEntity.components["space-environment"]) {
+      console.log(`[gui-controls] Updating space-environment: ${property} = ${value}`);
+      spaceEntity.setAttribute("space-environment", property, value);
+    } else {
+      console.warn("[gui-controls] Space environment entity not found");
     }
   },
 
