@@ -5,6 +5,7 @@ import { createVector3 } from "../utils/three-helpers.js";
 
 AFRAME.registerComponent("blaster", {
   schema: {
+    enabled: { type: "boolean", default: true },
     bulletSpeed: { type: "number", default: 18 }, // m/s
     bulletRadius: { type: "number", default: 0.08 }, // m
     lifeSec: { type: "number", default: 2.0 }, // s
@@ -48,7 +49,7 @@ AFRAME.registerComponent("blaster", {
   },
 
   tick(time) {
-    if (!this.isFiring) return;
+    if (!this.data.enabled || !this.isFiring) return;
     const now = time / 1000;
     const minInterval = 1 / Math.max(1, this.data.fireRate);
     if (now - this._lastShotAt < minInterval) return;
@@ -57,6 +58,12 @@ AFRAME.registerComponent("blaster", {
   },
 
   _fireOne() {
+    if (!this.data.enabled) {
+      console.log("[blaster] Ignoring fire - component disabled");
+      return;
+    }
+    
+    console.log("[blaster] Firing bullet from blaster component");
     const THREE = AFRAME.THREE;
 
     // Origin = player world pos + muzzle height
@@ -66,6 +73,16 @@ AFRAME.registerComponent("blaster", {
 
     // Direction = player forward (-Z) in world
     const dir = createVector3(0, 0, -1).applyQuaternion(this.el.object3D.quaternion).normalize();
+
+    // Emit shoot event for first-person weapon
+    this.el.emit("shoot", {
+      origin: { x: origin.x, y: origin.y, z: origin.z },
+      dir: { x: dir.x, y: dir.y, z: dir.z },
+      bulletSpeed: this.data.bulletSpeed,
+      bulletRadius: this.data.bulletRadius,
+      lifeSec: this.data.lifeSec,
+      color: this.data.color,
+    });
 
     // Notify multiplayer layer
     this.el.sceneEl.emit("local-fire", {

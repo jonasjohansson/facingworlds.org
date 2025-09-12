@@ -181,9 +181,9 @@ AFRAME.registerComponent("character", {
         const angle = Math.atan2(this.velocity.x, this.velocity.z) + this.facingFix;
         this.targetQuat.setFromAxisAngle(this.up, angle);
 
-        // Smoothly rotate towards movement direction
-        this.currentQuat.slerp(this.targetQuat, 0.1);
-        this.el.object3D.quaternion.copy(this.currentQuat);
+        // Don't rotate the soldier - let the rig handle rotation
+        // this.currentQuat.slerp(this.targetQuat, 0.1);
+        // this.el.object3D.quaternion.copy(this.currentQuat);
       }
     }
 

@@ -28,6 +28,9 @@ import "../components/advanced-material-animation.js";
 import "../components/bullet-audio.js";
 import "../components/background-music.js";
 import "../components/space-environment.js";
+import "../components/first-person-weapon.js";
+import "../components/invisible-to-player.js";
+import "../components/camera-follow.js";
 import "../components/gui-controls.js";
 
 // Import network and spawn modules

@@ -23,16 +23,12 @@ AFRAME.registerComponent("camera-controls", {
   },
 
   setupCameras() {
-    // Find all camera entities
+    // Find camera entities (only 2 cameras now)
     this.cameras.firstPerson = document.querySelector("#cam");
-    this.cameras.thirdPerson = document.querySelector("#mapcam");
     this.cameras.fixed = document.querySelector("#fixedcam");
 
     if (!this.cameras.firstPerson) {
       console.warn("[camera-controls] First person camera (#cam) not found");
-    }
-    if (!this.cameras.thirdPerson) {
-      console.warn("[camera-controls] Third person camera (#mapcam) not found");
     }
     if (!this.cameras.fixed) {
       console.warn("[camera-controls] Fixed camera (#fixedcam) not found");
@@ -51,10 +47,10 @@ AFRAME.registerComponent("camera-controls", {
   },
 
   cycleCamera() {
-    this.currentMode = (this.currentMode + 1) % 3;
+    this.currentMode = (this.currentMode + 1) % 2;
     this.switchCamera();
 
-    const modeNames = ["1st Person", "3rd Person", "Fixed Overhead"];
+    const modeNames = ["1st Person", "Bird's Eye"];
     console.log(`[camera-controls] Switched to ${modeNames[this.currentMode]} view`);
   },
 
@@ -68,7 +64,7 @@ AFRAME.registerComponent("camera-controls", {
 
     // Activate the current camera
     let activeCamera = null;
-    const modeNames = ["1st Person", "3rd Person", "Fixed Overhead"];
+    const modeNames = ["1st Person", "Bird's Eye"];
 
     switch (this.currentMode) {
       case 0: // 1st Person
@@ -80,31 +76,12 @@ AFRAME.registerComponent("camera-controls", {
         }
         break;
 
-      case 1: // 3rd Person
-        activeCamera = this.cameras.thirdPerson;
-        if (activeCamera) {
-          activeCamera.setAttribute("camera", "active", true);
-          // Configure for Unreal Tournament-style 3rd person view
-          activeCamera.setAttribute("orbit-camera", {
-            target: "#rig",
-            radius: 6,
-            minRadius: 3,
-            maxRadius: 15,
-            polar: 15, // Lower angle for more behind-the-character view
-            azimuth: 0,
-            rotateSpeed: 0.25,
-            zoomSpeed: 1,
-            height: 1.5, // Slightly above the character
-          });
-        }
-        break;
-
-      case 2: // Fixed Overhead
+      case 1: // Bird's Eye
         activeCamera = this.cameras.fixed;
         if (activeCamera) {
           activeCamera.setAttribute("camera", "active", true);
           // Position fixed camera straight above looking down
-          activeCamera.setAttribute("position", "0 40 0");
+          activeCamera.setAttribute("position", "0 60 0");
           activeCamera.setAttribute("rotation", "-90 0 0");
         }
         break;

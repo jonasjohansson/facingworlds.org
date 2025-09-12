@@ -19,6 +19,11 @@
           id="navmesh-gltf"
           src="src/3d/map_navmesh.gltf"></a-asset-item>
 
+        <!-- Weapon Assets -->
+        <a-asset-item
+          id="enforcer-weapon"
+          src="src/3d/enforcer.glb"></a-asset-item>
+
         <!-- Audio Assets -->
         <audio
           id="background-music"
@@ -34,10 +39,10 @@
 
       <!-- lights -->
       <a-entity
-        light="type:hemisphere; intensity:1.5; color:#fff; groundColor:#888"
+        light="type:hemisphere; intensity:0.8; color:#fff; groundColor:#888"
         position="0 10 0"></a-entity>
       <a-entity
-        light="type:directional; intensity:3; castShadow:true"
+        light="type:directional; intensity:1.5; castShadow:true"
         position="-2 5 -3"></a-entity>
 
       <!-- World + NavMesh -->
@@ -45,7 +50,7 @@
         id="world"
         gltf-model="#world-gltf"
         gltf-animation-pointer="enabled:true; autoPlay:true; speed:1.0"
-        advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.3; maxValue:1.0; emissiveGlow:true"
+        advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
         position="0 0 0"
         rotation="0 0 0"
         scale="1 1 1"></a-entity>
@@ -62,48 +67,64 @@
       <!-- soldier -->
 
       <!-- Player rig (built-in movement-controls) -->
+      <!-- Player Rig (moves and rotates) -->
       <a-entity
         id="rig"
         movement-controls="constrainToNavMesh: true; speed: 0.4"
         navmesh-constraint="navmesh: #navmesh; fall: 8; height: 0.12"
         rotate-yaw
         position="0 0 0">
+        <!-- Soldier Body (follows rig movement, fixed rotation) -->
         <a-entity
           id="soldier"
           gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
-          blaster="bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:true"
+          blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false"
           character="idleIdx:0; walkIdx:3; runIdx:1"
-          health="max:100; current:100">
+          health="max:100; current:100"
+          invisible-to-player="enabled: false"
+          local-player="true"
+          position="0 0 0"
+          rotation="0 0 0">
+          <!-- Weapon (child of soldier, follows body movement) -->
+          <a-entity
+            id="player-weapon"
+            gltf-model="src/3d/enforcer.glb"
+            scale="0.025 0.025 0.025"
+            position="0.15002 1.618 -0.69854">
+            <!-- Muzzle point (position this at the tip of the weapon barrel) -->
+            <a-entity
+              id="weapon-muzzle"
+              position="0 0 -15.6895"
+              geometry="primitive: sphere; radius: 0.01"
+              material="opacity: 0.8; transparent: true; color: red"
+              visible="true">
+            </a-entity>
+          </a-entity>
         </a-entity>
 
-        <!-- 1st Person Camera -->
+        <!-- Camera (child of rig, follows movement and rotation) -->
         <a-entity
           id="cam"
           camera="active: true"
-          look-controls="pointerLockEnabled: true"
-          position="0 1.8 0">
+          look-controls="enabled: false"
+          position="0 2.0 0"
+          first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0"
+          blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false">
         </a-entity>
-      </a-entity>
-
-      <!-- 3rd Person Camera (orbit around rig) -->
-      <a-entity
-        id="mapcam"
-        camera="active: false"
-        orbit-camera="target: #rig; radius: 6; minRadius: 3; maxRadius: 15; polar: 15; azimuth: 0; rotateSpeed: 0.25; zoomSpeed: 1; height: 1.5">
       </a-entity>
 
       <!-- Fixed Overhead Camera -->
       <a-entity
         id="fixedcam"
         camera="active: false"
-        position="0 40 0"
+        position="0 60 0"
         rotation="-90 0 0">
       </a-entity>
 
-      <!-- Animated Curtain -->
+      <!-- Animated Curtain
       <a-entity
         animated-curtain="width:12; height:8; windStrength:1.5; windSpeed:1.2; color:#8B4513; texture:fabric; opacity:0.8; position:8 4 0; rotation:0 90 0">
-      </a-entity>
+      </a-entity> -->
 
       <!-- Camera Controls (press C to cycle) -->
       <a-entity camera-controls="cycleKey: KeyC"></a-entity>

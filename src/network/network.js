@@ -190,6 +190,7 @@ export function startNetwork() {
   function onLocalFire(ev) {
     const { origin, dir } = ev.detail || {};
     send({ type: "fire", origin, dir });
+    // Create visual bullet for local player
     spawnBulletVisual(origin, dir, myId, true);
   }
 
@@ -262,6 +263,11 @@ export function startNetwork() {
     const vx = dir.x * speed,
       vy = dir.y * speed,
       vz = dir.z * speed;
+
+    console.log(`[spawnBulletVisual] Creating bullet at origin:`, origin);
+    console.log(`[spawnBulletVisual] Direction:`, dir);
+    console.log(`[spawnBulletVisual] Velocity:`, { vx, vy, vz });
+
     const b = createEntity("a-entity", {
       position: `${origin.x} ${origin.y} ${origin.z}`,
       geometry: "primitive: sphere; radius: 0.08",
@@ -277,7 +283,13 @@ export function startNetwork() {
         reportHits,
       },
     });
+
+    // Add some debugging attributes
+    b.setAttribute("id", `bullet-${Date.now()}`);
+    b.setAttribute("visible", "true");
+
     scene.appendChild(b);
+    console.log(`[spawnBulletVisual] Bullet created and added to scene`);
   }
 
   // network.js (top-level helper)
