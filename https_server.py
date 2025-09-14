@@ -16,28 +16,6 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         super().end_headers()
     
-    def do_GET(self):
-        # Handle dpdb.json request locally to avoid CORS issues
-        if self.path == '/dpdb.json':
-            try:
-                # Try to serve the local dpdb.json file
-                with open('ar/dpdb.json', 'r') as f:
-                    dpdb_data = f.read()
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(dpdb_data.encode())
-            except FileNotFoundError:
-                # Fallback to minimal dpdb.json if file not found
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                dpdb_data = '{"devices": []}'
-                self.wfile.write(dpdb_data.encode())
-        else:
-            super().do_GET()
 
 # Create the server
 with socketserver.TCPServer(("0.0.0.0", PORT), MyHTTPRequestHandler) as httpd:

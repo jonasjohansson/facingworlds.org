@@ -9,11 +9,16 @@
     <link
       href="demo.css"
       rel="stylesheet" />
-    <script src="encantar.min.js"></script>
+    <script src="assets/js/encantar.min.js"></script>
+    <script>
+      // Configure A-Frame to use local DPDB file
+      window.AFRAME = window.AFRAME || {};
+      window.AFRAME.DPDB_URL = "./dpdb.json";
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
-    <script src="aframe-with-encantar.min.js"></script>
-    <script src="ar-scan-gimmick.min.js"></script>
-    <script src="gltf-anim.min.js"></script>
+    <script src="assets/js/aframe-with-encantar.min.js"></script>
+    <script src="assets/js/ar-scan-gimmick.min.js"></script>
+    <script src="assets/js/gltf-anim.min.js"></script>
   </head>
   <body>
     <!-- The AR scene -->
@@ -45,7 +50,7 @@
                          Make sure to follow the guidelines for images (see the docs) -->
           <ar-reference-image
             name="mage"
-            src="tracker.webp"></ar-reference-image>
+            src="assets/images/tracker.webp"></ar-reference-image>
         </ar-image-tracker>
       </ar-trackers>
 
@@ -147,16 +152,16 @@
       <a-assets>
         <a-asset-item
           id="cat-model"
-          src="cat.glb"></a-asset-item>
+          src="assets/images/cat.glb"></a-asset-item>
         <a-asset-item
           id="mage-model"
-          src="mage.glb"></a-asset-item>
+          src="assets/images/mage.glb"></a-asset-item>
         <img
           id="magic-circle"
-          src="magic-circle.png" />
+          src="assets/images/magic-circle.png" />
         <img
           id="it-works"
-          src="it-works.png" />
+          src="assets/images/it-works.png" />
         <!--
                 <video id="my-video" hidden muted loop playsinline autoplay>
                     <source src="../assets/my-video.webm" type="video/webm" />
