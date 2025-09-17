@@ -14,10 +14,10 @@
       <a-assets>
         <a-asset-item
           id="world-gltf"
-          src="src/3d/map_pbr.gltf"></a-asset-item>
+          src="src/3d/FacingWorlds_tex_4.gltf"></a-asset-item>
         <a-asset-item
           id="navmesh-gltf"
-          src="src/3d/map_navmesh.gltf"></a-asset-item>
+          src="src/3d/map_navmesh_4.gltf"></a-asset-item>
 
         <!-- Weapon Assets -->
         <a-asset-item
@@ -50,7 +50,7 @@
         id="world"
         gltf-model="#world-gltf"
         gltf-animation-pointer="enabled:true; autoPlay:true; speed:1.0"
-        advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
+        -advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
         position="0 0 0"
         rotation="0 0 0"
         scale="1 1 1"></a-entity>
@@ -59,7 +59,7 @@
         gltf-model="#navmesh-gltf"
         nav-mesh
         debug-material
-        visible="true"
+        visible="false"
         position="0 0 0"
         rotation="0 0 0"
         scale="1 1 1"></a-entity>
