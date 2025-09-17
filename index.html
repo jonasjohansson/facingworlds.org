@@ -2,6 +2,46 @@
   <head>
     <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
+    <script>
+      // Pixelated texture component for retro graphics
+      AFRAME.registerComponent("pixelated-texture", {
+        init: function () {
+          this.el.addEventListener("model-loaded", () => {
+            this.applyPixelatedFiltering();
+          });
+        },
+
+        applyPixelatedFiltering: function () {
+          const model = this.el.getObject3D("mesh");
+          if (!model) return;
+
+          model.traverse((child) => {
+            if (child.isMesh && child.material) {
+              // Handle single material
+              if (child.material.map) {
+                this.makeTexturePixelated(child.material.map);
+              }
+
+              // Handle material array
+              if (Array.isArray(child.material)) {
+                child.material.forEach((material) => {
+                  if (material.map) {
+                    this.makeTexturePixelated(material.map);
+                  }
+                });
+              }
+            }
+          });
+        },
+
+        makeTexturePixelated: function (texture) {
+          texture.magFilter = THREE.NearestFilter;
+          texture.minFilter = THREE.NearestFilter;
+          texture.generateMipmaps = false;
+          texture.needsUpdate = true;
+        },
+      });
+    </script>
   </head>
   <body>
     <a-scene>
@@ -51,6 +91,7 @@
         gltf-model="#world-gltf"
         gltf-animation-pointer="enabled:true; autoPlay:true; speed:1.0"
         -advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
+        pixelated-texture
         position="0 0 0"
         rotation="0 0 0"
         scale="1 1 1"></a-entity>
