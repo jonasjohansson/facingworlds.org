@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1, maximum-scale=1" />
+    <title>AR Portal Demo</title>
+
+    <!-- Load A-Frame globally (includes Three.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
+
+    <!-- Suppress Three.js lighting deprecation warning -->
+    <script>
+      // Suppress the useLegacyLights deprecation warning
+      const originalWarn = console.warn;
+      console.warn = function (message) {
+        if (message && message.includes("useLegacyLights has been deprecated")) {
+          return; // Suppress this specific warning
+        }
+        originalWarn.apply(console, arguments);
+      };
+    </script>
+
+    <!-- Load encantar libraries synchronously (required before scene initialization) -->
+    <script src="./assets/libraries/encantar/encantar.min.js"></script>
+    <script src="./assets/libraries/encantar/plugins/aframe-with-encantar.js"></script>
+    <script src="./assets/libraries/encantar/addons/ar-scan-gimmick.min.js"></script>
+    <script src="./assets/libraries/encantar/addons/gltf-anim.min.js"></script>
+  </head>
+  <body>
+    <a-scene
+      encantar="stats: false; gizmos: true"
+      loading-screen="enabled: false"
+      canvas-image-source
+      style="display: none">
+      <ar-sources>
+        <ar-video-source video="#tracker-video"></ar-video-source>
+      </ar-sources>
+
+      <ar-trackers>
+        <ar-image-tracker>
+          <ar-reference-image
+            name="portal"
+            src="assets/images/tracker.jpg"></ar-reference-image>
+        </ar-image-tracker>
+      </ar-trackers>
+
+      <ar-viewport>
+        <ar-hud>
+          <ar-scan-gimmick opacity="0.75"></ar-scan-gimmick>
+        </ar-hud>
+      </ar-viewport>
+
+      <ar-camera></ar-camera>
+
+      <ar-root reference-image="portal">
+        <a-entity
+          position="0 0 0"
+          portal="radius: 1; skyTexture: #sky; animated: false"></a-entity>
+      </ar-root>
+
+      <a-assets>
+        <img
+          id="sky"
+          src="https://images.unsplash.com/photo-1537210249814-b9a10a161ae4?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=2089&q=80" />
+
+        <!-- Game world GLTF model -->
+        <a-asset-item
+          id="facing-worlds-model"
+          src="assets/3d/FacingWorlds_tex_4.gltf"></a-asset-item>
+
+        <!-- Video source for AR tracking -->
+        <video
+          id="tracker-video"
+          autoplay
+          loop
+          muted
+          playsinline
+          style="display: none"></video>
+      </a-assets>
+    </a-scene>
+
+    <script
+      type="module"
+      src="ar.js"></script>
+
+    <script>
+      // Show the AR scene only after the video is ready
+      document.addEventListener("ar-video-ready", () => {
+        console.log("Showing AR scene...");
+        const scene = document.querySelector("a-scene");
+        if (scene) {
+          scene.style.display = "block";
+        }
+      });
+    </script>
+  </body>
+</html>

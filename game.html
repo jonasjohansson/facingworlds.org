@@ -1,0 +1,136 @@
+<html>
+  <head>
+    <link
+      rel="icon"
+      href="data:," />
+    <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
+  </head>
+  <body>
+    <a-scene
+      gltf-viewer-settings
+      console-suppression
+      inspector="enabled: true"
+      loading-screen="enabled: false"
+      xr-mode-ui="enabled: false">
+      <!-- Space Environment -->
+      <a-entity
+        space-environment="enabled:true; starCount:0; asteroidCount:0; asteroidSpeed:0.5; nebulaEnabled:false; backgroundColor:#000000"></a-entity>
+
+      <!-- Background Music -->
+      <a-entity background-music="enabled:true; volume:0.8; loop:true; autoplay:false; startOnFirstBullet:true"></a-entity>
+      <a-assets>
+        <a-asset-item
+          id="world-gltf"
+          src="assets/3d/map5/FacingWorlds_tex_5.gltf"></a-asset-item>
+        <a-asset-item
+          id="navmesh-gltf"
+          src="assets/3d/map_navmesh_4.gltf"></a-asset-item>
+
+        <!-- Weapon Assets -->
+        <a-asset-item
+          id="enforcer-weapon"
+          src="assets/3d/enforcer.glb"></a-asset-item>
+
+        <!-- Audio Assets -->
+        <audio
+          id="background-music"
+          src="assets/audio/110-van_den_bos--foregone_destruction-i.mp3"
+          preload="auto"></audio>
+        <audio
+          id="fire-sound"
+          src="assets/audio/fire.wav"
+          preload="auto"></audio>
+      </a-assets>
+
+      <!-- fixed camera (no look-controls) -->
+
+      <!-- lights - GLTF Viewer Settings
+      <a-entity
+        light="type:hemisphere; intensity:2; color:#dd7134; groundColor:#dd7134"
+        position="0 10 0"></a-entity>
+      <a-entity
+        light="type:directional; intensity:4; color:#db8609; castShadow:true"
+        position="-2 5 -3"></a-entity> -->
+
+      <!-- World + NavMesh -->
+      <a-entity
+        id="world"
+        gltf-model="#world-gltf"
+        gltf-animation-pointer="enabled:true; autoPlay:true; speed:1.0"
+        -advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
+        pixelated-texture
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"></a-entity>
+      <a-entity
+        id="navmesh"
+        gltf-model="#navmesh-gltf"
+        nav-mesh
+        visible="false"
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"></a-entity>
+
+      <!-- soldier -->
+
+      <!-- Player rig (built-in movement-controls) -->
+      <!-- Player Rig (moves and rotates) -->
+      <a-entity
+        id="rig"
+        movement-controls="constrainToNavMesh: true; speed: 0.4; fly: false"
+        rotate-yaw
+        terrain-follow="enabled: false; smoothing: 0.05; maxTilt: 15; raycastDistance: 2; updateRate: 30"
+        position="0 0 0">
+        <!-- Soldier Body (follows rig movement, fixed rotation) -->
+        <a-entity
+          id="soldier"
+          gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
+          blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false"
+          character="idleIdx:0; walkIdx:3; runIdx:1"
+          health="max:100; current:100"
+          invisible-to-player="enabled: true"
+          local-player="true"
+          position="0 0 0"
+          rotation="0 0 0">
+          <!-- Weapon (child of soldier, follows body movement) -->
+          <a-entity
+            id="player-weapon"
+            gltf-model="assets/3d/enforcer.glb"
+            scale="0.025 0.025 0.025"
+            position="0.15002 1.618 -0.69854">
+            <!-- Muzzle point (position this at the tip of the weapon barrel) -->
+            <a-entity
+              id="weapon-muzzle"
+              position="0 0 -15.6895"
+              geometry="primitive: sphere; radius: 0.01"
+              material="opacity: 0.8; transparent: true; color: red"
+              visible="true">
+            </a-entity>
+          </a-entity>
+        </a-entity>
+
+        <!-- Camera (child of rig, follows movement and rotation) -->
+        <a-entity
+          id="cam"
+          camera="active: true"
+          look-controls="enabled: false"
+          position="0 2.0 0"
+          first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0"
+          blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false">
+        </a-entity>
+      </a-entity>
+
+      <!-- Fixed Overhead Camera -->
+      <a-entity
+        id="fixedcam"
+        camera="active: false"
+        position="0 60 0"
+        rotation="-90 0 0">
+      </a-entity>
+    </a-scene>
+    <script
+      type="module"
+      src="game.js"></script>
+  </body>
+</html>

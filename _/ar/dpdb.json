@@ -1,0 +1,16 @@
+{
+  "devices": [
+    {
+      "userAgent": ".*",
+      "width": 1920,
+      "height": 1080,
+      "dpr": 1,
+      "dpi": 96,
+      "diagonal": 5.5,
+      "userAgentData": {
+        "mobile": false,
+        "platform": "Desktop"
+      }
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+<html>
+  <head>
+    <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
+    <script>
+      // Pixelated texture component for retro graphics
+      AFRAME.registerComponent("pixelated-texture", {
+        init: function () {
+          this.el.addEventListener("model-loaded", () => {
+            this.applyPixelatedFiltering();
+          });
+        },
+
+        applyPixelatedFiltering: function () {
+          const model = this.el.getObject3D("mesh");
+          if (!model) return;
+
+          model.traverse((child) => {
+            if (child.isMesh && child.material) {
+              // Handle single material
+              if (child.material.map) {
+                this.makeTexturePixelated(child.material.map);
+              }
+
+              // Handle material array
+              if (Array.isArray(child.material)) {
+                child.material.forEach((material) => {
+                  if (material.map) {
+                    this.makeTexturePixelated(material.map);
+                  }
+                });
+              }
+            }
+          });
+        },
+
+        makeTexturePixelated: function (texture) {
+          texture.magFilter = THREE.NearestFilter;
+          texture.minFilter = THREE.NearestFilter;
+          texture.generateMipmaps = false;
+          texture.needsUpdate = true;
+        },
+      });
+    </script>
+  </head>
+  <body>
+    <a-scene>
+      <!-- Space Environment -->
+      <a-entity
+        space-environment="enabled:true; starCount:2000; asteroidCount:15; asteroidSpeed:0.5; nebulaEnabled:true; backgroundColor:#000011"></a-entity>
+
+      <!-- Background Music -->
+      <a-entity background-music="enabled:true; volume:0.8; loop:true; autoplay:false; startOnFirstBullet:true"></a-entity>
+      <a-assets>
+        <a-asset-item
+          id="world-gltf"
+          src="src/3d/FacingWorlds_tex_4.gltf"></a-asset-item>
+        <a-asset-item
+          id="navmesh-gltf"
+          src="src/3d/map_navmesh_4.gltf"></a-asset-item>
+
+        <!-- Weapon Assets -->
+        <a-asset-item
+          id="enforcer-weapon"
+          src="src/3d/enforcer.glb"></a-asset-item>
+
+        <!-- Audio Assets -->
+        <audio
+          id="background-music"
+          src="src/audio/110-van_den_bos--foregone_destruction-i.mp3"
+          preload="auto"></audio>
+        <audio
+          id="fire-sound"
+          src="src/audio/fire.wav"
+          preload="auto"></audio>
+      </a-assets>
+
+      <!-- fixed camera (no look-controls) -->
+
+      <!-- lights -->
+      <a-entity
+        light="type:hemisphere; intensity:0.8; color:#fff; groundColor:#888"
+        position="0 10 0"></a-entity>
+      <a-entity
+        light="type:directional; intensity:1.5; castShadow:true"
+        position="-2 5 -3"></a-entity>
+
+      <!-- World + NavMesh -->
+      <a-entity
+        id="world"
+        gltf-model="#world-gltf"
+        gltf-animation-pointer="enabled:true; autoPlay:true; speed:1.0"
+        -advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
+        pixelated-texture
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"></a-entity>
+      <a-entity
+        id="navmesh"
+        gltf-model="#navmesh-gltf"
+        nav-mesh
+        debug-material
+        visible="false"
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"></a-entity>
+
+      <!-- soldier -->
+
+      <!-- Player rig (built-in movement-controls) -->
+      <!-- Player Rig (moves and rotates) -->
+      <a-entity
+        id="rig"
+        movement-controls="constrainToNavMesh: true; speed: 0.4"
+        navmesh-constraint="navmesh: #navmesh; fall: 8; height: 0.12"
+        rotate-yaw
+        position="0 0 0">
+        <!-- Soldier Body (follows rig movement, fixed rotation) -->
+        <a-entity
+          id="soldier"
+          gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
+          blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false"
+          character="idleIdx:0; walkIdx:3; runIdx:1"
+          health="max:100; current:100"
+          invisible-to-player="enabled: false"
+          local-player="true"
+          position="0 0 0"
+          rotation="0 0 0">
+          <!-- Weapon (child of soldier, follows body movement) -->
+          <a-entity
+            id="player-weapon"
+            gltf-model="src/3d/enforcer.glb"
+            scale="0.025 0.025 0.025"
+            position="0.15002 1.618 -0.69854">
+            <!-- Muzzle point (position this at the tip of the weapon barrel) -->
+            <a-entity
+              id="weapon-muzzle"
+              position="0 0 -15.6895"
+              geometry="primitive: sphere; radius: 0.01"
+              material="opacity: 0.8; transparent: true; color: red"
+              visible="true">
+            </a-entity>
+          </a-entity>
+        </a-entity>
+
+        <!-- Camera (child of rig, follows movement and rotation) -->
+        <a-entity
+          id="cam"
+          camera="active: true"
+          look-controls="enabled: false"
+          position="0 2.0 0"
+          first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0"
+          blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false">
+        </a-entity>
+      </a-entity>
+
+      <!-- Fixed Overhead Camera -->
+      <a-entity
+        id="fixedcam"
+        camera="active: false"
+        position="0 60 0"
+        rotation="-90 0 0">
+      </a-entity>
+
+      <!-- Animated Curtain
+      <a-entity
+        animated-curtain="width:12; height:8; windStrength:1.5; windSpeed:1.2; color:#8B4513; texture:fabric; opacity:0.8; position:8 4 0; rotation:0 90 0">
+      </a-entity> -->
+
+      <!-- Camera Controls (press C to cycle) -->
+      <a-entity camera-controls="cycleKey: KeyC"></a-entity>
+
+      <!-- GUI Controls -->
+      <a-entity gui-controls="enabled:false; position:10 10 0"></a-entity>
+    </a-scene>
+    <script
+      type="module"
+      src="./src/core/main.js"></script>
+  </body>
+</html>

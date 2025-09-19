@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1, maximum-scale=1" />
+    <title>Facing Worlds Game</title>
+
+    <!-- Load A-Frame and Extras -->
+    <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
+  </head>
+  <body>
+    <a-scene
+      gltf-viewer-settings
+      console-suppression
+      game-lighting
+      game-environment
+      game-assets
+      player-setup
+      camera-system>
+      <!-- Assets -->
+      <a-assets>
+        <a-asset-item
+          id="world-gltf"
+          src="assets/3d/map/FacingWorlds_tex_4.gltf"></a-asset-item>
+        <a-asset-item
+          id="navmesh-gltf"
+          src="assets/3d/map_navmesh_4.gltf"></a-asset-item>
+        <a-asset-item
+          id="enforcer-weapon"
+          src="assets/3d/enforcer.glb"></a-asset-item>
+
+        <!-- Audio Assets -->
+        <audio
+          id="background-music"
+          src="assets/audio/110-van_den_bos--foregone_destruction-i.mp3"
+          preload="auto"></audio>
+        <audio
+          id="fire-sound"
+          src="assets/audio/fire.wav"
+          preload="auto"></audio>
+      </a-assets>
+    </a-scene>
+
+    <script
+      type="module"
+      src="game.js"></script>
+  </body>
+</html>

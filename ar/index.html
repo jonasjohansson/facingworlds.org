@@ -5,200 +5,78 @@
     <meta
       name="viewport"
       content="width=device-width, user-scalable=no, minimum-scale=1, maximum-scale=1" />
-    <title>encantar.js WebAR demo with A-Frame</title>
-    <link
-      href="demo.css"
-      rel="stylesheet" />
-    <script>
-      // Configure A-Frame to use local DPDB file BEFORE loading A-Frame
-      window.AFRAME = window.AFRAME || {};
-      window.AFRAME.DPDB_URL = "./dpdb.json";
+    <title>AR Portal Demo</title>
 
-      // Override fetch to intercept DPDB requests
-      const originalFetch = window.fetch;
-      window.fetch = function (url, options) {
-        if (typeof url === "string" && url.includes("dpdb.webvr.rocks/dpdb.json")) {
-          url = "./dpdb.json";
-        }
-        return originalFetch(url, options);
-      };
-
-      // Override XMLHttpRequest to intercept DPDB requests
-      const originalXHROpen = XMLHttpRequest.prototype.open;
-      XMLHttpRequest.prototype.open = function (method, url, ...args) {
-        if (typeof url === "string" && url.includes("dpdb.webvr.rocks/dpdb.json")) {
-          url = "./dpdb.json";
-        }
-        return originalXHROpen.call(this, method, url, ...args);
-      };
-
-      // Additional override for A-Frame's specific DPDB loading
-      window.addEventListener("DOMContentLoaded", function () {
-        if (window.AFRAME && window.AFRAME.utils && window.AFRAME.utils.device) {
-          const originalLoadDPDB = window.AFRAME.utils.device.loadDPDB;
-          if (originalLoadDPDB) {
-            window.AFRAME.utils.device.loadDPDB = function () {
-              return originalLoadDPDB.call(this, "./dpdb.json");
-            };
-          }
-        }
-      });
-    </script>
-    <script src="assets/js/encantar.min.js"></script>
+    <!-- Load A-Frame globally (includes Three.js) -->
     <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
-    <script src="assets/js/aframe-with-encantar.min.js"></script>
-    <script src="assets/js/ar-scan-gimmick.min.js"></script>
-    <script src="assets/js/gltf-anim.min.js"></script>
+
+    <!-- Suppress Three.js lighting deprecation warning -->
+    <script>
+      // Suppress the useLegacyLights deprecation warning
+      const originalWarn = console.warn;
+      console.warn = function (message) {
+        if (message && message.includes("useLegacyLights has been deprecated")) {
+          return; // Suppress this specific warning
+        }
+        originalWarn.apply(console, arguments);
+      };
+    </script>
+
+    <!-- Load encantar libraries synchronously (required before scene initialization) -->
+    <script src="./assets/libraries/encantar/encantar.min.js"></script>
+    <script src="./assets/libraries/encantar/plugins/aframe-with-encantar.min.js"></script>
+    <script src="./assets/libraries/encantar/addons/ar-scan-gimmick.min.js"></script>
+    <script src="./assets/libraries/encantar/addons/gltf-anim.min.js"></script>
   </head>
   <body>
-    <!-- The AR scene -->
     <a-scene
-      encantar="stats: true; gizmos: true"
-      loading-screen="enabled: false">
-      <!--
-            +============================+
-            | Let's set up an AR session |
-            +============================+
-            -->
-
-      <!-- The inputs that will feed the AR engine -->
+      encantar="stats: false; gizmos: false"
+      loading-screen="enabled: false"
+      canvas-image-source>
       <ar-sources>
-        <!-- Use a webcam -->
-        <ar-camera-source></ar-camera-source>
-
-        <!-- Use a video element (see <a-assets>) -->
-        <!--
-                <ar-video-source video="#my-video"></ar-video-source>
-                -->
+        <ar-video-source video="#tracker-video"></ar-video-source>
       </ar-sources>
 
-      <!-- The trackers we'll be using in AR -->
       <ar-trackers>
-        <!-- We'll track images -->
         <ar-image-tracker>
-          <!-- List the images that you intend to track
-                         Make sure to follow the guidelines for images (see the docs) -->
           <ar-reference-image
-            name="mage"
-            src="assets/images/tracker3.webp"></ar-reference-image>
+            name="portal"
+            src="assets/images/tracker.jpg"></ar-reference-image>
         </ar-image-tracker>
       </ar-trackers>
 
-      <!-- The AR viewport -->
       <ar-viewport>
-        <!-- A 2D overlay displayed in front of the AR scene -->
         <ar-hud>
-          <!-- The info button -->
-          <a
-            id="info"
-            href="NOTICE.html"
-            draggable="false"></a>
-
-          <!-- The like button -->
-          <a
-            id="like"
-            href="https://ko-fi.com/alemart"
-            draggable="false"></a>
-
-          <!-- The scan gimmick -->
           <ar-scan-gimmick opacity="0.75"></ar-scan-gimmick>
         </ar-hud>
       </ar-viewport>
 
-      <!--
-            +=================================================+
-            | Now let's create the virtual elements           |
-            | Whatever you add to <ar-root> will appear in AR |
-            +=================================================+
-            -->
-
-      <!-- A 3D camera adapted for AR -->
       <ar-camera></ar-camera>
 
-      <!-- The mage -->
-      <ar-root reference-image="mage">
-        <!-- Switch from top view to front view -->
+      <ar-root reference-image="portal">
         <a-entity
-          rotation="-90 0 0"
-          position="0 -0.8 0">
-          <!-- Light -->
-          <a-light
-            type="ambient"
-            intensity="1.0"></a-light>
-
-          <!-- 3D model -->
-          <a-entity
-            gltf-model="#mage-model"
-            gltf-anim="clip: Idle"
-            rotation="90 0 0"
-            scale="0.7 0.7 0.7">
-          </a-entity>
-
-          <!-- Magic circle -->
-          <a-plane
-            width="4"
-            height="4"
-            material="src: #magic-circle; color: #beefff; side: double; shader: flat; transparent: true; opacity: 1"
-            animation="property: object3D.rotation.z; from: 360; to: 0; dur: 8000; loop: true; easing: linear">
-          </a-plane>
-        </a-entity>
+          position="0 0 0"
+          portal="radius: 1; skyTexture: #sky; animated: false"></a-entity>
       </ar-root>
 
-      <!-- The cat -->
-      <ar-root reference-image="cat">
-        <a-entity
-          rotation="-90 0 0"
-          position="0 -0.8 0">
-          <a-light
-            type="ambient"
-            intensity="1.0"></a-light>
-
-          <a-entity
-            gltf-model="#cat-model"
-            gltf-anim="clip: Cheer"
-            rotation="90 0 0"
-            scale="0.7 0.7 0.7">
-          </a-entity>
-
-          <a-plane
-            width="4"
-            height="4"
-            material="src: #magic-circle; color: #ffa; side: double; shader: flat; transparent: true; opacity: 1"
-            animation="property: object3D.rotation.z; from: 360; to: 0; dur: 8000; loop: true; easing: linear">
-          </a-plane>
-
-          <a-entity position="0 -0.5 2">
-            <a-plane
-              width="3"
-              height="1.5"
-              rotation="90 0 0"
-              material="src: #it-works; color: #fff; side: double; shader: flat; transparent: true; opacity: 1">
-            </a-plane>
-          </a-entity>
-        </a-entity>
-      </ar-root>
-
-      <!-- Declare external media files here -->
       <a-assets>
-        <a-asset-item
-          id="cat-model"
-          src="assets/images/cat.glb"></a-asset-item>
-        <a-asset-item
-          id="mage-model"
-          src="assets/images/mage.glb"></a-asset-item>
         <img
-          id="magic-circle"
-          src="assets/images/magic-circle.png" />
-        <img
-          id="it-works"
-          src="assets/images/it-works.png" />
-        <!--
-                <video id="my-video" hidden muted loop playsinline autoplay>
-                    <source src="../assets/my-video.webm" type="video/webm" />
-                    <source src="../assets/my-video.mp4" type="video/mp4" />
-                </video>
-                -->
+          id="sky"
+          src="https://images.unsplash.com/photo-1537210249814-b9a10a161ae4?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=2089&q=80" />
+
+        <!-- Video source for AR tracking -->
+        <video
+          id="tracker-video"
+          autoplay
+          loop
+          muted
+          playsinline
+          style="display: none"></video>
       </a-assets>
     </a-scene>
+
+    <script
+      type="module"
+      src="src/core/main.js"></script>
   </body>
 </html>
