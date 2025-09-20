@@ -23,13 +23,14 @@ import "../components/background-music.js";
 import "../components/space-environment.js";
 import "../components/first-person-weapon.js";
 import "../components/invisible-to-player.js";
+// import "../components/touch-controls.js"; // Using inline script instead
 
 // Import setup components
 import "../components/gltf-viewer-settings.js";
 import "../components/console-suppression.js";
 
 // Import network and spawn modules
-import startNetwork from "../network/network.js";
+// import startNetwork from "../network/network.js"; // Disabled for single-player
 import placePlayerOnNavmesh from "./spawn.js";
 
 import { performanceMonitor } from "../utils/performance.js";
@@ -47,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // place player rig onto the navmesh center
         placePlayerOnNavmesh();
         // start networking after scene + soldier exist
-        startNetwork();
+        // startNetwork(); // Disabled for single-player mode
       } catch (error) {
         handleError(error, "Game initialization");
       }

@@ -38,6 +38,9 @@ AFRAME.registerComponent("first-person-weapon", {
 
     window.addEventListener("keydown", this._onKeyDown, { passive: false });
     window.addEventListener("keyup", this._onKeyUp);
+
+    // Create touch fire button for mobile devices
+    this.createTouchFireButton();
   },
 
   tick(time) {
@@ -136,10 +139,31 @@ AFRAME.registerComponent("first-person-weapon", {
     // Reverse direction since getWorldDirection gives opposite of what we want
     cameraDirection.negate();
 
-    // Don't create bullet here - let network layer handle it
-    // This prevents double bullets while still notifying network
+    // Create bullet entity for single-player mode
+    const bullet = document.createElement("a-entity");
+    bullet.setAttribute("bullet", {
+      vx: cameraDirection.x * 18,
+      vy: cameraDirection.y * 18,
+      vz: cameraDirection.z * 18,
+      radius: 0.08,
+      lifeSec: 2.0,
+      ownerId: "local-player",
+      reportHits: true,
+    });
 
-    // Emit to network layer for multiplayer (but don't create visual bullet)
+    bullet.setAttribute("position", {
+      x: this.muzzlePosition.x,
+      y: this.muzzlePosition.y,
+      z: this.muzzlePosition.z,
+    });
+
+    bullet.setAttribute("geometry", "primitive: sphere; radius: 0.08");
+    bullet.setAttribute("material", "color: #ffcc00; emissive: #ffcc00; emissiveIntensity: 0.5");
+
+    this.el.sceneEl.appendChild(bullet);
+    console.log("[first-person-weapon] Created bullet entity at:", this.muzzlePosition);
+
+    // Also emit to network layer for multiplayer compatibility
     this.el.sceneEl.emit("local-fire", {
       origin: {
         x: this.muzzlePosition.x,
@@ -236,9 +260,101 @@ AFRAME.registerComponent("first-person-weapon", {
     }
   },
 
+  createTouchFireButton() {
+    // Only create on touch devices
+    if (!("ontouchstart" in window)) {
+      console.log("[first-person-weapon] Not a touch device, skipping fire button");
+      return;
+    }
+
+    console.log("[first-person-weapon] Creating touch fire button...");
+
+    const fireButton = document.createElement("div");
+    fireButton.id = "touch-fire-button";
+    fireButton.innerHTML = "🔫";
+    fireButton.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 80px;
+      height: 80px;
+      background: rgba(255, 100, 100, 0.8);
+      border: 3px solid rgba(255, 255, 255, 0.9);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      cursor: pointer;
+      pointer-events: auto;
+      user-select: none;
+      z-index: 1000;
+      touch-action: manipulation;
+      transition: all 0.1s ease;
+    `;
+
+    // Touch events
+    fireButton.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        this.isFiring = true;
+        fireButton.style.background = "rgba(255, 50, 50, 0.9)";
+        fireButton.style.transform = "scale(0.95)";
+      },
+      { passive: false }
+    );
+
+    fireButton.addEventListener(
+      "touchend",
+      (e) => {
+        e.preventDefault();
+        this.isFiring = false;
+        fireButton.style.background = "rgba(255, 100, 100, 0.8)";
+        fireButton.style.transform = "scale(1)";
+      },
+      { passive: false }
+    );
+
+    fireButton.addEventListener(
+      "touchcancel",
+      (e) => {
+        e.preventDefault();
+        this.isFiring = false;
+        fireButton.style.background = "rgba(255, 100, 100, 0.8)";
+        fireButton.style.transform = "scale(1)";
+      },
+      { passive: false }
+    );
+
+    // Mouse events for desktop testing
+    fireButton.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      this.isFiring = true;
+      fireButton.style.background = "rgba(255, 50, 50, 0.9)";
+      fireButton.style.transform = "scale(0.95)";
+    });
+
+    fireButton.addEventListener("mouseup", (e) => {
+      e.preventDefault();
+      this.isFiring = false;
+      fireButton.style.background = "rgba(255, 100, 100, 0.8)";
+      fireButton.style.transform = "scale(1)";
+    });
+
+    document.body.appendChild(fireButton);
+    console.log("[first-person-weapon] Touch fire button created and added to DOM");
+  },
+
   remove() {
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("keyup", this._onKeyUp);
     this.removeWeapon();
+
+    // Remove touch fire button
+    const fireButton = document.getElementById("touch-fire-button");
+    if (fireButton) {
+      fireButton.remove();
+    }
   },
 });
