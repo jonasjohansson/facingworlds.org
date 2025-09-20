@@ -22,10 +22,13 @@ AFRAME.registerComponent("first-person-weapon", {
       this.setupWeapon();
     });
 
-    // Listen for key presses directly (X key)
+    // Listen for key presses directly (X key for firing, C key for camera)
     this._onKeyDown = (e) => {
       if (e.code === "KeyX") {
         this.isFiring = true;
+        e.preventDefault();
+      } else if (e.code === "KeyC") {
+        this.swapCamera();
         e.preventDefault();
       }
     };
@@ -41,6 +44,9 @@ AFRAME.registerComponent("first-person-weapon", {
 
     // Create touch fire button for mobile devices
     this.createTouchFireButton();
+
+    // Create camera swap button
+    this.createCameraSwapButton();
   },
 
   tick(time) {
@@ -346,6 +352,117 @@ AFRAME.registerComponent("first-person-weapon", {
     console.log("[first-person-weapon] Touch fire button created and added to DOM");
   },
 
+  createCameraSwapButton() {
+    // Check if it's a touch device
+    if (!("ontouchstart" in window || navigator.maxTouchPoints > 0)) {
+      console.log("[first-person-weapon] Not a touch device, skipping camera swap button");
+      return;
+    }
+
+    console.log("[first-person-weapon] Creating camera swap button...");
+
+    const cameraButton = document.createElement("div");
+    cameraButton.id = "touch-camera-button";
+    cameraButton.innerHTML = "📷";
+    cameraButton.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 60px;
+      height: 60px;
+      background: rgba(100, 100, 255, 0.8);
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: white;
+      cursor: pointer;
+      user-select: none;
+      z-index: 1000;
+      transition: all 0.1s ease;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    `;
+
+    // Touch events
+    cameraButton.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cameraButton.style.background = "rgba(50, 50, 255, 0.9)";
+        cameraButton.style.transform = "scale(0.95)";
+        this.swapCamera();
+      },
+      { passive: false }
+    );
+
+    cameraButton.addEventListener(
+      "touchend",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cameraButton.style.background = "rgba(100, 100, 255, 0.8)";
+        cameraButton.style.transform = "scale(1)";
+      },
+      { passive: false }
+    );
+
+    cameraButton.addEventListener(
+      "touchcancel",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cameraButton.style.background = "rgba(100, 100, 255, 0.8)";
+        cameraButton.style.transform = "scale(1)";
+      },
+      { passive: false }
+    );
+
+    // Mouse events
+    cameraButton.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      cameraButton.style.background = "rgba(50, 50, 255, 0.9)";
+      cameraButton.style.transform = "scale(0.95)";
+      this.swapCamera();
+    });
+
+    cameraButton.addEventListener("mouseup", (e) => {
+      e.preventDefault();
+      cameraButton.style.background = "rgba(100, 100, 255, 0.8)";
+      cameraButton.style.transform = "scale(1)";
+    });
+
+    document.body.appendChild(cameraButton);
+    console.log("[first-person-weapon] Camera swap button created and added to DOM");
+  },
+
+  swapCamera() {
+    const scene = this.el.sceneEl;
+    const firstPersonCam = scene.querySelector("#cam");
+    const fixedCam = scene.querySelector("#fixedcam");
+
+    if (!firstPersonCam || !fixedCam) {
+      console.warn("[first-person-weapon] Camera entities not found");
+      return;
+    }
+
+    const isFirstPersonActive = firstPersonCam.getAttribute("camera").active;
+
+    if (isFirstPersonActive) {
+      // Switch to fixed overhead camera
+      firstPersonCam.setAttribute("camera", "active", false);
+      fixedCam.setAttribute("camera", "active", true);
+      console.log("[first-person-weapon] Switched to fixed overhead camera");
+    } else {
+      // Switch to first person camera
+      fixedCam.setAttribute("camera", "active", false);
+      firstPersonCam.setAttribute("camera", "active", true);
+      console.log("[first-person-weapon] Switched to first person camera");
+    }
+  },
+
   remove() {
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("keyup", this._onKeyUp);
@@ -355,6 +472,12 @@ AFRAME.registerComponent("first-person-weapon", {
     const fireButton = document.getElementById("touch-fire-button");
     if (fireButton) {
       fireButton.remove();
+    }
+
+    // Remove camera swap button
+    const cameraButton = document.getElementById("touch-camera-button");
+    if (cameraButton) {
+      cameraButton.remove();
     }
   },
 });

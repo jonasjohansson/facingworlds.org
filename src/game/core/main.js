@@ -23,6 +23,8 @@ import "../components/background-music.js";
 import "../components/space-environment.js";
 import "../components/first-person-weapon.js";
 import "../components/invisible-to-player.js";
+import "../components/camera-tracker.js";
+// import "../components/follow-player.js"; // Using A-Frame's built-in look-at instead
 // import "../components/touch-controls.js"; // Using inline script instead
 
 // Import setup components

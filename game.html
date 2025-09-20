@@ -121,12 +121,13 @@
         </a-entity>
       </a-entity>
 
-      <!-- Fixed Overhead Camera -->
+      <!-- Fixed Security Camera (Rotates to Track Player) -->
       <a-entity
         id="fixedcam"
         camera="active: false"
-        position="0 60 0"
-        rotation="-90 0 0">
+        position="0 40 0"
+        rotation="-90 0 0"
+        camera-tracker="target: #soldier; enabled: true">
       </a-entity>
     </a-scene>
     <script
