@@ -31,7 +31,7 @@ AFRAME.registerComponent("bullet", {
     // Use HTML5 audio for simpler, more reliable sound playback
     try {
       const audio = new Audio("assets/audio/fire.wav");
-      audio.volume = 0.3;
+      audio.volume = 0.1;
       audio.play().catch((error) => {
         console.warn("[bullet] Failed to play fire.wav, using fallback:", error);
         this.createFallbackSound();

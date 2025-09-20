@@ -93,31 +93,31 @@
           local-player="true"
           position="0 0 0"
           rotation="0 0 0">
-          <!-- Weapon (child of soldier, follows body movement) -->
-          <a-entity
-            id="player-weapon"
-            gltf-model="assets/3d/enforcer.glb"
-            scale="0.025 0.025 0.025"
-            position="0.15002 1.618 -0.69854">
-            <!-- Muzzle point (position this at the tip of the weapon barrel) -->
-            <a-entity
-              id="weapon-muzzle"
-              position="0 0 -15.6895"
-              geometry="primitive: sphere; radius: 0.01"
-              material="opacity: 0.8; transparent: true; color: red"
-              visible="true">
-            </a-entity>
-          </a-entity>
         </a-entity>
 
         <!-- Camera (child of rig, follows movement and rotation) -->
         <a-entity
           id="cam"
           camera="active: true"
-          look-controls="enabled: false"
+          look-controls="enabled: true"
           position="0 2.0 0"
           first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0"
           blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false">
+          <!-- Weapon (child of camera, follows look direction) -->
+          <a-entity
+            id="player-weapon"
+            gltf-model="assets/3d/enforcer.glb"
+            scale="0.025 0.025 0.025"
+            position="0.3 -0.2 -0.5">
+            <!-- Muzzle point (position this at the tip of the weapon barrel) -->
+            <a-entity
+              id="weapon-muzzle"
+              position="0 0 -15.6895"
+              geometry="primitive: sphere; radius: 0.01"
+              material="opacity: 0.8; transparent: true; color: red"
+              visible="false">
+            </a-entity>
+          </a-entity>
         </a-entity>
       </a-entity>
 

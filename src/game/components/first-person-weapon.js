@@ -54,9 +54,8 @@ AFRAME.registerComponent("first-person-weapon", {
   setupWeapon() {
     if (!this.data.enabled) return;
 
-    // Find the weapon entity (should be a child of the soldier)
-    const soldier = this.el.sceneEl.querySelector("#soldier");
-    this.weapon = soldier ? soldier.querySelector("#player-weapon") : null;
+    // Find the weapon entity (should be a child of the camera)
+    this.weapon = this.el.querySelector("#player-weapon");
 
     if (!this.weapon) {
       console.warn("[first-person-weapon] Weapon entity not found, creating fallback");
@@ -89,8 +88,7 @@ AFRAME.registerComponent("first-person-weapon", {
 
   setupMuzzlePosition() {
     // Get muzzle position from the weapon-muzzle entity
-    const soldier = this.el.sceneEl.querySelector("#soldier");
-    const muzzle = soldier ? soldier.querySelector("#weapon-muzzle") : null;
+    const muzzle = this.weapon ? this.weapon.querySelector("#weapon-muzzle") : null;
 
     if (muzzle && muzzle.object3D) {
       // Get world position of the muzzle entity
@@ -165,7 +163,7 @@ AFRAME.registerComponent("first-person-weapon", {
     // Use the same fire sound as bullets
     try {
       const audio = new Audio("assets/audio/fire.wav");
-      audio.volume = 0.5;
+      audio.volume = 0.15;
       audio.play().catch((error) => {
         console.warn("[first-person-weapon] Failed to play weapon sound:", error);
       });
