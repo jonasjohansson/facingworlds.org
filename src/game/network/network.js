@@ -305,8 +305,8 @@ export function startNetwork() {
   function onLocalFire(ev) {
     const { origin, dir } = ev.detail || {};
     send({ type: "fire", origin, dir });
-    // Create visual bullet for local player
-    spawnBulletVisual(origin, dir, myId, true);
+    // Don't create local bullet here - it's already created in blaster component
+    // This prevents duplicate bullets and lag
   }
 
   function onLocalHit(ev) {

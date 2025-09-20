@@ -8,14 +8,14 @@
       href="data:," />
     <meta
       name="description"
-      content="Multiplayer 3D FPS Game" />
+      content="" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1" />
 
-    <!-- Load A-Frame and Extras from CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
+    <!-- Load A-Frame and Extras from local files -->
+    <script src="./assets/libraries/aframe/aframe.min.js"></script>
+    <script src="./assets/libraries/aframe-extras.min.js"></script>
 
     <!-- Load main game script as module -->
     <script
@@ -30,7 +30,7 @@
       inspector="enabled: true"
       loading-screen="enabled: false"
       xr-mode-ui="enabled: false"
-      renderer="colorManagement: true; physicallyCorrectLights: true; toneMapping: ACESFilmicToneMapping; toneMappingExposure: 1.2">
+      renderer="colorManagement: true; physicallyCorrectLights: true;toneMapping: ACESFilmicToneMapping; toneMappingExposure: 1.2">
       <!-- Space Environment -->
       <a-entity
         space-environment="enabled:true; starCount:0; asteroidCount:0; asteroidSpeed:0.5; nebulaEnabled:false; backgroundColor:#000000"></a-entity>
@@ -64,35 +64,37 @@
       <!-- fixed camera (no look-controls) -->
 
       <!-- Warm Ambient Light -->
-      <a-entity light="type:hemisphere; intensity:1.8; color:#FFE4B5; groundColor:#8B4513"></a-entity>
+      <a-entity
+        light="type:hemisphere; intensity:1.8; color:#e4d4b9; groundColor:#7c5c46; decay:6.82"
+        position="0 10 0"></a-entity>
 
-      <!-- Blue Point Lights (Left Side) -->w
+      <!-- Blue Point Lights (Left Side) -->
       <a-entity
-        light="type:point; intensity:15; color:#4A90E2; castShadow:true; distance:50; decay:2"
-        position="-24.32301 14.57632 2.7553"></a-entity>
+        light="type:point; intensity:15; color:#4A90E2; castShadow:true; distance:5; decay:1.5"
+        position="-24.3 14.6 -4"></a-entity>
       <a-entity
-        light="type:point; intensity:15; color:#4A90E2; castShadow:true; distance:50; decay:2"
-        position="-24.32301 14.57632 -3.59539"></a-entity>
+        light="type:point; intensity:15; color:#4A90E2; castShadow:true; distance:5; decay:1.5"
+        position="-24.3 14.6 4"></a-entity>
       <a-entity
-        light="type:point; intensity:35.07; color:#0008ff; castShadow:true; distance:50; decay:1.95"
+        light="type:point; intensity:15; color:#0008ff; castShadow:true; distance:5; decay:1.5"
         position="-32.3 32.9 -2.57"></a-entity>
       <a-entity
-        light="type:point; intensity:35.07; color:#0008ff; castShadow:true; distance:50; decay:1.95"
+        light="type:point; intensity:15; color:#0008ff; castShadow:true; distance:5; decay:1.5"
         position="-32.3 32.9 2.05"></a-entity>
 
       <!-- Red Point Lights (Right Side) -->
       <a-entity
-        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:50; decay:2"
-        position="38.62158 10.71666 -8.92114"></a-entity>
+        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:5; decay:1.5"
+        position="34.4 10.7 -10.4"></a-entity>
       <a-entity
-        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:50; decay:2"
-        position="38.62158 10.71666 -8.92114"></a-entity>
+        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:5; decay:1.5"
+        position="34.4 10.7 -0.6"></a-entity>
       <a-entity
-        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:50; decay:2"
-        position="38.62158 10.71666 -8.92114"></a-entity>
+        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:5; decay:1.5"
+        position="41.6 32.6 -7.30393"></a-entity>
       <a-entity
-        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:50; decay:2"
-        position="38.62158 10.71666 -8.92114"></a-entity>
+        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:5; decay:1.5"
+        position="41.6 32.6 -2.85067"></a-entity>
 
       <!-- World + NavMesh -->
       <a-entity
@@ -126,7 +128,6 @@
         <a-entity
           id="soldier"
           gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
-          blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false"
           character="idleIdx:0; walkIdx:3; runIdx:1"
           health="max:100; current:100"
           invisible-to-player="enabled: true"
@@ -141,8 +142,7 @@
           camera="active: true"
           look-controls="enabled: true"
           position="0 1.4 0"
-          first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0"
-          blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false">
+          first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0">
           <!-- Weapon (child of camera, follows look direction) -->
           <a-entity
             id="player-weapon"
@@ -176,8 +176,8 @@
       <!-- Credits Display -->
       <a-entity credits-display="enabled: true; fadeInDelay: 2000; fadeInDuration: 1000"></a-entity>
 
-      <!-- Name Changer -->
-      <a-entity name-changer="enabled: true; key: KeyN"></a-entity>
+      <!-- Name Changer
+      <a-entity name-changer="enabled: true; key: KeyN"></a-entity> -->
     </a-scene>
   </body>
 </html>

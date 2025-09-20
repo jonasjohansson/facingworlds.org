@@ -7,8 +7,15 @@ AFRAME.registerComponent("first-person-weapon", {
     weaponPosition: { type: "vec3", default: { x: 0.3, y: -0.2, z: -0.5 } },
     weaponRotation: { type: "vec3", default: { x: 0, y: 0, z: 0 } },
     muzzleOffset: { type: "vec3", default: { x: 0.8, y: 0.1, z: 0 } }, // Position relative to weapon where bullets spawn
-    fireRate: { type: "number", default: 10 }, // Bullets per second
+    fireRate: { type: "number", default: 4 }, // Bullets per second
     lastFireTime: { type: "number", default: 0 },
+    // Hit feedback
+    hitFlashColor: { type: "string", default: "#ff0000" }, // Red flash on hit
+    hitFlashDuration: { type: "number", default: 200 }, // Flash duration in ms
+    // Multikill tracking
+    killStreak: { type: "number", default: 0 },
+    lastKillTime: { type: "number", default: 0 },
+    multikillTimeout: { type: "number", default: 3000 }, // 3 seconds between kills for multikill
   },
 
   init() {
@@ -16,6 +23,8 @@ AFRAME.registerComponent("first-person-weapon", {
     this.muzzlePosition = new THREE.Vector3();
     this.isFiring = false;
     this.lastFireTime = 0;
+    this.killStreak = 0;
+    this.lastKillTime = 0;
 
     // Wait for camera to be ready
     this.el.addEventListener("loaded", () => {
@@ -47,6 +56,10 @@ AFRAME.registerComponent("first-person-weapon", {
 
     // Create camera swap button
     this.createCameraSwapButton();
+
+    // Listen for hit events
+    this.el.sceneEl.addEventListener("local-hit", this.onLocalHit.bind(this));
+    this.el.sceneEl.addEventListener("local-kill", this.onLocalKill.bind(this));
   },
 
   tick(time) {
@@ -148,11 +161,9 @@ AFRAME.registerComponent("first-person-weapon", {
     // Create bullet entity for single-player mode
     const bullet = document.createElement("a-entity");
     bullet.setAttribute("bullet", {
-      vx: cameraDirection.x * 18,
-      vy: cameraDirection.y * 18,
-      vz: cameraDirection.z * 18,
-      radius: 0.08,
-      lifeSec: 2.0,
+      vx: cameraDirection.x * 25,
+      vy: cameraDirection.y * 25,
+      vz: cameraDirection.z * 25,
       ownerId: "local-player",
       reportHits: true,
     });
@@ -163,8 +174,8 @@ AFRAME.registerComponent("first-person-weapon", {
       z: this.muzzlePosition.z,
     });
 
-    bullet.setAttribute("geometry", "primitive: sphere; radius: 0.08");
-    bullet.setAttribute("material", "color: #ffcc00; emissive: #ffcc00; emissiveIntensity: 0.5");
+    bullet.setAttribute("geometry", "primitive: sphere; radius: 0.05");
+    bullet.setAttribute("material", "color: #ffffff; emissive: #ffffff; emissiveIntensity: 0.3");
 
     this.el.sceneEl.appendChild(bullet);
     console.log("[first-person-weapon] Created bullet entity at:", this.muzzlePosition);
@@ -460,6 +471,96 @@ AFRAME.registerComponent("first-person-weapon", {
       fixedCam.setAttribute("camera", "active", false);
       firstPersonCam.setAttribute("camera", "active", true);
       console.log("[first-person-weapon] Switched to first person camera");
+    }
+  },
+
+  onLocalHit(event) {
+    // Flash screen on hit
+    this.flashScreen(this.data.hitFlashColor, this.data.hitFlashDuration);
+  },
+
+  onLocalKill(event) {
+    const now = Date.now();
+
+    // Check if this is part of a multikill streak
+    if (now - this.lastKillTime <= this.data.multikillTimeout) {
+      this.killStreak++;
+    } else {
+      this.killStreak = 1; // Reset streak
+    }
+
+    this.lastKillTime = now;
+
+    // Play multikill sound based on streak
+    this.playMultikillSound(this.killStreak);
+
+    // Flash screen for kill
+    this.flashScreen("#00ff00", 150); // Green flash for kill
+  },
+
+  flashScreen(color, duration) {
+    // Create flash overlay
+    const flash = document.createElement("div");
+    flash.style.position = "fixed";
+    flash.style.top = "0";
+    flash.style.left = "0";
+    flash.style.width = "100%";
+    flash.style.height = "100%";
+    flash.style.backgroundColor = color;
+    flash.style.pointerEvents = "none";
+    flash.style.zIndex = "9999";
+    flash.style.opacity = "0.3";
+    flash.style.transition = `opacity ${duration}ms ease-out`;
+
+    document.body.appendChild(flash);
+
+    // Fade out and remove
+    setTimeout(() => {
+      flash.style.opacity = "0";
+      setTimeout(() => {
+        if (flash.parentNode) {
+          flash.parentNode.removeChild(flash);
+        }
+      }, duration);
+    }, 50);
+  },
+
+  playMultikillSound(streak) {
+    let soundFile = "";
+
+    switch (streak) {
+      case 1:
+        soundFile = "assets/audio/fire.wav"; // Default kill sound
+        break;
+      case 2:
+        soundFile = "assets/audio/fire.wav"; // Double kill (reuse fire sound)
+        break;
+      case 3:
+        soundFile = "assets/audio/fire.wav"; // Triple kill
+        break;
+      case 4:
+        soundFile = "assets/audio/fire.wav"; // Quad kill
+        break;
+      case 5:
+        soundFile = "assets/audio/fire.wav"; // Penta kill
+        break;
+      default:
+        if (streak >= 6) {
+          soundFile = "assets/audio/fire.wav"; // Mega kill
+        }
+        break;
+    }
+
+    if (soundFile) {
+      try {
+        const audio = new Audio(soundFile);
+        audio.volume = 0.2 + streak * 0.1; // Volume increases with streak
+        audio.play().catch((error) => {
+          console.warn("[first-person-weapon] Failed to play multikill sound:", error);
+        });
+      } catch (error) {
+        console.warn("[first-person-weapon] Audio error:", error);
+      }
     }
   },
 

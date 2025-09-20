@@ -5,7 +5,7 @@ AFRAME.registerComponent("bullet", {
     vx: { type: "number", default: 0 },
     vy: { type: "number", default: 0 },
     vz: { type: "number", default: 0 },
-    radius: { type: "number", default: 0.08 },
+    radius: { type: "number", default: 0.05 },
     lifeSec: { type: "number", default: 2.0 },
     ownerId: { type: "string", default: "" },
     reportHits: { type: "boolean", default: false },
@@ -20,11 +20,30 @@ AFRAME.registerComponent("bullet", {
     this._tmp = createVector3();
     this._box = createBox3();
 
+    // Create bullet visual with white core and light streak
+    this.createBulletVisual();
+
     // Play bullet sound when created
     this.playBulletSound();
 
     // Emit bullet-fired event for background music
     this.el.sceneEl.emit("bullet-fired");
+  },
+
+  createBulletVisual() {
+    const THREE = AFRAME.THREE;
+
+    // Create simple white bullet sphere - very small
+    const bulletGeometry = new THREE.SphereGeometry(this.data.radius * 0.3, 6, 4);
+    const bulletMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: false,
+    });
+    const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+    this.el.object3D.add(bullet);
+
+    // Store reference
+    this.bullet = bullet;
   },
 
   playBulletSound() {
@@ -83,6 +102,14 @@ AFRAME.registerComponent("bullet", {
     o.position.x += this.vel.x * dt;
     o.position.y += this.vel.y * dt;
     o.position.z += this.vel.z * dt;
+
+    // Orient bullet and streak in direction of movement
+    if (this.vel.length() > 0) {
+      const direction = this.vel.clone().normalize();
+      const quaternion = new AFRAME.THREE.Quaternion();
+      quaternion.setFromUnitVectors(new AFRAME.THREE.Vector3(0, 0, 1), direction);
+      o.quaternion.copy(quaternion);
+    }
 
     // update world-sphere
     this._sphere.center.copy(o.getWorldPosition(this._tmp));
