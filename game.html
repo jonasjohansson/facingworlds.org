@@ -1,10 +1,27 @@
 <html>
   <head>
+    <meta charset="utf-8" />
+    <title>Facing Worlds</title>
+    <!-- Prevent favicon 404 error -->
     <link
       rel="icon"
       href="data:," />
+    <meta
+      name="description"
+      content="Multiplayer 3D FPS Game" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1" />
+
+    <!-- Load A-Frame and Extras from CDN -->
     <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
+
+    <!-- Load main game script as module -->
+    <script
+      src="./src/game/core/main.js"
+      type="module"
+      defer></script>
   </head>
   <body>
     <a-scene
@@ -12,7 +29,8 @@
       console-suppression
       inspector="enabled: true"
       loading-screen="enabled: false"
-      xr-mode-ui="enabled: false">
+      xr-mode-ui="enabled: false"
+      renderer="colorManagement: true; physicallyCorrectLights: true; toneMapping: ACESFilmicToneMapping; toneMappingExposure: 1.2">
       <!-- Space Environment -->
       <a-entity
         space-environment="enabled:true; starCount:0; asteroidCount:0; asteroidSpeed:0.5; nebulaEnabled:false; backgroundColor:#000000"></a-entity>
@@ -45,13 +63,36 @@
 
       <!-- fixed camera (no look-controls) -->
 
-      <!-- lights - GLTF Viewer Settings
+      <!-- Warm Ambient Light -->
+      <a-entity light="type:hemisphere; intensity:1.8; color:#FFE4B5; groundColor:#8B4513"></a-entity>
+
+      <!-- Blue Point Lights (Left Side) -->w
       <a-entity
-        light="type:hemisphere; intensity:2; color:#dd7134; groundColor:#dd7134"
-        position="0 10 0"></a-entity>
+        light="type:point; intensity:15; color:#4A90E2; castShadow:true; distance:50; decay:2"
+        position="-24.32301 14.57632 2.7553"></a-entity>
       <a-entity
-        light="type:directional; intensity:4; color:#db8609; castShadow:true"
-        position="-2 5 -3"></a-entity> -->
+        light="type:point; intensity:15; color:#4A90E2; castShadow:true; distance:50; decay:2"
+        position="-24.32301 14.57632 -3.59539"></a-entity>
+      <a-entity
+        light="type:point; intensity:35.07; color:#0008ff; castShadow:true; distance:50; decay:1.95"
+        position="-32.3 32.9 -2.57"></a-entity>
+      <a-entity
+        light="type:point; intensity:35.07; color:#0008ff; castShadow:true; distance:50; decay:1.95"
+        position="-32.3 32.9 2.05"></a-entity>
+
+      <!-- Red Point Lights (Right Side) -->
+      <a-entity
+        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:50; decay:2"
+        position="38.62158 10.71666 -8.92114"></a-entity>
+      <a-entity
+        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:50; decay:2"
+        position="38.62158 10.71666 -8.92114"></a-entity>
+      <a-entity
+        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:50; decay:2"
+        position="38.62158 10.71666 -8.92114"></a-entity>
+      <a-entity
+        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:50; decay:2"
+        position="38.62158 10.71666 -8.92114"></a-entity>
 
       <!-- World + NavMesh -->
       <a-entity
@@ -80,7 +121,6 @@
         id="rig"
         movement-controls="constrainToNavMesh: true; speed: 0.4; fly: false"
         rotate-yaw
-        terrain-follow="enabled: false; smoothing: 0.05; maxTilt: 15; raycastDistance: 2; updateRate: 30"
         position="0 0 0">
         <!-- Soldier Body (follows rig movement, fixed rotation) -->
         <a-entity
@@ -100,7 +140,7 @@
           id="cam"
           camera="active: true"
           look-controls="enabled: true"
-          position="0 2.0 0"
+          position="0 1.4 0"
           first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0"
           blaster="enabled:false; bulletSpeed:18; fireRate:8; bulletRadius:0.08; color:#ffcc00; spawnLocal:false">
           <!-- Weapon (child of camera, follows look direction) -->
@@ -129,9 +169,15 @@
         rotation="-90 0 0"
         camera-tracker="target: #soldier; enabled: true">
       </a-entity>
+
+      <!-- Highscore Display -->
+      <a-entity highscore-display="enabled: true; maxPlayers: 10; updateInterval: 1000"></a-entity>
+
+      <!-- Credits Display -->
+      <a-entity credits-display="enabled: true; fadeInDelay: 2000; fadeInDuration: 1000"></a-entity>
+
+      <!-- Name Changer -->
+      <a-entity name-changer="enabled: true; key: KeyN"></a-entity>
     </a-scene>
-    <script
-      type="module"
-      src="game.js"></script>
   </body>
 </html>

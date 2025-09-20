@@ -86,9 +86,26 @@ AFRAME.registerComponent("character", {
     // Listen for movement events from the built-in movement-controls component
     if (this.rig) {
       this.rig.addEventListener("movement", (event) => {
+        // Use movement-controls data as primary source
         this.isMoving = event.detail.moving;
         this.rawSpeed = event.detail.velocity.length();
         this.isRunning = this.rawSpeed > this.data.runThreshold;
+
+        // Debug logging
+        if (Math.random() < 0.01) {
+          console.log("[character] Movement event:", {
+            moving: this.isMoving,
+            speed: this.rawSpeed,
+            running: this.isRunning,
+          });
+        }
+      });
+
+      // Also listen for other movement-related events
+      this.rig.addEventListener("move", (event) => {
+        if (Math.random() < 0.01) {
+          console.log("[character] Move event:", event.detail);
+        }
       });
     }
 
@@ -145,33 +162,52 @@ AFRAME.registerComponent("character", {
     if (!isFinite(dt) || dt <= 0) return;
     dt = Math.min(dt, 1 / 20); // cap 50ms
 
-    // Update animation state based on movement
-    this.target.Idle = this.isMoving ? 0 : 1;
-    this.target.Walk = this.isMoving && !this.isRunning ? 1 : 0;
-    this.target.Run = this.isRunning ? 1 : 0;
-
-    // Blend weights (frame-rate independent)
-    const damp = 1 - Math.exp(-this.data.fadeLerp * dt);
-    blendAnimations(this.actions, this.weights, this.target, damp);
-    normalizeWeights(this.weights);
-
     // Keep character glued to rig origin
     this.el.object3D.position.set(0, 0, 0);
 
-    // Get current rig position for movement detection
+    // Get current rig position for movement direction calculation
     this.rig.object3D.getWorldPosition(this.curr);
 
-    // Calculate velocity (movement direction)
+    // Calculate velocity (movement direction) for character facing
     this.velocity.subVectors(this.curr, this.prev);
     const speed = this.velocity.length();
 
     // Convert to meters per second (speed was calculated per frame)
     const speedMps = dt > 0 ? speed / dt : 0;
 
-    // Always use our own movement detection (more reliable)
-    this.isMoving = speedMps > this.data.moveThreshold;
+    // Use movement-controls data if available, otherwise use position-based detection
+    // This ensures animations work even if movement-controls events aren't firing
+    if (this.rawSpeed === 0) {
+      // No movement-controls data, use position-based detection
+      this.isMoving = speedMps > this.data.moveThreshold;
+      this.isRunning = speedMps > this.data.runThreshold;
+      this.rawSpeed = speedMps;
+    }
+
+    // Update animation state based on movement
+    this.target.Idle = this.isMoving ? 0 : 1;
+    this.target.Walk = this.isMoving && !this.isRunning ? 1 : 0;
+    this.target.Run = this.isRunning ? 1 : 0;
+
+    // Debug logging for animation state
+    if (Math.random() < 0.01) {
+      console.log("[character] Animation state:", {
+        isMoving: this.isMoving,
+        isRunning: this.isRunning,
+        speedMps: speedMps,
+        rawSpeed: this.rawSpeed,
+        target: this.target,
+        weights: this.weights,
+      });
+    }
+
+    // Blend weights (frame-rate independent)
+    const damp = 1 - Math.exp(-this.data.fadeLerp * dt);
+    blendAnimations(this.actions, this.weights, this.target, damp);
+    normalizeWeights(this.weights);
+
+    // Update smoothed speed for cadence calculation
     this.rawSpeed = speedMps;
-    this.isRunning = speedMps > this.data.runThreshold;
 
     // Calculate movement direction and face that direction
     if (this.isMoving) {

@@ -1,21 +1,4 @@
-// Occlude component for AR
-AFRAME.registerComponent("occlude", {
-  init: function () {
-    var el = this.el;
-    var applyOcclusion = function () {
-      var mesh = el.getObject3D("mesh");
-      if (mesh && mesh.material) {
-        mesh.material.colorWrite = false;
-        mesh.material.needsUpdate = true;
-      }
-    };
-
-    el.addEventListener("object3dset", applyOcclusion);
-    applyOcclusion();
-  },
-});
-
-// Portal component for AR
+// Portal component for AR (merged version)
 AFRAME.registerComponent("portal", {
   schema: {
     radius: { type: "number", default: 1 },
@@ -41,21 +24,12 @@ AFRAME.registerComponent("portal", {
     // Outer ring with occlusion - this blocks the real world behind it
     const outerRing = document.createElement("a-ring");
     outerRing.setAttribute("rotation", "0 0 0");
-    outerRing.setAttribute("radius-inner", data.radius * 1.2);
+    outerRing.setAttribute("radius-inner", data.radius);
     outerRing.setAttribute("radius-outer", data.radius * 4);
     outerRing.setAttribute("occlude", "");
     outerRing.setAttribute("color", "#000000");
     outerRing.setAttribute("material", "opacity: 1.0; transparent: false; side: double");
     parent.appendChild(outerRing);
-
-    // Inner ring border - this creates the portal frame
-    const innerRing = document.createElement("a-ring");
-    innerRing.setAttribute("rotation", "0 0 0");
-    innerRing.setAttribute("radius-inner", data.radius);
-    innerRing.setAttribute("radius-outer", data.radius * 1.2);
-    innerRing.setAttribute("color", "black");
-    innerRing.setAttribute("material", "opacity: 1.0; transparent: false; side: double");
-    parent.appendChild(innerRing);
   },
 
   createSkySphere: function (parent, data) {
@@ -77,5 +51,13 @@ AFRAME.registerComponent("portal", {
 
   createGameWorld: function (parent, data) {
     console.log("[portal] Creating game world lighting...");
+
+    // Add lighting for the GLTF model
+    const light = document.createElement("a-light");
+    light.setAttribute("type", "directional");
+    light.setAttribute("intensity", "1.5");
+    light.setAttribute("position", "2 4 3");
+    light.setAttribute("castShadow", "true");
+    parent.appendChild(light);
   },
 });

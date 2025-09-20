@@ -32,6 +32,8 @@ export function startNetwork() {
     // Wire scene events AFTER we have a scene
     scene.addEventListener("local-fire", onLocalFire);
     scene.addEventListener("local-hit", onLocalHit);
+    scene.addEventListener("change-name", onNameChange);
+    scene.addEventListener("local-kill", onLocalKill);
 
     // Connect WS AFTER we have me
     connect();
@@ -44,16 +46,31 @@ export function startNetwork() {
 
   // ---- websocket wiring ----
   function connect() {
+    console.log("[network] Attempting to connect to:", WS_URL);
     ws = new WebSocket(WS_URL);
     ws.onopen = () => {
-      // Generate once when joining
-      const name = genName();
+      console.log("[network] WebSocket connected successfully!");
 
-      // Tell server my name
+      // Get persistent name and score from localStorage
+      const name = getPersistentName();
+      const score = getPersistentScore();
+
+      // Tell server my name and score
       send({ type: "setName", name });
+      send({ type: "setScore", score });
 
-      // Also request to spawn
-      send({ type: "spawn" });
+      // Also request to spawn with current position
+      const rig = document.querySelector("#rig");
+      if (rig) {
+        const pos = rig.object3D.position;
+        send({
+          type: "spawn",
+          position: { x: pos.x, y: pos.y, z: pos.z },
+          ry: rig.object3D.rotation.y,
+        });
+      } else {
+        send({ type: "spawn" });
+      }
     };
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
@@ -64,6 +81,15 @@ export function startNetwork() {
             me.classList.add("avatar");
             me.dataset.playerId = myId;
           }
+
+          // Emit local player join event for highscore
+          scene.emit("player-join", {
+            id: myId,
+            name: getPersistentName(), // Use persistent name
+            kills: getPersistentScore(), // Use persistent score
+            isLocal: true,
+          });
+
           (m.players || []).forEach((p) => {
             if (p.id !== myId) spawnRemote(p);
           });
@@ -71,13 +97,27 @@ export function startNetwork() {
         }
         case "join":
           if (m.player?.id !== myId) spawnRemote(m.player);
+          // Emit player join event for highscore
+          scene.emit("player-join", {
+            id: m.player.id,
+            name: m.player.name,
+            isLocal: false,
+          });
           break;
         case "leave":
           removeRemote(m.id);
+          // Emit player leave event for highscore
+          scene.emit("player-leave", { id: m.id });
           break;
         case "name": {
           const e = remotes.get(m.id);
           if (e) e.setAttribute("data-name", m.name);
+
+          // Emit name change event for highscore
+          scene.emit("name-change", {
+            playerId: m.id,
+            newName: m.name,
+          });
           break;
         }
         case "spawn": {
@@ -91,12 +131,10 @@ export function startNetwork() {
         case "pose": {
           const e = remotes.get(m.id);
           if (e) {
-            console.log(
-              `[network] Received pose for ${m.id} - Position: (${m.x?.toFixed(2)}, ${m.y?.toFixed(2)}, ${m.z?.toFixed(
-                2
-              )}) Rotation: ${m.ry?.toFixed(2)}`
-            );
+            // Log pose data occasionally to debug animation transmission
             setPose(e, m);
+          } else {
+            console.warn(`[network] Received pose for unknown player ${m.id}`);
           }
           break;
         }
@@ -116,7 +154,18 @@ export function startNetwork() {
           }
 
           if (targetEntity && targetEntity.components.health) {
+            const oldHp = targetEntity.components.health.hp;
             targetEntity.emit("sethp", { hp: m.hp }); // triggers health.js listener
+
+            // Check if this was a kill (hp went to 0 or below)
+            if (oldHp > 0 && m.hp <= 0) {
+              // This was a kill! Find the killer
+              const killerId = m.by;
+              if (killerId === myId) {
+                // Local player got a kill
+                scene.emit("local-kill", { victimId: m.victimId });
+              }
+            }
           }
           break;
         }
@@ -151,9 +200,28 @@ export function startNetwork() {
           // (optional: FX when someone dies)
           break;
         }
+        case "player-kill": {
+          // Emit kill event for highscore
+          scene.emit("player-kill", {
+            killerId: m.killerId,
+            victimId: m.victimId,
+          });
+          break;
+        }
+        case "highscore-update": {
+          // Emit highscore update event
+          scene.emit("highscore-update", { players: m.players });
+          break;
+        }
       }
     };
-    ws.onclose = () => setTimeout(connect, 1000);
+    ws.onclose = (event) => {
+      console.log("[network] WebSocket closed:", event.code, event.reason);
+      setTimeout(connect, 1000);
+    };
+    ws.onerror = (error) => {
+      console.error("[network] WebSocket error:", error);
+    };
   }
 
   function send(obj) {
@@ -164,7 +232,7 @@ export function startNetwork() {
   function startPoseLoop(rig) {
     let lastPosition = { x: 0, y: 0, z: 0 };
     let lastRotation = 0;
-    const threshold = 0.01; // Minimum change threshold
+    const threshold = 0.005; // Lower threshold for smoother updates
 
     setInterval(() => {
       if (!myId || !rig) return;
@@ -178,6 +246,15 @@ export function startNetwork() {
       };
       const currentRotation = o.rotation.y;
 
+      // Calculate velocity for animation
+      const deltaTime = 0.1; // 100ms interval
+      const velocity = {
+        x: (currentPosition.x - lastPosition.x) / deltaTime,
+        y: (currentPosition.y - lastPosition.y) / deltaTime,
+        z: (currentPosition.z - lastPosition.z) / deltaTime,
+      };
+      const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+
       // Check if position or rotation has changed significantly
       const positionChanged =
         Math.abs(currentPosition.x - lastPosition.x) > threshold ||
@@ -186,28 +263,42 @@ export function startNetwork() {
 
       const rotationChanged = Math.abs(currentRotation - lastRotation) > threshold;
 
-      // Only send if there's a significant change
-      if (positionChanged || rotationChanged) {
-        // Debug: log what we're sending
-        console.log(
-          `[network] Sending pose - Position: (${currentPosition.x.toFixed(2)}, ${currentPosition.y.toFixed(
-            2
-          )}, ${currentPosition.z.toFixed(2)}) Rotation: ${currentRotation.toFixed(2)}`
-        );
+      // Get current animation state from character component
+      const soldier = rig.querySelector("#soldier");
+      const characterComponent = soldier && soldier.components.character;
+      const animationState = characterComponent
+        ? {
+            idle: characterComponent.target.Idle || 0,
+            walk: characterComponent.target.Walk || 0,
+            run: characterComponent.target.Run || 0,
+          }
+        : { idle: 1, walk: 0, run: 0 };
 
-        send({
-          type: "pose",
-          x: currentPosition.x,
-          y: currentPosition.y,
-          z: currentPosition.z,
-          ry: currentRotation,
-        });
-
-        // Update last known values
-        lastPosition = { ...currentPosition };
-        lastRotation = currentRotation;
+      // Always send pose with animation state
+      if (Math.random() < 0.01) {
+        // Log 1% of the time to reduce spam
+        console.log("[network] Animation state:", animationState);
+        console.log("[network] Character component:", characterComponent);
+        console.log("[network] Target values:", characterComponent ? characterComponent.target : "No character component");
       }
-    }, 100); // Match server throttle interval
+
+      send({
+        type: "pose",
+        x: currentPosition.x,
+        y: currentPosition.y,
+        z: currentPosition.z,
+        ry: currentRotation,
+        vx: velocity.x,
+        vy: velocity.y,
+        vz: velocity.z,
+        speed: speed,
+        animation: animationState,
+      });
+
+      // Update last known values
+      lastPosition = { ...currentPosition };
+      lastRotation = currentRotation;
+    }, 50); // Higher frequency for smoother updates
   }
 
   // ---- scene event handlers ----
@@ -222,6 +313,24 @@ export function startNetwork() {
     const { victimId, dmg } = ev.detail || {};
     if (!victimId) return;
     send({ type: "clientHit", victimId, dmg });
+  }
+
+  function onNameChange(ev) {
+    const { name } = ev.detail || {};
+    if (!name) return;
+    send({ type: "setName", name });
+  }
+
+  function onLocalKill(ev) {
+    const { victimId } = ev.detail || {};
+    if (!victimId) return;
+
+    // Update persistent score
+    const newScore = addPersistentKill();
+    console.log(`[network] Local kill! New persistent score: ${newScore}`);
+
+    // Send updated score to server
+    send({ type: "setScore", score: newScore });
   }
 
   // ---- remote avatars ----
@@ -276,7 +385,10 @@ export function startNetwork() {
     const soldier = rig.querySelector("[remote-avatar]");
     const c = soldier && soldier.components["remote-avatar"];
     if (c && p) {
+      // console.log(`[network] Setting pose for rig ${rig.id}:`, p); // Reduced logging
       c.setNetPose(p);
+    } else {
+      console.warn(`[network] Could not find remote-avatar component for rig ${rig.id}`);
     }
   }
 
@@ -315,6 +427,49 @@ export function startNetwork() {
     scene.appendChild(b);
     console.log(`[spawnBulletVisual] Bullet created and added to scene`);
   }
+
+  // ---- persistent name and score management ----
+  function getPersistentName() {
+    const stored = localStorage.getItem("facingworlds_player_name");
+    if (stored && stored.trim().length > 0) {
+      return stored.trim();
+    }
+
+    // Generate new name and store it
+    const newName = genName();
+    localStorage.setItem("facingworlds_player_name", newName);
+    return newName;
+  }
+
+  function setPersistentName(name) {
+    if (name && name.trim().length > 0) {
+      localStorage.setItem("facingworlds_player_name", name.trim());
+      return true;
+    }
+    return false;
+  }
+
+  function getPersistentScore() {
+    const stored = localStorage.getItem("facingworlds_player_score");
+    return stored ? parseInt(stored, 10) || 0 : 0;
+  }
+
+  function setPersistentScore(score) {
+    localStorage.setItem("facingworlds_player_score", score.toString());
+  }
+
+  function addPersistentKill() {
+    const currentScore = getPersistentScore();
+    const newScore = currentScore + 1;
+    setPersistentScore(newScore);
+    return newScore;
+  }
+
+  // Expose management functions globally for UI
+  window.setPlayerName = setPersistentName;
+  window.getPlayerName = getPersistentName;
+  window.getPlayerScore = getPersistentScore;
+  window.setPlayerScore = setPersistentScore;
 
   // network.js (top-level helper)
   function genName() {

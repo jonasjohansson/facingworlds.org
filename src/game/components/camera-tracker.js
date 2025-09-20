@@ -29,11 +29,6 @@ AFRAME.registerComponent("camera-tracker", {
     const dy = targetWorldPos.y - cameraWorldPos.y;
     const dz = targetWorldPos.z - cameraWorldPos.z;
 
-    // Debug logging
-    console.log("[camera-tracker] Camera world pos:", cameraWorldPos);
-    console.log("[camera-tracker] Target world pos:", targetWorldPos);
-    console.log("[camera-tracker] Direction:", { dx, dy, dz });
-
     // Calculate yaw rotation (horizontal) - invert to look AT the target
     const yaw = Math.atan2(-dx, -dz) * (180 / Math.PI);
 
@@ -43,8 +38,6 @@ AFRAME.registerComponent("camera-tracker", {
 
     // Limit pitch to between -80 and 80 degrees to avoid extreme angles
     pitch = Math.max(-80, Math.min(80, pitch));
-
-    console.log("[camera-tracker] Calculated rotation:", { pitch, yaw });
 
     // Set rotation to look at target
     this.el.setAttribute("rotation", {

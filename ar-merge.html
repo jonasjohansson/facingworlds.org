@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1, maximum-scale=1" />
+    <title>AR Portal Demo - Full Game Experience</title>
+
+    <!-- Load A-Frame globally (includes Three.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
+
+    <!-- Suppress Three.js lighting deprecation warning -->
+    <script>
+      const originalWarn = console.warn;
+      console.warn = function (message) {
+        if (message && message.includes("useLegacyLights has been deprecated")) {
+          return;
+        }
+        originalWarn.apply(console, arguments);
+      };
+    </script>
+
+    <!-- Load encantar libraries -->
+    <script src="./assets/libraries/encantar/encantar.min.js"></script>
+    <script src="./assets/libraries/encantar/plugins/aframe-with-encantar.js"></script>
+    <script src="./assets/libraries/encantar/addons/ar-scan-gimmick.min.js"></script>
+    <script src="./assets/libraries/encantar/addons/gltf-anim.min.js"></script>
+
+    <!-- Load only essential AR components -->
+    <script src="src/ar/components/occlude.js"></script>
+    <script src="src/ar/components/portal-merged.js"></script>
+    <script src="src/game/components/first-person-weapon.js"></script>
+    <script src="src/game/components/screen-touch-controls.js"></script>
+    <script src="src/game/components/camera-tracker.js"></script>
+  </head>
+  <body>
+    <a-scene
+      encantar="stats: false; gizmos: true"
+      loading-screen="enabled: false">
+      <ar-sources>
+        <ar-camera-source></ar-camera-source>
+      </ar-sources>
+
+      <ar-trackers>
+        <ar-image-tracker>
+          <ar-reference-image
+            name="portal"
+            src="assets/images/tracker.jpg"></ar-reference-image>
+        </ar-image-tracker>
+      </ar-trackers>
+
+      <ar-viewport>
+        <ar-hud>
+          <ar-scan-gimmick opacity="0.75"></ar-scan-gimmick>
+        </ar-hud>
+      </ar-viewport>
+
+      <ar-camera></ar-camera>
+
+      <ar-root reference-image="portal">
+        <!-- Portal Structure (commented out for now) -->
+        <!-- <a-entity
+          position="0 0 0"
+          portal="radius: 0.6; skyTexture: #sky; animated: false"></a-entity> -->
+
+        <!-- Full Game Experience on Marker -->
+        <a-entity
+          id="game-world"
+          position="0 0 -2"
+          scale="0.1 0.1 0.1">
+          <!-- Space Environment -->
+          <a-entity
+            space-environment="enabled:true; starCount:0; asteroidCount:0; asteroidSpeed:0.5; nebulaEnabled:false; backgroundColor:#000000"></a-entity>
+
+          <!-- Background Music -->
+          <a-entity background-music="enabled:true; volume:0.8; loop:true; autoplay:false; startOnFirstBullet:true"></a-entity>
+
+          <!-- World + NavMesh -->
+          <a-entity
+            id="world"
+            gltf-model="#world-gltf"
+            gltf-animation-pointer="enabled:true; autoPlay:true; speed:1.0"
+            advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
+            pixelated-texture
+            position="0 0 0"
+            rotation="0 0 0"
+            scale="1 1 1"></a-entity>
+
+          <a-entity
+            id="navmesh"
+            gltf-model="#navmesh-gltf"
+            nav-mesh
+            visible="false"
+            position="0 0 0"
+            rotation="0 0 0"
+            scale="1 1 1"></a-entity>
+
+          <!-- Player Rig -->
+          <a-entity
+            id="rig"
+            movement-controls="constrainToNavMesh: true; speed: 0.4; fly: false"
+            position="0 0 0">
+            <!-- Soldier Body -->
+            <a-entity
+              id="soldier"
+              gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
+              position="0 0 0"
+              rotation="0 0 0">
+            </a-entity>
+
+            <!-- Camera -->
+            <a-entity
+              id="cam"
+              camera="active: true"
+              look-controls="enabled: true; pitchEnabled: true; yawEnabled: true; touchSensitivity: 1; mouseSensitivity: 1; invertPitch: false; invertYaw: false"
+              position="0 2.0 0"
+              first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0"
+              screen-touch-controls="enabled: true">
+              <!-- Weapon -->
+              <a-entity
+                id="player-weapon"
+                gltf-model="assets/3d/enforcer.glb"
+                scale="0.025 0.025 0.025"
+                position="0.3 -0.2 -0.5">
+              </a-entity>
+            </a-entity>
+          </a-entity>
+
+          <!-- Fixed Security Camera -->
+          <a-entity
+            id="fixedcam"
+            camera="active: false"
+            position="0 40 0"
+            rotation="-90 0 0"
+            camera-tracker="target: #soldier; enabled: true">
+          </a-entity>
+        </a-entity>
+      </ar-root>
+
+      <a-assets>
+        <img
+          id="sky"
+          src="https://images.unsplash.com/photo-1537210249814-b9a10a161ae4?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=2089&q=80" />
+
+        <!-- Game Assets -->
+        <a-asset-item
+          id="world-gltf"
+          src="assets/3d/map/FacingWorlds_tex_5.gltf"></a-asset-item>
+        <a-asset-item
+          id="navmesh-gltf"
+          src="assets/3d/navmesh.gltf"></a-asset-item>
+        <a-asset-item
+          id="enforcer-weapon"
+          src="assets/3d/enforcer.glb"></a-asset-item>
+
+        <!-- Audio Assets -->
+        <audio
+          id="background-music"
+          src="assets/audio/110-van_den_bos--foregone_destruction-i.mp3"
+          preload="auto"></audio>
+        <audio
+          id="fire-sound"
+          src="assets/audio/fire.wav"
+          preload="auto"></audio>
+      </a-assets>
+    </a-scene>
+
+    <!-- Load AR entry point -->
+    <script
+      type="module"
+      src="ar.js"></script>
+  </body>
+</html>

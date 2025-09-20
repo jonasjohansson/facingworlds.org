@@ -23,7 +23,11 @@ import "../components/background-music.js";
 import "../components/space-environment.js";
 import "../components/first-person-weapon.js";
 import "../components/invisible-to-player.js";
+import "../components/remote-avatar.js";
 import "../components/camera-tracker.js";
+import "../components/highscore-display.js";
+import "../components/credits-display.js";
+import "../components/name-changer.js";
 // import "../components/follow-player.js"; // Using A-Frame's built-in look-at instead
 // import "../components/touch-controls.js"; // Using inline script instead
 
@@ -32,7 +36,7 @@ import "../components/gltf-viewer-settings.js";
 import "../components/console-suppression.js";
 
 // Import network and spawn modules
-// import startNetwork from "../network/network.js"; // Disabled for single-player
+import startNetwork from "../network/network.js";
 import placePlayerOnNavmesh from "./spawn.js";
 
 import { performanceMonitor } from "../utils/performance.js";
@@ -50,7 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // place player rig onto the navmesh center
         placePlayerOnNavmesh();
         // start networking after scene + soldier exist
-        // startNetwork(); // Disabled for single-player mode
+        startNetwork();
       } catch (error) {
         handleError(error, "Game initialization");
       }
