@@ -162,8 +162,9 @@ export function startNetwork() {
               // This was a kill! Find the killer
               const killerId = m.by;
               if (killerId === myId) {
-                // Local player got a kill
-                scene.emit("local-kill", { victimId: m.victimId });
+                // Local player got a kill - use victim name from server
+                const victimName = m.victimName || getVictimName(m.victimId);
+                scene.emit("local-kill", { victimId: m.victimId, victimName });
               }
             }
           }
@@ -322,7 +323,7 @@ export function startNetwork() {
   }
 
   function onLocalKill(ev) {
-    const { victimId } = ev.detail || {};
+    const { victimId, victimName } = ev.detail || {};
     if (!victimId) return;
 
     // Update persistent score
@@ -331,6 +332,22 @@ export function startNetwork() {
 
     // Send updated score to server
     send({ type: "setScore", score: newScore });
+  }
+
+  function getVictimName(victimId) {
+    // Check if victim is a remote player
+    const remotePlayer = remotes.get(victimId);
+    if (remotePlayer) {
+      return remotePlayer.getAttribute("data-name") || "Unknown Player";
+    }
+
+    // Check if victim is the local player (shouldn't happen but just in case)
+    if (victimId === myId) {
+      return getPersistentName() || "You";
+    }
+
+    // If not found in remotes, return generic name
+    return "Unknown Player";
   }
 
   // ---- remote avatars ----
@@ -473,44 +490,41 @@ export function startNetwork() {
 
   // network.js (top-level helper)
   function genName() {
-    const adj = [
-      "Neon",
-      "Rapid",
-      "Silent",
-      "Crimson",
-      "Quantum",
-      "Wicked",
-      "Fuzzy",
-      "Turbo",
-      "Nimbus",
-      "Arctic",
-      "Sly",
-      "Nova",
-      "Drift",
-      "Cosmic",
-      "Blazing",
+    const names = [
+      "Archon",
+      "Arkon",
+      "Blake",
+      "Brock",
+      "Cilia",
+      "Cryss",
+      "Darhlia",
+      "Drimacus",
+      "Genghis",
+      "Gorge",
+      "Harlin",
+      "Isis",
+      "Kali",
+      "Kira",
+      "Komek",
+      "Kragoth",
+      "Kregore",
+      "Loque",
+      "Luthienne",
+      "Malakai",
+      "Malcom",
+      "Matrix",
+      "Nikita",
+      "Othello",
+      "Riker",
+      "Rumiko",
+      "Rylisa",
+      "Sapphire",
+      "Tamerlane",
+      "Tensor",
+      "Visse",
+      "Xan",
     ];
-    const noun = [
-      "Falcon",
-      "Viper",
-      "Fox",
-      "Raven",
-      "Comet",
-      "Jaguar",
-      "Wolf",
-      "Puma",
-      "Lynx",
-      "Wasp",
-      "Cobra",
-      "Panda",
-      "Otter",
-      "Hawk",
-      "Badger",
-    ];
-    const a = adj[Math.floor(Math.random() * adj.length)];
-    const n = noun[Math.floor(Math.random() * noun.length)];
-    const num = Math.floor(Math.random() * 900 + 100); // 100–999
-    return `${a}${n}-${num}`;
+    return names[Math.floor(Math.random() * names.length)];
   }
 }
 

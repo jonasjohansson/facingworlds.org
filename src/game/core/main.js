@@ -22,11 +22,13 @@ import "../components/advanced-material-animation.js";
 import "../components/background-music.js";
 import "../components/space-environment.js";
 import "../components/first-person-weapon.js";
+import "../components/weapon-sway.js";
 import "../components/invisible-to-player.js";
 import "../components/remote-avatar.js";
 import "../components/camera-tracker.js";
 import "../components/highscore-display.js";
 import "../components/credits-display.js";
+import "../components/kill-notification.js";
 import "../components/name-changer.js";
 // import "../components/follow-player.js"; // Using A-Frame's built-in look-at instead
 // import "../components/touch-controls.js"; // Using inline script instead

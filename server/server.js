@@ -125,7 +125,7 @@ wss.on("connection", (ws) => {
         // Fixed: Added proper variable declaration
         const dmg = 20; // Fixed damage amount
         victim.hp = Math.max(0, victim.hp - dmg);
-        broadcast({ type: "hit", victimId: victim.id, by: id, hp: victim.hp });
+        broadcast({ type: "hit", victimId: victim.id, victimName: victim.name, by: id, hp: victim.hp });
 
         if (victim.hp <= 0) {
           // Award kill to attacker

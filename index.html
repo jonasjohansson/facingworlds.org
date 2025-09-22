@@ -148,11 +148,12 @@
             id="player-weapon"
             gltf-model="assets/3d/enforcer.glb"
             scale="0.025 0.025 0.025"
-            position="0.3 -0.2 -0.5">
+            position="0.2 -0.3 -0.5"
+            weapon-sway="enabled: true; swayIntensity: 0.001; swaySpeed: 6.0; bobIntensity: 0.0; bobSpeed: 0.0; walkMultiplier: 1.0; runMultiplier: 1.5; smoothing: 0.2">
             <!-- Muzzle point (position this at the tip of the weapon barrel) -->
             <a-entity
               id="weapon-muzzle"
-              position="0 0 -15.6895"
+              position="0 1 -1"
               geometry="primitive: sphere; radius: 0.01"
               material="opacity: 0.8; transparent: true; color: red"
               visible="false">
@@ -175,6 +176,9 @@
 
       <!-- Credits Display -->
       <a-entity credits-display="enabled: true; fadeInDelay: 2000; fadeInDuration: 1000"></a-entity>
+
+      <!-- Kill Notification -->
+      <a-entity kill-notification="enabled: true; duration: 3000; fadeInDuration: 500; fadeOutDuration: 1000"></a-entity>
 
       <!-- Name Changer
       <a-entity name-changer="enabled: true; key: KeyN"></a-entity> -->
