@@ -1,105 +1,217 @@
+// Earth Sphere Component - Distant planet with atmosphere
 AFRAME.registerComponent("earth-sphere", {
   schema: {
     enabled: { type: "boolean", default: true },
-    radius: { type: "number", default: 15 },
-    distance: { type: "number", default: 200 },
-    haloIntensity: { type: "number", default: 2.0 },
-    haloSize: { type: "number", default: 1.5 },
-    rotationSpeed: { type: "number", default: 0.001 },
+    distance: { type: "number", default: 100 },
+    size: { type: "number", default: 5 },
+    rotationSpeed: { type: "number", default: 0.01 },
+    atmosphereColor: { type: "color", default: "#4db2ff" },
+    atmosphereIntensity: { type: "number", default: 0.3 },
   },
 
   init() {
     if (!this.data.enabled) return;
-    this.createEarth();
+
+    this.loadTextures();
+  },
+
+  loadTextures() {
+    const THREE = AFRAME.THREE;
+    const loader = new THREE.TextureLoader();
+
+    let loadedCount = 0;
+    const totalTextures = 4;
+
+    const onTextureLoaded = () => {
+      loadedCount++;
+      if (loadedCount === totalTextures) {
+        this.createEarth();
+        this.createClouds();
+        this.createAtmosphere();
+      }
+    };
+
+    // Load Earth textures
+    this.albedoTexture = loader.load("assets/graphics/earth_albedo_4096.jpg", onTextureLoaded, undefined, (error) => {
+      console.warn("Failed to load albedo texture:", error);
+      onTextureLoaded();
+    });
+
+    this.bumpTexture = loader.load("assets/graphics/earth_bump_4096.jpg", onTextureLoaded, undefined, (error) => {
+      console.warn("Failed to load bump texture:", error);
+      onTextureLoaded();
+    });
+
+    this.cloudsTexture = loader.load("assets/graphics/earth_clouds_2048.jpg", onTextureLoaded, undefined, (error) => {
+      console.warn("Failed to load clouds texture:", error);
+      onTextureLoaded();
+    });
+
+    this.nightLightsTexture = loader.load("assets/graphics/earth_night_lights_4096.jpg", onTextureLoaded, undefined, (error) => {
+      console.warn("Failed to load night lights texture:", error);
+      onTextureLoaded();
+    });
+
+    // Set texture properties
+    this.albedoTexture.colorSpace = THREE.SRGBColorSpace;
+    this.bumpTexture.colorSpace = THREE.SRGBColorSpace;
+    this.cloudsTexture.colorSpace = THREE.SRGBColorSpace;
+    this.nightLightsTexture.colorSpace = THREE.SRGBColorSpace;
   },
 
   createEarth() {
-    // Create Earth sphere
-    const earthGeometry = new THREE.SphereGeometry(this.data.radius, 32, 32);
+    const THREE = AFRAME.THREE;
 
-    // Create Earth material with blue color and some texture-like variation
-    const earthMaterial = new THREE.MeshPhongMaterial({
-      color: new THREE.Color(0x4a90e2),
-      shininess: 100,
-      transparent: true,
-      opacity: 0.9,
+    // Create Earth geometry with more detail
+    const geometry = new THREE.SphereGeometry(this.data.size, 64, 64);
+
+    // Create enhanced Earth material with multiple textures
+    const material = new THREE.MeshStandardMaterial({
+      map: this.albedoTexture, // Albedo texture
+      bumpMap: this.bumpTexture, // Bump map for terrain detail
+      bumpScale: 0.03, // Small scale to avoid over-lighting
     });
 
-    this.earth = new THREE.Mesh(earthGeometry, earthMaterial);
+    // Add custom shader effects step by step
+    this.addCustomShaders(material);
 
-    // Position Earth in the distance
-    this.earth.position.set(this.data.distance, 0, -this.data.distance * 0.5);
+    // Create Earth mesh
+    this.earthMesh = new THREE.Mesh(geometry, material);
+    this.earthMesh.position.set(this.data.distance, 10, -80);
 
-    this.el.object3D.add(this.earth);
+    // Add Earth's axial tilt (23.5 degrees)
+    this.earthMesh.rotation.z = (23.5 / 360) * 2 * Math.PI;
 
-    // Create halo effect
-    this.createHalo();
+    // Set initial rotational position for good viewing angle
+    this.earthMesh.rotateY(-0.3);
+
+    this.el.object3D.add(this.earthMesh);
   },
 
-  createHalo() {
-    // Create a larger sphere for the halo effect
-    const haloGeometry = new THREE.SphereGeometry(this.data.radius * this.data.haloSize, 32, 32);
+  addCustomShaders(material) {
+    const THREE = AFRAME.THREE;
 
-    const haloMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0x4a90e2),
-      transparent: true,
-      opacity: 0.1,
-      side: THREE.BackSide, // Render inside of sphere
-    });
+    // Add custom shader effects using onBeforeCompile
+    material.onBeforeCompile = (shader) => {
+      // Add uniforms for cloud shadows
+      shader.uniforms.tClouds = { value: this.cloudsTexture };
+      shader.uniforms.tClouds.value.wrapS = THREE.RepeatWrapping;
+      shader.uniforms.uv_xOffset = { value: 0 };
 
-    this.halo = new THREE.Mesh(haloGeometry, haloMaterial);
-    this.halo.position.copy(this.earth.position);
+      // Add cloud shadow uniforms
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <common>",
+        `
+        #include <common>
+        uniform sampler2D tClouds;
+        uniform float uv_xOffset;
+      `
+      );
 
-    this.el.object3D.add(this.halo);
+      // Add cloud shadows effect (simplified)
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <emissivemap_fragment>",
+        `
+        #include <emissivemap_fragment>
 
-    // Create additional glow effect with a point light
-    const glowLight = new THREE.PointLight(new THREE.Color(0x4a90e2), this.data.haloIntensity, this.data.distance * 2);
-    glowLight.position.copy(this.earth.position);
-    this.el.object3D.add(glowLight);
+        // Cloud shadows calculation
+        float cloudsMapValue = texture2D(tClouds, vec2(vMapUv.x - uv_xOffset, vMapUv.y)).r;
+        diffuseColor.rgb *= max(1.0 - cloudsMapValue, 0.2);
+      `
+      );
 
-    // Create atmospheric glow ring
-    const ringGeometry = new THREE.RingGeometry(this.data.radius * 1.2, this.data.radius * 1.8, 32);
-
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0x4a90e2),
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.DoubleSide,
-    });
-
-    this.atmosphere = new THREE.Mesh(ringGeometry, ringMaterial);
-    this.atmosphere.position.copy(this.earth.position);
-    this.atmosphere.lookAt(0, 0, 0); // Face the camera
-    this.atmosphere.rotation.z = Math.PI / 4; // Slight rotation for effect
-
-    this.el.object3D.add(this.atmosphere);
+      // Store shader reference for animation
+      material.userData.shader = shader;
+    };
   },
 
-  tick() {
-    if (!this.data.enabled || !this.earth) return;
+  createClouds() {
+    const THREE = AFRAME.THREE;
+
+    // Create clouds geometry (slightly larger than earth)
+    const cloudsGeometry = new THREE.SphereGeometry(this.data.size * 1.005, 64, 64);
+    const cloudsMaterial = new THREE.MeshStandardMaterial({
+      alphaMap: this.cloudsTexture, // Use clouds as alpha map
+      transparent: true,
+    });
+
+    // Create clouds mesh
+    this.cloudsMesh = new THREE.Mesh(cloudsGeometry, cloudsMaterial);
+    this.cloudsMesh.position.copy(this.earthMesh.position);
+    this.cloudsMesh.rotation.copy(this.earthMesh.rotation);
+    this.el.object3D.add(this.cloudsMesh);
+  },
+
+  createAtmosphere() {
+    const THREE = AFRAME.THREE;
+
+    // Create atmosphere geometry (larger sphere)
+    const atmosphereGeometry = new THREE.SphereGeometry(this.data.size * 1.25, 32, 32);
+
+    // Create custom shader material for atmosphere
+    const atmosphereMaterial = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 eyeVector;
+
+        void main() {
+          vec4 mvPos = modelViewMatrix * vec4( position, 1.0 );
+          vNormal = normalize( normalMatrix * normal );
+          eyeVector = normalize(mvPos.xyz);
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 eyeVector;
+        uniform float atmOpacity;
+        uniform float atmPowFactor;
+        uniform float atmMultiplier;
+
+        void main() {
+          float dotP = dot( vNormal, eyeVector );
+          float factor = pow(dotP, atmPowFactor) * atmMultiplier;
+          vec3 atmColor = vec3(0.35 + dotP/4.5, 0.35 + dotP/4.5, 1.0);
+          gl_FragColor = vec4(atmColor, atmOpacity) * factor;
+        }
+      `,
+      uniforms: {
+        atmOpacity: { value: 0.7 },
+        atmPowFactor: { value: 4.1 },
+        atmMultiplier: { value: 9.5 },
+      },
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true,
+    });
+
+    // Create atmosphere mesh
+    this.atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+    this.atmosphereMesh.position.copy(this.earthMesh.position);
+    this.el.object3D.add(this.atmosphereMesh);
+  },
+
+  tick(time, deltaTime) {
+    if (!this.data.enabled || !this.earthMesh) return;
 
     // Rotate Earth slowly
-    this.earth.rotation.y += this.data.rotationSpeed;
+    this.earthMesh.rotation.y += (this.data.rotationSpeed * deltaTime) / 1000;
 
-    // Rotate halo and atmosphere
-    if (this.halo) {
-      this.halo.rotation.y += this.data.rotationSpeed * 0.5;
-    }
-
-    if (this.atmosphere) {
-      this.atmosphere.rotation.z += this.data.rotationSpeed * 0.3;
+    // Rotate clouds slightly faster than earth for shadow effect
+    if (this.cloudsMesh) {
+      this.cloudsMesh.rotation.y += (this.data.rotationSpeed * 2 * deltaTime) / 1000;
     }
   },
 
   remove() {
-    if (this.earth) {
-      this.el.object3D.remove(this.earth);
+    if (this.earthMesh) {
+      this.el.object3D.remove(this.earthMesh);
     }
-    if (this.halo) {
-      this.el.object3D.remove(this.halo);
+    if (this.cloudsMesh) {
+      this.el.object3D.remove(this.cloudsMesh);
     }
-    if (this.atmosphere) {
-      this.el.object3D.remove(this.atmosphere);
+    if (this.atmosphereMesh) {
+      this.el.object3D.remove(this.atmosphereMesh);
     }
   },
 });

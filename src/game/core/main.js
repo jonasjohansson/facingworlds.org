@@ -21,6 +21,7 @@ import "../components/gltf-animation-pointer.js";
 import "../components/advanced-material-animation.js";
 import "../components/background-music.js";
 import "../components/space-environment.js";
+import "../components/earth-sphere.js";
 import "../components/first-person-weapon.js";
 import "../components/weapon-sway.js";
 import "../components/invisible-to-player.js";

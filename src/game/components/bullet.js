@@ -33,10 +33,12 @@ AFRAME.registerComponent("bullet", {
   createBulletVisual() {
     const THREE = AFRAME.THREE;
 
-    // Create simple white bullet sphere - very small
-    const bulletGeometry = new THREE.SphereGeometry(this.data.radius * 0.3, 6, 4);
+    // Create enhanced bullet sphere with emissive glow
+    const bulletGeometry = new THREE.SphereGeometry(this.data.radius * 0.4, 8, 6);
     const bulletMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.3,
       transparent: false,
     });
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
@@ -45,6 +47,8 @@ AFRAME.registerComponent("bullet", {
     // Store reference
     this.bullet = bullet;
   },
+
+  // Trail effect removed for cleaner bullet appearance
 
   playBulletSound() {
     // Use HTML5 audio for simpler, more reliable sound playback
@@ -92,6 +96,10 @@ AFRAME.registerComponent("bullet", {
   },
 
   tick(time, dtMs) {
+    // Throttle bullet updates for performance (every 2 frames)
+    this.frameCount = (this.frameCount || 0) + 1;
+    if (this.frameCount % 2 !== 0) return;
+
     const dt = dtMs / 1000;
     this.aliveFor += dt;
 

@@ -2,10 +2,12 @@
   <head>
     <meta charset="utf-8" />
     <title>Facing Worlds</title>
-    <!-- Prevent favicon 404 error -->
+
+    <!-- Favicon -->
     <link
       rel="icon"
-      href="data:," />
+      type="image/x-icon"
+      href="favicon.ico" />
     <meta
       name="description"
       content="" />
@@ -27,13 +29,17 @@
     <a-scene
       gltf-viewer-settings
       console-suppression
-      inspector="enabled: true"
+      inspector="enabled: false"
       loading-screen="enabled: false"
       xr-mode-ui="enabled: false"
-      renderer="colorManagement: true; physicallyCorrectLights: true;toneMapping: ACESFilmicToneMapping; toneMappingExposure: 1.2">
+      renderer="colorManagement: true; physicallyCorrectLights: true; toneMapping: ACESFilmicToneMapping; toneMappingExposure: -2.26; antialias: false; powerPreference: high-performance; precision: mediump; maxPixelRatio: 1.5">
       <!-- Space Environment -->
       <a-entity
-        space-environment="enabled:true; starCount:0; asteroidCount:0; asteroidSpeed:0.5; nebulaEnabled:false; backgroundColor:#000000"></a-entity>
+        space-environment="enabled:true; starCount:200; asteroidCount:0; asteroidSpeed:0.5; nebulaEnabled:false; backgroundColor:#000000"></a-entity>
+
+      <!-- Earth Sphere (Distant Planet) -->
+      <a-entity
+        earth-sphere="enabled:true; distance:100; size:60; rotationSpeed:0.005; atmosphereColor:#4db2ff; atmosphereIntensity:0.8"></a-entity>
 
       <!-- Background Music -->
       <a-entity background-music="enabled:true; volume:0.8; loop:true; autoplay:false; startOnFirstBullet:true"></a-entity>
@@ -50,58 +56,116 @@
           id="enforcer-weapon"
           src="assets/3d/enforcer.glb"></a-asset-item>
 
-        <!-- Audio Assets -->
+        <!-- Audio Assets (Performance Optimized) -->
         <audio
           id="background-music"
           src="assets/audio/110-van_den_bos--foregone_destruction-i.mp3"
-          preload="auto"></audio>
+          preload="metadata"></audio>
         <audio
           id="fire-sound"
           src="assets/audio/fire.wav"
-          preload="auto"></audio>
+          preload="none"></audio>
       </a-assets>
 
       <!-- fixed camera (no look-controls) -->
 
-      <!-- Warm Ambient Light -->
+      <!-- Ambient Light (Neutral Environment) -->
       <a-entity
-        light="type:hemisphere; intensity:1.8; color:#e4d4b9; groundColor:#7c5c46; decay:6.82"
-        position="0 10 0"></a-entity>
+        light="color: #ffe2c2; groundColor: #7c5c46; decay: 6.82; intensity: 0.5; type: hemisphere"
+        position="3.91645 6.02928 0"></a-entity>
 
-      <!-- Blue Point Lights (Left Side) -->
+      <!-- Additional Ambient Light (Light Yellow)
       <a-entity
-        light="type:point; intensity:15; color:#4A90E2; castShadow:true; distance:5; decay:1.5"
-        position="-24.3 14.6 -4"></a-entity>
-      <a-entity
-        light="type:point; intensity:15; color:#4A90E2; castShadow:true; distance:5; decay:1.5"
-        position="-24.3 14.6 4"></a-entity>
-      <a-entity
-        light="type:point; intensity:15; color:#0008ff; castShadow:true; distance:5; decay:1.5"
-        position="-32.3 32.9 -2.57"></a-entity>
-      <a-entity
-        light="type:point; intensity:15; color:#0008ff; castShadow:true; distance:5; decay:1.5"
-        position="-32.3 32.9 2.05"></a-entity>
+        light="type:ambient; intensity:0.4; color:#ffff99"
+        position="0 0 0"></a-entity> -->
 
-      <!-- Red Point Lights (Right Side) -->
+      <!-- Additional Ambient Light for Better Illumination
       <a-entity
-        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:5; decay:1.5"
-        position="34.4 10.7 -10.4"></a-entity>
-      <a-entity
-        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:5; decay:1.5"
-        position="34.4 10.7 -0.6"></a-entity>
-      <a-entity
-        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:5; decay:1.5"
-        position="41.6 32.6 -7.30393"></a-entity>
-      <a-entity
-        light="type:point; intensity:15; color:#E24A4A; castShadow:true; distance:5; decay:1.5"
-        position="41.6 32.6 -2.85067"></a-entity>
+        light="type:ambient; intensity:0.3; color:#ffffff"
+        position="0 0 0"></a-entity> -->
 
-      <!-- World + NavMesh -->
+      <!-- Bright Ambient Light for Enhanced Scene Illumination
+      <a-entity
+        light="type:ambient; intensity:0.6; color:#ffffff"
+        position="0 0 0"></a-entity> -->
+
+      <!-- Directional Light (Direct Lighting)
+      <a-entity
+        light="type:directional; intensity:1.1; color:#f2b000; castShadow:true"
+        position="10 20 10"
+        rotation="-45 45 0"></a-entity> -->
+
+      <!-- Earth Illumination Light (Pointed at Earth)
+      <a-entity
+        light="type:directional; intensity:0.8; color:#fffaeb; castShadow:false"
+        position="80 20 -50"
+        rotation="-30 0 0"></a-entity> -->
+
+      <!-- Map Lights Group -->
+      <a-entity id="map-lights">
+        <!-- Additional Ambient Light for Map Area -->
+        <a-entity
+          light="color: #ffffff; intensity: 0.6; type: ambient"
+          position="44.40337 3.60006 -0.55222"></a-entity>
+
+        <!-- Single Fill Light for Bottom Illumination (Performance Optimized) -->
+        <a-entity
+          light="type:point; intensity:4; color:#f2b000; castShadow:false; distance:25; decay:0.5"
+          position="0 8 0"></a-entity>
+
+        <!-- Blue Lights Group -->
+        <a-entity id="blue-lights">
+          <!-- Blue Spot Light -->
+          <a-entity
+            light="angle: 70; color: #c8dcf4; decay: 0.4; intensity: 2; penumbra: 0.1; type: spot; shadowCameraFov: 0"
+            position="-39.02148 5.75842 0.46228"
+            rotation="-90 0 0"></a-entity>
+
+          <!-- Blue Point Lights (Left Side) - Performance Optimized -->
+          <a-entity
+            light="type:point; intensity:8; color:#4A90E2; castShadow:false; distance:8; decay:1.0"
+            position="-24.3 14.6 -4"></a-entity>
+          <a-entity
+            light="type:point; intensity:8; color:#4A90E2; castShadow:false; distance:8; decay:1.0"
+            position="-24.3 14.6 4"></a-entity>
+          <a-entity
+            light="type:point; intensity:6; color:#0008ff; castShadow:false; distance:10; decay:0.8"
+            position="-32.3 32.9 -2.57"></a-entity>
+          <a-entity
+            light="type:point; intensity:6; color:#0008ff; castShadow:false; distance:10; decay:0.8"
+            position="-32.3 32.9 2.05"></a-entity>
+        </a-entity>
+
+        <!-- Red Lights Group -->
+        <a-entity id="red-lights">
+          <!-- Red Spot Light -->
+          <a-entity
+            light="angle: 70; color: #f4c8c8; decay: 0.4; intensity: 2; penumbra: 0.1; type: spot; shadowCameraFov: 0"
+            position="41.97017 5.75842 -5.09718"
+            rotation="-90 0 0"></a-entity>
+
+          <!-- Red Point Lights (Right Side) - Performance Optimized -->
+          <a-entity
+            light="type:point; intensity:8; color:#E24A4A; castShadow:false; distance:8; decay:1.0"
+            position="34.4 10.7 -10.4"></a-entity>
+          <a-entity
+            light="type:point; intensity:8; color:#E24A4A; castShadow:false; distance:8; decay:1.0"
+            position="34.4 10.7 -0.6"></a-entity>
+          <a-entity
+            light="type:point; intensity:6; color:#E24A4A; castShadow:false; distance:10; decay:0.8"
+            position="41.6 32.6 -7.30393"></a-entity>
+          <a-entity
+            light="type:point; intensity:6; color:#E24A4A; castShadow:false; distance:10; decay:0.8"
+            position="41.6 32.6 -2.85067"></a-entity>
+        </a-entity>
+      </a-entity>
+
+      <!-- World + NavMesh (Performance Optimized) -->
       <a-entity
         id="world"
         gltf-model="#world-gltf"
         gltf-animation-pointer="enabled:true; autoPlay:true; speed:1.0"
-        -advanced-material-animation="enabled:true; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
+        -advanced-material-animation="enabled:false; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
         pixelated-texture
         position="0 0 0"
         rotation="0 0 0"

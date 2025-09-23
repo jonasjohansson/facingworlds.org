@@ -423,9 +423,7 @@ export function startNetwork() {
 
     const b = createEntity("a-entity", {
       position: `${origin.x} ${origin.y} ${origin.z}`,
-      geometry: "primitive: sphere; radius: 0.08",
-      material: "color: #ffcc00; opacity: 0.95; metalness:0.2; roughness:0.4",
-      shadow: "cast:true",
+      // Note: Visual geometry is created by the bullet component itself
       bullet: {
         vx,
         vy,

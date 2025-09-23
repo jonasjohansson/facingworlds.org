@@ -41,6 +41,10 @@ AFRAME.registerComponent("weapon-sway", {
   tick(time, deltaTime) {
     if (!this.data.enabled || !this.rig || !this.soldier) return;
 
+    // Throttle updates for performance (every 2 frames)
+    this.frameCount = (this.frameCount || 0) + 1;
+    if (this.frameCount % 2 !== 0) return;
+
     this.time += deltaTime / 1000; // Convert to seconds
 
     // Get movement data from character component
@@ -57,12 +61,6 @@ AFRAME.registerComponent("weapon-sway", {
       this.movementSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
       this.isMoving = this.movementSpeed > 0.0001;
       this.lastPosition = { x: currentPos.x, y: currentPos.y, z: currentPos.z };
-    }
-
-    // Debug logging occasionally
-    if (Math.random() < 0.01) {
-      console.log("[weapon-sway] Movement speed:", this.movementSpeed, "Is moving:", this.isMoving);
-      console.log("[weapon-sway] Current sway:", this.currentSway, "Current bob:", this.currentBob);
     }
 
     // Calculate sway and bob based on movement

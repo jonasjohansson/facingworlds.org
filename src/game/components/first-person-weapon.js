@@ -174,8 +174,7 @@ AFRAME.registerComponent("first-person-weapon", {
       z: this.muzzlePosition.z,
     });
 
-    bullet.setAttribute("geometry", "primitive: sphere; radius: 0.05");
-    bullet.setAttribute("material", "color: #ffffff; emissive: #ffffff; emissiveIntensity: 0.3");
+    // Note: Visual geometry is created by the bullet component itself
 
     this.el.sceneEl.appendChild(bullet);
     console.log("[first-person-weapon] Created bullet entity at:", this.muzzlePosition);
