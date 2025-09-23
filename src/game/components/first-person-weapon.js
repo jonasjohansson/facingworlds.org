@@ -1,4 +1,6 @@
 // first-person-weapon.js — First-person weapon view and shooting
+import { GAME_CONFIG } from "../config/game-config.js";
+
 AFRAME.registerComponent("first-person-weapon", {
   schema: {
     enabled: { type: "boolean", default: true },
@@ -158,9 +160,10 @@ AFRAME.registerComponent("first-person-weapon", {
     // Create bullet entity for single-player mode
     const bullet = document.createElement("a-entity");
     bullet.setAttribute("bullet", {
-      vx: cameraDirection.x * 25,
-      vy: cameraDirection.y * 25,
-      vz: cameraDirection.z * 25,
+      vx: cameraDirection.x * GAME_CONFIG.BULLET.SPEED,
+      vy: cameraDirection.y * GAME_CONFIG.BULLET.SPEED,
+      vz: cameraDirection.z * GAME_CONFIG.BULLET.SPEED,
+      radius: GAME_CONFIG.BULLET.RADIUS,
       ownerId: "local-player",
       reportHits: true,
     });
@@ -208,7 +211,7 @@ AFRAME.registerComponent("first-person-weapon", {
       }
 
       const audio = new Audio("assets/audio/fire.wav");
-      audio.volume = 0.01; // Very quiet for desktop only
+      audio.volume = 0.1; // Very quiet for desktop only
       audio.play().catch((error) => {
         console.warn("[first-person-weapon] Failed to play weapon sound:", error);
       });

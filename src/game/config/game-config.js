@@ -29,7 +29,7 @@ export const GAME_CONFIG = {
 
   // Bullet settings
   BULLET: {
-    SPEED: 18,
+    SPEED: 70,
     RADIUS: 0.08,
     FIRE_RATE: 8,
     COLOR: "#ffcc00",
