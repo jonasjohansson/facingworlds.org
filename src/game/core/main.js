@@ -28,7 +28,6 @@ import "../components/invisible-to-player.js";
 import "../components/remote-avatar.js";
 import "../components/camera-tracker.js";
 import "../components/highscore-display.js";
-import "../components/credits-display.js";
 import "../components/kill-notification.js";
 import "../components/name-changer.js";
 // import "../components/follow-player.js"; // Using A-Frame's built-in look-at instead

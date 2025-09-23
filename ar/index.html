@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1, maximum-scale=1" />
+    <title>AR Portal Demo</title>
+
+    <!-- Custom CSS for A-Frame UI -->
+    <style>
+      .a-dialog-allow-button {
+        background-color: #4caf50;
+        color: white;
+      }
+      .a-dialog-deny-button {
+        background-color: #f44336;
+        color: white;
+      }
+      .a-dialog-ok-button {
+        background-color: #2196f3;
+        color: white;
+      }
+    </style>
+
+    <!-- Load A-Frame globally (includes Three.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
+
+    <!-- Suppress Three.js lighting deprecation warning -->
+    <script>
+      // Suppress the useLegacyLights deprecation warning
+      const originalWarn = console.warn;
+      console.warn = function (message) {
+        if (message && message.includes("useLegacyLights has been deprecated")) {
+          return; // Suppress this specific warning
+        }
+        originalWarn.apply(console, arguments);
+      };
+    </script>
+
+    <!-- Load encantar libraries synchronously (required before scene initialization) -->
+    <script src="../assets/libraries/encantar/encantar.min.js"></script>
+    <script src="../assets/libraries/encantar/plugins/aframe-with-encantar.js"></script>
+    <script src="../assets/libraries/encantar/addons/ar-scan-gimmick.min.js"></script>
+    <script src="../assets/libraries/encantar/addons/gltf-anim.min.js"></script>
+  </head>
+  <body>
+    <a-scene
+      encantar="stats: false; gizmos: true"
+      loading-screen="enabled: false"
+      device-orientation-permission-ui="enabled: true">
+      <ar-sources>
+        <ar-camera-source></ar-camera-source>
+      </ar-sources>
+
+      <ar-trackers>
+        <ar-image-tracker>
+          <ar-reference-image
+            name="tracker"
+            src="../assets/images/tracker.jpg"></ar-reference-image>
+        </ar-image-tracker>
+      </ar-trackers>
+
+      <ar-viewport>
+        <ar-hud>
+          <ar-scan-gimmick opacity="0.75"></ar-scan-gimmick>
+        </ar-hud>
+      </ar-viewport>
+
+      <ar-camera></ar-camera>
+
+      <ar-root reference-image="tracker">
+        <!-- Ambient Light (Neutral Environment) - from main game -->
+        <a-light
+          type="hemisphere"
+          color="#ffe2c2"
+          groundColor="#7c5c46"
+          decay="6.82"
+          intensity="0.5"
+          position="3.91645 6.02928 0">
+        </a-light>
+
+        <a-entity
+          light="color: #ffffff; intensity: 0.6; type: ambient"
+          position="44.40337 3.60006 -0.55222"></a-entity>
+
+        <!-- Game world GLTF model with rotation and music -->
+        <a-entity rotation="90 0 0">
+          <a-entity
+            id="facing-worlds-model"
+            gltf-model="../assets/3d/map/FacingWorlds_tex_5.gltf"
+            scale="0.05 0.05 0.05"
+            position="0 0 0"
+            shadow=""
+            rotation-component="enabled: true; speed: 0.5"
+            music-trigger>
+          </a-entity>
+        </a-entity>
+      </ar-root>
+
+      <a-assets>
+        <!-- Game world GLTF model -->
+        <a-asset-item
+          id="facing-worlds-model"
+          src="../assets/3d/map/FacingWorlds_tex_5.gltf"></a-asset-item>
+      </a-assets>
+    </a-scene>
+
+    <!-- Rotation Component for 3D Model -->
+    <script>
+      AFRAME.registerComponent("rotation-component", {
+        schema: {
+          enabled: { type: "boolean", default: true },
+          speed: { type: "number", default: 0.5 },
+        },
+
+        init: function () {
+          this.rotationSpeed = this.data.speed;
+        },
+
+        tick: function (time, deltaTime) {
+          if (this.data.enabled) {
+            this.el.object3D.rotation.y += (this.rotationSpeed * deltaTime) / 10000;
+          }
+        },
+      });
+    </script>
+
+    <!-- Music Trigger Component -->
+    <script>
+      AFRAME.registerComponent("music-trigger", {
+        init: function () {
+          this.audio = new Audio("../assets/audio/110-van_den_bos--foregone_destruction-i-gameplay-audio.mp3");
+          this.audio.loop = true;
+          this.audio.volume = 0.3;
+          this.hasPlayed = false;
+
+          // Play music when model is detected
+          this.el.addEventListener("model-loaded", () => {
+            if (!this.hasPlayed) {
+              this.audio.play().catch((e) => console.log("Audio play failed:", e));
+              this.hasPlayed = true;
+            }
+          });
+        },
+      });
+    </script>
+
+    <script
+      type="module"
+      src="../ar.js"></script>
+  </body>
+</html>

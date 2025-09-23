@@ -35,7 +35,7 @@ AFRAME.registerComponent("bullet", {
 
     // Create enhanced bullet sphere with emissive glow
     const bulletGeometry = new THREE.SphereGeometry(this.data.radius * 0.4, 8, 6);
-    const bulletMaterial = new THREE.MeshBasicMaterial({
+    const bulletMaterial = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       emissive: 0xffffff,
       emissiveIntensity: 0.3,
@@ -51,16 +51,40 @@ AFRAME.registerComponent("bullet", {
   // Trail effect removed for cleaner bullet appearance
 
   playBulletSound() {
+    // Check if mobile and disable audio completely
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // Disable audio completely on mobile
+      return;
+    }
+
+    // Prevent multiple audio instances from playing simultaneously
+    if (this.audioPlaying) {
+      return;
+    }
+
+    this.audioPlaying = true;
+
     // Use HTML5 audio for simpler, more reliable sound playback
     try {
       const audio = new Audio("assets/audio/fire.wav");
-      audio.volume = 0.1;
+      audio.volume = 0.01; // Very quiet for desktop only
+      audio.preload = "auto";
+
+      // Reset audio playing flag when audio ends
+      audio.addEventListener("ended", () => {
+        this.audioPlaying = false;
+      });
+
       audio.play().catch((error) => {
         console.warn("[bullet] Failed to play fire.wav, using fallback:", error);
+        this.audioPlaying = false;
         this.createFallbackSound();
       });
     } catch (error) {
       console.warn("[bullet] Audio error, using fallback:", error);
+      this.audioPlaying = false;
       this.createFallbackSound();
     }
   },

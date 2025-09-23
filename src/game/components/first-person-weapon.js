@@ -54,9 +54,6 @@ AFRAME.registerComponent("first-person-weapon", {
     // Create touch fire button for mobile devices
     this.createTouchFireButton();
 
-    // Create camera swap button
-    this.createCameraSwapButton();
-
     // Listen for hit events
     this.el.sceneEl.addEventListener("local-hit", this.onLocalHit.bind(this));
     this.el.sceneEl.addEventListener("local-kill", this.onLocalKill.bind(this));
@@ -202,8 +199,16 @@ AFRAME.registerComponent("first-person-weapon", {
   playWeaponSound() {
     // Use the same fire sound as bullets
     try {
+      // Check if mobile and disable audio completely
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        // Disable audio completely on mobile
+        return;
+      }
+
       const audio = new Audio("assets/audio/fire.wav");
-      audio.volume = 0.15;
+      audio.volume = 0.01; // Very quiet for desktop only
       audio.play().catch((error) => {
         console.warn("[first-person-weapon] Failed to play weapon sound:", error);
       });
@@ -287,23 +292,28 @@ AFRAME.registerComponent("first-person-weapon", {
 
     const fireButton = document.createElement("div");
     fireButton.id = "touch-fire-button";
-    fireButton.innerHTML = "🔫";
+    fireButton.innerHTML = "FIRE";
     fireButton.style.cssText = `
       position: fixed;
       bottom: 20px;
       right: 20px;
       width: 80px;
       height: 80px;
-      background: rgba(255, 100, 100, 0.8);
+      background: rgba(60, 60, 60, 0.8);
       border: 3px solid rgba(255, 255, 255, 0.9);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 32px;
+      font-size: 14px;
+      font-weight: bold;
+      color: white;
       cursor: pointer;
       pointer-events: auto;
       user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
       z-index: 1000;
       touch-action: manipulation;
       transition: all 0.1s ease;
@@ -315,7 +325,7 @@ AFRAME.registerComponent("first-person-weapon", {
       (e) => {
         e.preventDefault();
         this.isFiring = true;
-        fireButton.style.background = "rgba(255, 50, 50, 0.9)";
+        fireButton.style.background = "rgba(40, 40, 40, 0.9)";
         fireButton.style.transform = "scale(0.95)";
       },
       { passive: false }
@@ -326,7 +336,7 @@ AFRAME.registerComponent("first-person-weapon", {
       (e) => {
         e.preventDefault();
         this.isFiring = false;
-        fireButton.style.background = "rgba(255, 100, 100, 0.8)";
+        fireButton.style.background = "rgba(60, 60, 60, 0.8)";
         fireButton.style.transform = "scale(1)";
       },
       { passive: false }
@@ -337,7 +347,7 @@ AFRAME.registerComponent("first-person-weapon", {
       (e) => {
         e.preventDefault();
         this.isFiring = false;
-        fireButton.style.background = "rgba(255, 100, 100, 0.8)";
+        fireButton.style.background = "rgba(60, 60, 60, 0.8)";
         fireButton.style.transform = "scale(1)";
       },
       { passive: false }
@@ -347,7 +357,7 @@ AFRAME.registerComponent("first-person-weapon", {
     fireButton.addEventListener("mousedown", (e) => {
       e.preventDefault();
       this.isFiring = true;
-      fireButton.style.background = "rgba(255, 50, 50, 0.9)";
+      fireButton.style.background = "rgba(40, 40, 40, 0.9)";
       fireButton.style.transform = "scale(0.95)";
     });
 
@@ -360,117 +370,6 @@ AFRAME.registerComponent("first-person-weapon", {
 
     document.body.appendChild(fireButton);
     console.log("[first-person-weapon] Touch fire button created and added to DOM");
-  },
-
-  createCameraSwapButton() {
-    // Check if it's a touch device
-    if (!("ontouchstart" in window || navigator.maxTouchPoints > 0)) {
-      console.log("[first-person-weapon] Not a touch device, skipping camera swap button");
-      return;
-    }
-
-    console.log("[first-person-weapon] Creating camera swap button...");
-
-    const cameraButton = document.createElement("div");
-    cameraButton.id = "touch-camera-button";
-    cameraButton.innerHTML = "📷";
-    cameraButton.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      width: 60px;
-      height: 60px;
-      background: rgba(100, 100, 255, 0.8);
-      border: 2px solid rgba(255, 255, 255, 0.9);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      color: white;
-      cursor: pointer;
-      user-select: none;
-      z-index: 1000;
-      transition: all 0.1s ease;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    `;
-
-    // Touch events
-    cameraButton.addEventListener(
-      "touchstart",
-      (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        cameraButton.style.background = "rgba(50, 50, 255, 0.9)";
-        cameraButton.style.transform = "scale(0.95)";
-        this.swapCamera();
-      },
-      { passive: false }
-    );
-
-    cameraButton.addEventListener(
-      "touchend",
-      (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        cameraButton.style.background = "rgba(100, 100, 255, 0.8)";
-        cameraButton.style.transform = "scale(1)";
-      },
-      { passive: false }
-    );
-
-    cameraButton.addEventListener(
-      "touchcancel",
-      (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        cameraButton.style.background = "rgba(100, 100, 255, 0.8)";
-        cameraButton.style.transform = "scale(1)";
-      },
-      { passive: false }
-    );
-
-    // Mouse events
-    cameraButton.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      cameraButton.style.background = "rgba(50, 50, 255, 0.9)";
-      cameraButton.style.transform = "scale(0.95)";
-      this.swapCamera();
-    });
-
-    cameraButton.addEventListener("mouseup", (e) => {
-      e.preventDefault();
-      cameraButton.style.background = "rgba(100, 100, 255, 0.8)";
-      cameraButton.style.transform = "scale(1)";
-    });
-
-    document.body.appendChild(cameraButton);
-    console.log("[first-person-weapon] Camera swap button created and added to DOM");
-  },
-
-  swapCamera() {
-    const scene = this.el.sceneEl;
-    const firstPersonCam = scene.querySelector("#cam");
-    const fixedCam = scene.querySelector("#fixedcam");
-
-    if (!firstPersonCam || !fixedCam) {
-      console.warn("[first-person-weapon] Camera entities not found");
-      return;
-    }
-
-    const isFirstPersonActive = firstPersonCam.getAttribute("camera").active;
-
-    if (isFirstPersonActive) {
-      // Switch to fixed overhead camera
-      firstPersonCam.setAttribute("camera", "active", false);
-      fixedCam.setAttribute("camera", "active", true);
-      console.log("[first-person-weapon] Switched to fixed overhead camera");
-    } else {
-      // Switch to first person camera
-      fixedCam.setAttribute("camera", "active", false);
-      firstPersonCam.setAttribute("camera", "active", true);
-      console.log("[first-person-weapon] Switched to first person camera");
-    }
   },
 
   onLocalHit(event) {
@@ -552,8 +451,16 @@ AFRAME.registerComponent("first-person-weapon", {
 
     if (soundFile) {
       try {
+        // Check if mobile and disable audio completely
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        if (isMobile) {
+          // Disable audio completely on mobile
+          return;
+        }
+
         const audio = new Audio(soundFile);
-        audio.volume = 0.2 + streak * 0.1; // Volume increases with streak
+        audio.volume = 0.01; // Very quiet for desktop only
         audio.play().catch((error) => {
           console.warn("[first-person-weapon] Failed to play multikill sound:", error);
         });
@@ -572,12 +479,6 @@ AFRAME.registerComponent("first-person-weapon", {
     const fireButton = document.getElementById("touch-fire-button");
     if (fireButton) {
       fireButton.remove();
-    }
-
-    // Remove camera swap button
-    const cameraButton = document.getElementById("touch-camera-button");
-    if (cameraButton) {
-      cameraButton.remove();
     }
   },
 });

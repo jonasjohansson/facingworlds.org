@@ -26,7 +26,7 @@ AFRAME.registerComponent("credits-display", {
       z-index: 1000;
       opacity: 0;
       transition: opacity ${this.data.fadeInDuration}ms ease-in-out;
-      pointer-events: none;
+      pointer-events: auto;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
     `;
 
@@ -34,6 +34,11 @@ AFRAME.registerComponent("credits-display", {
     this.container.innerHTML = `
       <div style="margin-bottom: 4px;">Made by Jonas Johansson</div>
       <div style="color: rgba(255, 204, 0, 0.8);">3D Model by Harry Clark</div>
+      <div style="margin-top: 8px; font-size: 11px;">
+        <a href="/ar/" style="color: #4db2ff; text-decoration: none; border-bottom: 1px solid #4db2ff;">
+          View Facing Worlds in AR, click this link and point your camera towards the sticker.
+        </a>
+      </div>
     `;
 
     document.body.appendChild(this.container);

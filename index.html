@@ -13,11 +13,30 @@
       content="" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1" />
+      content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta
+      name="format-detection"
+      content="telephone=no" />
+    <meta
+      name="msapplication-tap-highlight"
+      content="no" />
 
     <!-- Load A-Frame and Extras from local files -->
     <script src="./assets/libraries/aframe/aframe.min.js"></script>
     <script src="./assets/libraries/aframe-extras.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link
+      rel="stylesheet"
+      href="styles.css" />
+
+    <!-- HTTPS Redirect -->
+    <script>
+      // Automatically redirect HTTP to HTTPS
+      if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+        location.replace("https:" + window.location.href.substring(window.location.protocol.length));
+      }
+    </script>
 
     <!-- Load main game script as module -->
     <script
@@ -59,7 +78,7 @@
         <!-- Audio Assets (Performance Optimized) -->
         <audio
           id="background-music"
-          src="assets/audio/110-van_den_bos--foregone_destruction-i.mp3"
+          src="assets/audio/110-van_den_bos--foregone_destruction-i-gameplay-audio.mp3"
           preload="metadata"></audio>
         <audio
           id="fire-sound"
@@ -226,26 +245,31 @@
         </a-entity>
       </a-entity>
 
-      <!-- Fixed Security Camera (Rotates to Track Player) -->
-      <a-entity
-        id="fixedcam"
-        camera="active: false"
-        position="0 40 0"
-        rotation="-90 0 0"
-        camera-tracker="target: #soldier; enabled: true">
-      </a-entity>
-
       <!-- Highscore Display -->
       <a-entity highscore-display="enabled: true; maxPlayers: 10; updateInterval: 1000"></a-entity>
 
       <!-- Credits Display -->
-      <a-entity credits-display="enabled: true; fadeInDelay: 2000; fadeInDuration: 1000"></a-entity>
+      <div id="credits-container">
+        <div class="credit-line credit-instructions">
+          1 finger tap to move forward, 2 fingers to move backward, move finger or camera to look around, fire to… fire. Game on!
+        </div>
+        <div class="credit-line">
+          Made by
+          <a
+            href="https://www.instagram.com/jnsjohansson"
+            target="_blank"
+            class="credit-author"
+            >Jonas Johansson</a
+          >
+        </div>
+        <div class="credit-line credit-highlight">3D Model by Harry Clark</div>
+        <div class="credit-link">
+          <a href="ar/">View Facing Worlds in AR, click this link and point your camera towards the sticker.</a>
+        </div>
+      </div>
 
       <!-- Kill Notification -->
       <a-entity kill-notification="enabled: true; duration: 3000; fadeInDuration: 500; fadeOutDuration: 1000"></a-entity>
-
-      <!-- Name Changer
-      <a-entity name-changer="enabled: true; key: KeyN"></a-entity> -->
     </a-scene>
   </body>
 </html>

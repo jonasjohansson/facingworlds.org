@@ -18,7 +18,10 @@ wss.on("connection", (ws) => {
   const id = id4();
   clients.set(ws, id);
 
-  const p = { id, name: `Player_${id}`, hp: PLAYER_HP, x: 0, y: 0, z: 0, ry: 0, kills: 0 };
+  // Random spawn position for new players
+  const spawnX = (Math.random() * 2 - 1) * 5;
+  const spawnZ = (Math.random() * 2 - 1) * 5;
+  const p = { id, name: `Player_${id}`, hp: PLAYER_HP, x: spawnX, y: 0, z: spawnZ, ry: 0, kills: 0 };
   players.set(id, p);
 
   send(ws, { type: "hello", yourId: id, players: [...players.values()] });
@@ -143,8 +146,8 @@ wss.on("connection", (ws) => {
             const v = players.get(victim.id);
             if (!v) return;
             v.hp = PLAYER_HP;
-            v.x = (Math.random() * 2 - 1) * 3;
-            v.z = (Math.random() * 2 - 1) * 3;
+            v.x = (Math.random() * 2 - 1) * 5;
+            v.z = (Math.random() * 2 - 1) * 5;
             v.y = 0;
             broadcast({ type: "respawn", player: v });
           }, 1500);
