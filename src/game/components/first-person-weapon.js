@@ -1,6 +1,35 @@
 // first-person-weapon.js — First-person weapon view and shooting
 import { GAME_CONFIG } from "../config/game-config.js";
 
+// Shared audio pool for weapon sounds
+const WEAPON_POOL_SIZE = 4;
+let weaponAudioPool = null;
+let weaponAudioIndex = 0;
+const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+function getWeaponAudioPool() {
+  if (weaponAudioPool) return weaponAudioPool;
+  if (isMobileDevice) return null;
+  weaponAudioPool = [];
+  for (let i = 0; i < WEAPON_POOL_SIZE; i++) {
+    const a = new Audio("assets/audio/fire.wav");
+    a.volume = 0.1;
+    a.preload = "auto";
+    weaponAudioPool.push(a);
+  }
+  return weaponAudioPool;
+}
+
+function playPooledWeaponSound(volume) {
+  const pool = getWeaponAudioPool();
+  if (!pool) return;
+  const a = pool[weaponAudioIndex % WEAPON_POOL_SIZE];
+  weaponAudioIndex++;
+  a.volume = volume;
+  a.currentTime = 0;
+  a.play().catch(() => {});
+}
+
 AFRAME.registerComponent("first-person-weapon", {
   schema: {
     enabled: { type: "boolean", default: true },
@@ -263,24 +292,7 @@ AFRAME.registerComponent("first-person-weapon", {
   },
 
   playWeaponSound() {
-    // Use the same fire sound as bullets
-    try {
-      // Check if mobile and disable audio completely
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-      if (isMobile) {
-        // Disable audio completely on mobile
-        return;
-      }
-
-      const audio = new Audio("assets/audio/fire.wav");
-      audio.volume = 0.1; // Very quiet for desktop only
-      audio.play().catch((error) => {
-        console.warn("[first-person-weapon] Failed to play weapon sound:", error);
-      });
-    } catch (error) {
-      console.warn("[first-person-weapon] Audio error:", error);
-    }
+    playPooledWeaponSound(0.1);
   },
 
   update() {
@@ -488,50 +500,9 @@ AFRAME.registerComponent("first-person-weapon", {
   },
 
   playMultikillSound(streak) {
-    let soundFile = "";
-
-    switch (streak) {
-      case 1:
-        soundFile = "assets/audio/fire.wav"; // Default kill sound
-        break;
-      case 2:
-        soundFile = "assets/audio/fire.wav"; // Double kill (reuse fire sound)
-        break;
-      case 3:
-        soundFile = "assets/audio/fire.wav"; // Triple kill
-        break;
-      case 4:
-        soundFile = "assets/audio/fire.wav"; // Quad kill
-        break;
-      case 5:
-        soundFile = "assets/audio/fire.wav"; // Penta kill
-        break;
-      default:
-        if (streak >= 6) {
-          soundFile = "assets/audio/fire.wav"; // Mega kill
-        }
-        break;
-    }
-
-    if (soundFile) {
-      try {
-        // Check if mobile and disable audio completely
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-        if (isMobile) {
-          // Disable audio completely on mobile
-          return;
-        }
-
-        const audio = new Audio(soundFile);
-        audio.volume = 0.01; // Very quiet for desktop only
-        audio.play().catch((error) => {
-          console.warn("[first-person-weapon] Failed to play multikill sound:", error);
-        });
-      } catch (error) {
-        console.warn("[first-person-weapon] Audio error:", error);
-      }
-    }
+    // All streaks currently use the same sound — volume increases with streak
+    const volume = Math.min(0.05, 0.01 * streak);
+    playPooledWeaponSound(volume);
   },
 
   remove() {

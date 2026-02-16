@@ -23,10 +23,6 @@ AFRAME.registerComponent("remote-avatar", {
     this.target = { Idle: 1, Walk: 0, Run: 0 };
     this.clock = new AFRAME.THREE.Clock();
 
-    // Animation thresholds (lowered for easier triggering)
-    this.moveThreshold = 0.01; // Lower threshold for walk
-    this.runThreshold = 0.5; // Lower threshold for run
-
     // Wait for GLTF model to load
     this.el.addEventListener("model-loaded", () => {
       this.setupAnimations();
@@ -38,22 +34,23 @@ AFRAME.registerComponent("remote-avatar", {
 
     const { x, y, z, ry, animation } = pose;
 
-    // console.log(`[remote-avatar] Updating pose:`, pose); // Reduced logging
-
-    // Set target values for smooth interpolation
-    if (x !== undefined && y !== undefined && z !== undefined) {
-      this.targetPosition = { x, y, z };
-      // Snap to first pose so remote player doesn't lerp from origin
-      if (this._firstPose) {
+    // Snap position and rotation together on first pose
+    if (this._firstPose) {
+      if (x !== undefined && y !== undefined && z !== undefined) {
+        this.targetPosition = { x, y, z };
         this.lastPosition = { x, y, z };
-        this._firstPose = false;
       }
-    }
-
-    if (ry !== undefined) {
-      this.targetRotation = ry;
-      if (this._firstPose) {
+      if (ry !== undefined) {
+        this.targetRotation = ry;
         this.lastRotation = ry;
+      }
+      this._firstPose = false;
+    } else {
+      if (x !== undefined && y !== undefined && z !== undefined) {
+        this.targetPosition = { x, y, z };
+      }
+      if (ry !== undefined) {
+        this.targetRotation = ry;
       }
     }
 
@@ -71,10 +68,6 @@ AFRAME.registerComponent("remote-avatar", {
     }
 
     const clips = mesh.animations;
-    console.log(
-      "[remote-avatar] Found animations:",
-      clips.map((c) => c.name)
-    );
 
     // Create animation mixer
     this.mixer = new AFRAME.THREE.AnimationMixer(mesh);
@@ -86,14 +79,9 @@ AFRAME.registerComponent("remote-avatar", {
 
     if (!idleClip || !walkClip || !runClip) {
       console.warn("[remote-avatar] Missing required animation clips");
-      console.log(
-        "Available clips:",
-        clips.map((c) => ({ name: c.name, duration: c.duration }))
-      );
 
       // Try to use any available clips as fallback
       if (clips.length > 0) {
-        console.log("[remote-avatar] Using fallback animation setup");
         this.actions.Idle = this.mixer.clipAction(clips[0]);
         this.actions.Walk = clips[1] ? this.mixer.clipAction(clips[1]) : this.actions.Idle;
         this.actions.Run = clips[2] ? this.mixer.clipAction(clips[2]) : this.actions.Idle;
@@ -101,7 +89,6 @@ AFRAME.registerComponent("remote-avatar", {
         return;
       }
     } else {
-      // Create actions with found clips
       this.actions.Idle = this.mixer.clipAction(idleClip);
       this.actions.Walk = this.mixer.clipAction(walkClip);
       this.actions.Run = this.mixer.clipAction(runClip);
@@ -122,50 +109,47 @@ AFRAME.registerComponent("remote-avatar", {
     this.actions.Idle.play();
     this.actions.Walk.play();
     this.actions.Run.play();
-
-    console.log("[remote-avatar] Animation system initialized");
   },
 
   updateAnimationFromState: function (animationState) {
-    if (!this.mixer || !this.actions.Idle) {
-      return;
-    }
+    if (!this.mixer || !this.actions.Idle) return;
 
-    // Set target animation state directly from network
     this.target = {
       Idle: animationState.idle || 0,
       Walk: animationState.walk || 0,
       Run: animationState.run || 0,
     };
-
-    // console.log(`[remote-avatar] Setting animation target:`, this.target); // Reduced logging
   },
 
   tick: function (time, deltaTime) {
     if (!this.data.enabled) return;
 
     const rig = this.el.parentElement;
-    if (!rig) return;
+    if (!rig || !rig.object3D) return;
 
-    // Smooth position interpolation
-    const posLerp = Math.min(this.lerpSpeed * (deltaTime / 16.67), 1); // Normalize to 60fps
+    // Smooth position interpolation — set object3D directly (no setAttribute overhead)
+    const posLerp = Math.min(this.lerpSpeed * (deltaTime / 16.67), 1);
     this.lastPosition.x += (this.targetPosition.x - this.lastPosition.x) * posLerp;
     this.lastPosition.y += (this.targetPosition.y - this.lastPosition.y) * posLerp;
     this.lastPosition.z += (this.targetPosition.z - this.lastPosition.z) * posLerp;
 
-    rig.setAttribute("position", `${this.lastPosition.x.toFixed(3)} ${this.lastPosition.y.toFixed(3)} ${this.lastPosition.z.toFixed(3)}`);
+    rig.object3D.position.set(this.lastPosition.x, this.lastPosition.y, this.lastPosition.z);
 
-    // Smooth rotation interpolation
+    // Smooth rotation interpolation with angle wrapping
+    let rotDiff = this.targetRotation - this.lastRotation;
+    // Wrap to [-PI, PI] so we always take the short path
+    while (rotDiff > Math.PI) rotDiff -= 2 * Math.PI;
+    while (rotDiff < -Math.PI) rotDiff += 2 * Math.PI;
     const rotLerp = Math.min(this.lerpSpeed * (deltaTime / 16.67), 1);
-    this.lastRotation += (this.targetRotation - this.lastRotation) * rotLerp;
-    rig.setAttribute("rotation", `0 ${(this.lastRotation * (180 / Math.PI)).toFixed(1)} 0`);
+    this.lastRotation += rotDiff * rotLerp;
+
+    rig.object3D.rotation.set(0, this.lastRotation, 0);
 
     // Update animations
     if (this.mixer) {
-      this.mixer.update(deltaTime / 1000); // Convert to seconds
+      this.mixer.update(deltaTime / 1000);
 
-      // Blend animations smoothly
-      const fadeLerp = 1 - Math.exp((-10 * deltaTime) / 1000); // 10 per second
+      const fadeLerp = 1 - Math.exp((-10 * deltaTime) / 1000);
       this.blendAnimations(fadeLerp);
     }
   },
@@ -173,16 +157,19 @@ AFRAME.registerComponent("remote-avatar", {
   blendAnimations: function (lerpFactor) {
     if (!this.actions.Idle) return;
 
-    // Blend weights towards target
-    Object.keys(this.weights).forEach((key) => {
-      if (this.actions[key] && this.target.hasOwnProperty(key)) {
+    const keys = Object.keys(this.weights);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (this.actions[key] && this.target[key] !== undefined) {
         this.weights[key] += (this.target[key] - this.weights[key]) * lerpFactor;
         this.actions[key].setEffectiveWeight(this.weights[key]);
       }
-    });
+    }
   },
 
   remove: function () {
-    // Cleanup if needed
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+    }
   },
 });

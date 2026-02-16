@@ -10,8 +10,9 @@ AFRAME.registerComponent("kill-notification", {
   init() {
     this.notifications = [];
 
-    // Listen for kill events
-    this.el.sceneEl.addEventListener("local-kill", this.onLocalKill.bind(this));
+    // Listen for kill events (store bound ref for proper cleanup)
+    this._onLocalKill = this.onLocalKill.bind(this);
+    this.el.sceneEl.addEventListener("local-kill", this._onLocalKill);
   },
 
   onLocalKill(event) {
@@ -80,6 +81,6 @@ AFRAME.registerComponent("kill-notification", {
     this.notifications = [];
 
     // Remove event listener
-    this.el.sceneEl.removeEventListener("local-kill", this.onLocalKill.bind(this));
+    this.el.sceneEl.removeEventListener("local-kill", this._onLocalKill);
   },
 });

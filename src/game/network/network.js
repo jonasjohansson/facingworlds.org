@@ -5,6 +5,8 @@ import { getWebSocketUrl, log } from "../utils/environment.js";
 import { handleError, wrapAsync } from "../utils/error-handler.js";
 import { GAME_CONFIG } from "../config/game-config.js";
 
+const BULLET_SPEED = GAME_CONFIG.BULLET.SPEED;
+
 export function startNetwork() {
   const WS_URL = getWebSocketUrl();
   let ws,
@@ -411,10 +413,9 @@ export function startNetwork() {
   // ---- visual bullets ----
   function spawnBulletVisual(origin, dir, ownerId, reportHits = false) {
     if (!scene) return;
-    const speed = 18;
-    const vx = dir.x * speed,
-      vy = dir.y * speed,
-      vz = dir.z * speed;
+    const vx = dir.x * BULLET_SPEED,
+      vy = dir.y * BULLET_SPEED,
+      vz = dir.z * BULLET_SPEED;
 
     const b = createEntity("a-entity", {
       position: `${origin.x} ${origin.y} ${origin.z}`,

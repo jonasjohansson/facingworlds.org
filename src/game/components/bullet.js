@@ -188,6 +188,15 @@ AFRAME.registerComponent("bullet", {
   },
 
   _despawn() {
+    // Dispose Three.js resources to prevent GPU memory leak
+    if (this.bullet) {
+      this.bullet.geometry.dispose();
+      this.bullet.material.dispose();
+    }
+    if (this.trail) {
+      this.trail.geometry.dispose();
+      this.trail.material.dispose();
+    }
     if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
   },
 });

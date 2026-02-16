@@ -70,7 +70,7 @@ wss.on("connection", (ws) => {
         }
         me.ry = +m.ry || 0;
         me.hp = PLAYER_HP;
-        me.kills = 0; // Reset kills on spawn
+        // Don't reset kills — persistent score is set via setScore
         console.log(`[server] Broadcasting spawn for ${id}:`, me);
         broadcast({ type: "spawn", player: me });
         break;
