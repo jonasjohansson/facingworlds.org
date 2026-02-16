@@ -73,11 +73,9 @@ AFRAME.registerComponent("blaster", {
 
   _fireOne() {
     if (!this.data.enabled) {
-      console.log("[blaster] Ignoring fire - component disabled");
       return;
     }
 
-    console.log("[blaster] Firing bullet from blaster component");
     const THREE = AFRAME.THREE;
 
     // Add recoil

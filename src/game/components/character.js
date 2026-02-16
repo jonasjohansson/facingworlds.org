@@ -91,22 +91,8 @@ AFRAME.registerComponent("character", {
         this.rawSpeed = event.detail.velocity.length();
         this.isRunning = this.rawSpeed > this.data.runThreshold;
 
-        // Debug logging
-        if (Math.random() < 0.01) {
-          console.log("[character] Movement event:", {
-            moving: this.isMoving,
-            speed: this.rawSpeed,
-            running: this.isRunning,
-          });
-        }
       });
 
-      // Also listen for other movement-related events
-      this.rig.addEventListener("move", (event) => {
-        if (Math.random() < 0.01) {
-          console.log("[character] Move event:", event.detail);
-        }
-      });
     }
 
     // Setup once model is ready
@@ -188,18 +174,6 @@ AFRAME.registerComponent("character", {
     this.target.Idle = this.isMoving ? 0 : 1;
     this.target.Walk = this.isMoving && !this.isRunning ? 1 : 0;
     this.target.Run = this.isRunning ? 1 : 0;
-
-    // Debug logging for animation state
-    if (Math.random() < 0.01) {
-      console.log("[character] Animation state:", {
-        isMoving: this.isMoving,
-        isRunning: this.isRunning,
-        speedMps: speedMps,
-        rawSpeed: this.rawSpeed,
-        target: this.target,
-        weights: this.weights,
-      });
-    }
 
     // Blend weights (frame-rate independent)
     const damp = 1 - Math.exp(-this.data.fadeLerp * dt);

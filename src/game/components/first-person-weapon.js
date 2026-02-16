@@ -73,7 +73,7 @@ AFRAME.registerComponent("first-person-weapon", {
   },
 
   setupWeapon() {
-    if (!this.data.enabled) return;
+    if (!this.data.enabled || this.weapon) return;
 
     // Find the weapon entity (should be a child of the camera)
     this.weapon = this.el.querySelector("#player-weapon");
@@ -104,7 +104,6 @@ AFRAME.registerComponent("first-person-weapon", {
       }
     }, 5000);
 
-    console.log("[first-person-weapon] Found weapon entity:", this.weapon);
   },
 
   setupMuzzlePosition() {
@@ -144,16 +143,12 @@ AFRAME.registerComponent("first-person-weapon", {
   fireBullet() {
     if (!this.weapon || !this.weapon.object3D) return;
 
-    console.log("[first-person-weapon] Firing bullet from first-person weapon");
-
     // Update muzzle position
     this.setupMuzzlePosition();
 
     // Get camera direction (this.el is the camera)
     const cameraDirection = new THREE.Vector3();
     this.el.object3D.getWorldDirection(cameraDirection);
-    console.log("[first-person-weapon] Camera direction:", cameraDirection);
-
     // Reverse direction since getWorldDirection gives opposite of what we want
     cameraDirection.negate();
 
@@ -177,7 +172,6 @@ AFRAME.registerComponent("first-person-weapon", {
     // Note: Visual geometry is created by the bullet component itself
 
     this.el.sceneEl.appendChild(bullet);
-    console.log("[first-person-weapon] Created bullet entity at:", this.muzzlePosition);
 
     // Also emit to network layer for multiplayer compatibility
     this.el.sceneEl.emit("local-fire", {
@@ -196,7 +190,6 @@ AFRAME.registerComponent("first-person-weapon", {
     // Play weapon sound
     this.playWeaponSound();
 
-    console.log("[first-person-weapon] Fired bullet from muzzle position:", this.muzzlePosition);
   },
 
   playWeaponSound() {
@@ -372,7 +365,6 @@ AFRAME.registerComponent("first-person-weapon", {
     });
 
     document.body.appendChild(fireButton);
-    console.log("[first-person-weapon] Touch fire button created and added to DOM");
   },
 
   onLocalHit(event) {
