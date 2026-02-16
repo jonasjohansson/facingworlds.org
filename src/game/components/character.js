@@ -161,14 +161,10 @@ AFRAME.registerComponent("character", {
     // Convert to meters per second (speed was calculated per frame)
     const speedMps = dt > 0 ? speed / dt : 0;
 
-    // Use movement-controls data if available, otherwise use position-based detection
-    // This ensures animations work even if movement-controls events aren't firing
-    if (this.rawSpeed === 0) {
-      // No movement-controls data, use position-based detection
-      this.isMoving = speedMps > this.data.moveThreshold;
-      this.isRunning = speedMps > this.data.runThreshold;
-      this.rawSpeed = speedMps;
-    }
+    // Always use position-based detection as ground truth.
+    // Movement events may stop firing when input stops, leaving isMoving stuck.
+    this.isMoving = speedMps > this.data.moveThreshold;
+    this.isRunning = speedMps > this.data.runThreshold;
 
     // Update animation state based on movement
     this.target.Idle = this.isMoving ? 0 : 1;
