@@ -69,6 +69,11 @@
           id="navmesh-gltf"
           src="assets/3d/navmesh.gltf"></a-asset-item>
 
+        <!-- Character Model -->
+        <a-asset-item
+          id="soldier-model"
+          src="assets/3d/Soldier.glb"></a-asset-item>
+
         <!-- Weapon Assets -->
         <a-asset-item
           id="enforcer-weapon"
@@ -209,7 +214,7 @@
         <!-- Soldier Body (follows rig movement, fixed rotation) -->
         <a-entity
           id="soldier"
-          gltf-model="https://threejs.org/examples/models/gltf/Soldier.glb"
+          gltf-model="#soldier-model"
           character="idleIdx:0; walkIdx:3; runIdx:1"
           health="max:100; current:100"
           invisible-to-player="enabled: true"

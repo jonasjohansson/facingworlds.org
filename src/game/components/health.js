@@ -8,7 +8,7 @@ AFRAME.registerComponent("health", {
   init() {
     this.hp = this.data.current;
 
-    // floating text label above head
+    // floating text label above head (billboarded to face camera)
     this.label = document.createElement("a-entity");
     this.label.setAttribute("text", {
       value: `HP: ${this.hp}/${this.data.max}`,
@@ -16,6 +16,7 @@ AFRAME.registerComponent("health", {
       color: "red",
       width: 2,
     });
+    this.label.setAttribute("look-at", "[camera]");
     this.label.object3D.position.set(0, 2.2, 0);
     this.el.appendChild(this.label);
 

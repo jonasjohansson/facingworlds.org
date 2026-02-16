@@ -1,5 +1,47 @@
 // bullet.js — Bullet physics and collision detection
 import { createSphere, createBox3, createVector3 } from "../utils/three-helpers.js";
+
+// ---- shared audio pool (module-level, shared across all bullet instances) ----
+const AUDIO_POOL_SIZE = 4;
+let audioPool = null;
+let audioPoolIndex = 0;
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+function getAudioPool() {
+  if (audioPool) return audioPool;
+  if (isMobile) return null;
+  audioPool = [];
+  for (let i = 0; i < AUDIO_POOL_SIZE; i++) {
+    const a = new Audio("assets/audio/fire.wav");
+    a.volume = 0.01;
+    a.preload = "auto";
+    audioPool.push(a);
+  }
+  return audioPool;
+}
+
+function playPooledAudio() {
+  const pool = getAudioPool();
+  if (!pool) return;
+  const a = pool[audioPoolIndex % AUDIO_POOL_SIZE];
+  audioPoolIndex++;
+  a.currentTime = 0;
+  a.play().catch(() => {});
+}
+
+// ---- cached avatar list (refreshed on join/leave) ----
+let cachedAvatars = null;
+
+function getAvatars(sceneEl) {
+  if (cachedAvatars) return cachedAvatars;
+  cachedAvatars = sceneEl.querySelectorAll(".avatar");
+  // Refresh on join/leave
+  const refresh = () => { cachedAvatars = sceneEl.querySelectorAll(".avatar"); };
+  sceneEl.addEventListener("player-join", refresh);
+  sceneEl.addEventListener("player-leave", refresh);
+  return cachedAvatars;
+}
+
 AFRAME.registerComponent("bullet", {
   schema: {
     vx: { type: "number", default: 0 },
@@ -23,11 +65,11 @@ AFRAME.registerComponent("bullet", {
     this._unitZ = createVector3(0, 0, 1);
     this._quat = new AFRAME.THREE.Quaternion();
 
-    // Create bullet visual with white core and light streak
+    // Create bullet visual with tracer trail
     this.createBulletVisual();
 
-    // Play bullet sound when created
-    this.playBulletSound();
+    // Play bullet sound from shared pool
+    playPooledAudio();
 
     // Emit bullet-fired event for background music
     this.el.sceneEl.emit("bullet-fired");
@@ -36,90 +78,32 @@ AFRAME.registerComponent("bullet", {
   createBulletVisual() {
     const THREE = AFRAME.THREE;
 
-    // Create enhanced bullet sphere with emissive glow
+    // Bright bullet head
     const bulletGeometry = new THREE.SphereGeometry(this.data.radius * 0.4, 8, 6);
     const bulletMaterial = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       emissive: 0xffffff,
       emissiveIntensity: 0.3,
-      transparent: false,
     });
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
     this.el.object3D.add(bullet);
-
-    // Store reference
     this.bullet = bullet;
-  },
 
-  // Trail effect removed for cleaner bullet appearance
-
-  playBulletSound() {
-    // Check if mobile and disable audio completely
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    if (isMobile) {
-      // Disable audio completely on mobile
-      return;
-    }
-
-    // Prevent multiple audio instances from playing simultaneously
-    if (this.audioPlaying) {
-      return;
-    }
-
-    this.audioPlaying = true;
-
-    // Use HTML5 audio for simpler, more reliable sound playback
-    try {
-      const audio = new Audio("assets/audio/fire.wav");
-      audio.volume = 0.01; // Very quiet for desktop only
-      audio.preload = "auto";
-
-      // Reset audio playing flag when audio ends
-      audio.addEventListener("ended", () => {
-        this.audioPlaying = false;
-      });
-
-      audio.play().catch((error) => {
-        console.warn("[bullet] Failed to play fire.wav, using fallback:", error);
-        this.audioPlaying = false;
-        this.createFallbackSound();
-      });
-    } catch (error) {
-      console.warn("[bullet] Audio error, using fallback:", error);
-      this.audioPlaying = false;
-      this.createFallbackSound();
-    }
-  },
-
-  createFallbackSound() {
-    // Create a simple bullet sound effect as fallback
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-      if (audioContext.state === "suspended") {
-        audioContext.resume();
-      }
-
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      // High frequency sound for bullet
-      oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
-      oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.1);
-      oscillator.type = "square";
-
-      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.1);
-    } catch (error) {
-      console.warn("[bullet] Fallback sound failed:", error);
-    }
+    // Tracer trail — stretched cylinder behind the bullet
+    const trailLength = 0.6;
+    const trailGeo = new THREE.CylinderGeometry(0.01, 0.005, trailLength, 4, 1);
+    // Shift geometry so the front end sits at origin
+    trailGeo.translate(0, -trailLength / 2, 0);
+    // Rotate so Y-axis aligns with Z (forward)
+    trailGeo.rotateX(Math.PI / 2);
+    const trailMat = new THREE.MeshBasicMaterial({
+      color: 0xffffaa,
+      transparent: true,
+      opacity: 0.7,
+    });
+    const trail = new THREE.Mesh(trailGeo, trailMat);
+    this.el.object3D.add(trail);
+    this.trail = trail;
   },
 
   tick(time, dtMs) {
@@ -145,8 +129,8 @@ AFRAME.registerComponent("bullet", {
     this._sphere.center.copy(o.getWorldPosition(this._tmp));
     this._sphere.radius = this.data.radius;
 
-    // hit players (both local and remote)
-    const avatars = this.el.sceneEl.querySelectorAll(".avatar");
+    // hit players (both local and remote) — uses cached NodeList
+    const avatars = getAvatars(this.el.sceneEl);
     for (let i = 0; i < avatars.length; i++) {
       const avatar = avatars[i];
       const pid = avatar.dataset.playerId;

@@ -363,7 +363,7 @@ export function startNetwork() {
 
     // Create soldier entity inside rig
     const soldier = createEntity("a-entity", {
-      "gltf-model": "https://threejs.org/examples/models/gltf/Soldier.glb",
+      "gltf-model": "#soldier-model",
       shadow: "cast:true; receive:true",
       "remote-avatar": "",
       health: "max:100; current:100",

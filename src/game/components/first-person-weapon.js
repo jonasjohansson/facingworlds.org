@@ -28,6 +28,76 @@ AFRAME.registerComponent("first-person-weapon", {
     this.killStreak = 0;
     this.lastKillTime = 0;
 
+    // Create reusable flash overlay (for kill flash)
+    this.flashOverlay = document.createElement("div");
+    Object.assign(this.flashOverlay.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "100%",
+      height: "100%",
+      pointerEvents: "none",
+      zIndex: "9999",
+      opacity: "0",
+      transition: "opacity 150ms ease-out",
+    });
+    document.body.appendChild(this.flashOverlay);
+
+    // Create crosshair
+    this.crosshair = document.createElement("div");
+    Object.assign(this.crosshair.style, {
+      position: "fixed",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "4px",
+      height: "4px",
+      borderRadius: "50%",
+      background: "rgba(255,255,255,0.7)",
+      pointerEvents: "none",
+      zIndex: "9998",
+    });
+    document.body.appendChild(this.crosshair);
+
+    // Create hitmarker element (white X, hidden by default)
+    this.hitmarker = document.createElement("div");
+    Object.assign(this.hitmarker.style, {
+      position: "fixed",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "20px",
+      height: "20px",
+      pointerEvents: "none",
+      zIndex: "9999",
+      opacity: "0",
+      transition: "opacity 150ms ease-out",
+    });
+    // Draw an X using two rotated bars
+    const bar1 = document.createElement("div");
+    Object.assign(bar1.style, {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      width: "14px",
+      height: "2px",
+      background: "white",
+      transform: "translate(-50%, -50%) rotate(45deg)",
+    });
+    const bar2 = document.createElement("div");
+    Object.assign(bar2.style, {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      width: "14px",
+      height: "2px",
+      background: "white",
+      transform: "translate(-50%, -50%) rotate(-45deg)",
+    });
+    this.hitmarker.appendChild(bar1);
+    this.hitmarker.appendChild(bar2);
+    document.body.appendChild(this.hitmarker);
+
     // Wait for camera to be ready
     this.el.addEventListener("loaded", () => {
       this.setupWeapon();
@@ -368,8 +438,21 @@ AFRAME.registerComponent("first-person-weapon", {
   },
 
   onLocalHit(event) {
-    // Flash screen on hit
-    this.flashScreen(this.data.hitFlashColor, this.data.hitFlashDuration);
+    // Show hitmarker (white X) instead of red flash — only the victim should flash red
+    this.showHitmarker();
+  },
+
+  showHitmarker() {
+    if (!this.hitmarker) return;
+    clearTimeout(this._hitmarkerTimer);
+    this.hitmarker.style.transition = "none";
+    this.hitmarker.style.opacity = "1";
+    // Force reflow so the transition kicks in
+    void this.hitmarker.offsetWidth;
+    this.hitmarker.style.transition = "opacity 150ms ease-out";
+    this._hitmarkerTimer = setTimeout(() => {
+      this.hitmarker.style.opacity = "0";
+    }, 80);
   },
 
   onLocalKill(event) {
@@ -387,34 +470,20 @@ AFRAME.registerComponent("first-person-weapon", {
     // Play multikill sound based on streak
     this.playMultikillSound(this.killStreak);
 
-    // Flash screen for kill
-    this.flashScreen("#00ff00", 150); // Green flash for kill
+    // Flash screen for kill (green)
+    this.flashScreen("#00ff00", 150);
   },
 
   flashScreen(color, duration) {
-    // Create flash overlay
-    const flash = document.createElement("div");
-    flash.style.position = "fixed";
-    flash.style.top = "0";
-    flash.style.left = "0";
-    flash.style.width = "100%";
-    flash.style.height = "100%";
-    flash.style.backgroundColor = color;
-    flash.style.pointerEvents = "none";
-    flash.style.zIndex = "9999";
-    flash.style.opacity = "0.3";
-    flash.style.transition = `opacity ${duration}ms ease-out`;
-
-    document.body.appendChild(flash);
-
-    // Fade out and remove
-    setTimeout(() => {
-      flash.style.opacity = "0";
-      setTimeout(() => {
-        if (flash.parentNode) {
-          flash.parentNode.removeChild(flash);
-        }
-      }, duration);
+    if (!this.flashOverlay) return;
+    clearTimeout(this._flashTimer);
+    this.flashOverlay.style.backgroundColor = color;
+    this.flashOverlay.style.transition = "none";
+    this.flashOverlay.style.opacity = "0.3";
+    void this.flashOverlay.offsetWidth;
+    this.flashOverlay.style.transition = `opacity ${duration}ms ease-out`;
+    this._flashTimer = setTimeout(() => {
+      this.flashOverlay.style.opacity = "0";
     }, 50);
   },
 
@@ -472,8 +541,11 @@ AFRAME.registerComponent("first-person-weapon", {
 
     // Remove touch fire button
     const fireButton = document.getElementById("touch-fire-button");
-    if (fireButton) {
-      fireButton.remove();
-    }
+    if (fireButton) fireButton.remove();
+
+    // Remove HUD overlays
+    if (this.flashOverlay && this.flashOverlay.parentNode) this.flashOverlay.remove();
+    if (this.crosshair && this.crosshair.parentNode) this.crosshair.remove();
+    if (this.hitmarker && this.hitmarker.parentNode) this.hitmarker.remove();
   },
 });
