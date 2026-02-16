@@ -170,8 +170,12 @@ export function startNetwork() {
           if (p) {
             let targetEntity;
             if (p.id === myId) {
-              // Local player
+              // Local player — reset HP and move rig to spawn position
               targetEntity = me;
+              const rig = document.querySelector("#rig");
+              if (rig && p.x !== undefined && p.z !== undefined) {
+                rig.setAttribute("position", `${p.x} ${p.y || 0} ${p.z}`);
+              }
             } else {
               // Remote player - find the soldier entity inside the remote rig
               const rig = remotes.get(p.id);

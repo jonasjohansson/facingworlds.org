@@ -152,6 +152,7 @@ wss.on("connection", (ws) => {
             v.x = (Math.random() * 2 - 1) * 5;
             v.z = (Math.random() * 2 - 1) * 5;
             v.y = 0;
+            v.animation = { idle: 1, walk: 0, run: 0 };
             broadcast({ type: "respawn", player: v });
           }, 1500);
         }
