@@ -227,6 +227,7 @@ export function startNetwork() {
   function startPoseLoop(rig) {
     let lastPosition = { x: 0, y: 0, z: 0 };
     let lastRotation = 0;
+    let lastAnimKey = "1,0,0"; // idle by default
     const threshold = 0.005; // Lower threshold for smoother updates
 
     setInterval(() => {
@@ -269,8 +270,13 @@ export function startNetwork() {
           }
         : { idle: 1, walk: 0, run: 0 };
 
+      // Check if animation state changed (so idle gets sent when player stops)
+      const animKey = `${animationState.idle},${animationState.walk},${animationState.run}`;
+      const animChanged = animKey !== lastAnimKey;
+
       // Only send when something changed
-      if (!positionChanged && !rotationChanged) return;
+      if (!positionChanged && !rotationChanged && !animChanged) return;
+      lastAnimKey = animKey;
 
       send({
         type: "pose",

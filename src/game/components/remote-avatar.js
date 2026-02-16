@@ -9,6 +9,7 @@ AFRAME.registerComponent("remote-avatar", {
     this.lastRotation = 0;
     this.currentSpeed = 0;
     this.lerpSpeed = 0.2; // Smooth interpolation speed
+    this._firstPose = true; // Snap to first pose instead of lerping from origin
 
     // Target values for smooth interpolation
     this.targetPosition = { x: 0, y: 0, z: 0 };
@@ -42,28 +43,23 @@ AFRAME.registerComponent("remote-avatar", {
     // Set target values for smooth interpolation
     if (x !== undefined && y !== undefined && z !== undefined) {
       this.targetPosition = { x, y, z };
+      // Snap to first pose so remote player doesn't lerp from origin
+      if (this._firstPose) {
+        this.lastPosition = { x, y, z };
+        this._firstPose = false;
+      }
     }
 
     if (ry !== undefined) {
       this.targetRotation = ry;
+      if (this._firstPose) {
+        this.lastRotation = ry;
+      }
     }
 
     // Update animation state directly
     if (animation) {
-      if (Math.random() < 0.01) {
-        // Log 1% of the time to reduce spam
-        console.log("[remote-avatar] Received animation:", animation);
-        console.log("[remote-avatar] Current target before update:", this.target);
-      }
       this.updateAnimationFromState(animation);
-      if (Math.random() < 0.01) {
-        console.log("[remote-avatar] Target after update:", this.target);
-      }
-    } else {
-      if (Math.random() < 0.01) {
-        // Log 1% of the time to reduce spam
-        console.log("[remote-avatar] No animation data in pose");
-      }
     }
   },
 
