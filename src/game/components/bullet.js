@@ -19,6 +19,9 @@ AFRAME.registerComponent("bullet", {
     this._sphere = createSphere(this.data.radius);
     this._tmp = createVector3();
     this._box = createBox3();
+    this._direction = createVector3();
+    this._unitZ = createVector3(0, 0, 1);
+    this._quat = new AFRAME.THREE.Quaternion();
 
     // Create bullet visual with white core and light streak
     this.createBulletVisual();
@@ -120,10 +123,6 @@ AFRAME.registerComponent("bullet", {
   },
 
   tick(time, dtMs) {
-    // Throttle bullet updates for performance (every 2 frames)
-    this.frameCount = (this.frameCount || 0) + 1;
-    if (this.frameCount % 2 !== 0) return;
-
     const dt = dtMs / 1000;
     this.aliveFor += dt;
 
@@ -135,12 +134,11 @@ AFRAME.registerComponent("bullet", {
     o.position.y += this.vel.y * dt;
     o.position.z += this.vel.z * dt;
 
-    // Orient bullet and streak in direction of movement
-    if (this.vel.length() > 0) {
-      const direction = this.vel.clone().normalize();
-      const quaternion = new AFRAME.THREE.Quaternion();
-      quaternion.setFromUnitVectors(new AFRAME.THREE.Vector3(0, 0, 1), direction);
-      o.quaternion.copy(quaternion);
+    // Orient bullet in direction of movement
+    if (this.vel.lengthSq() > 0) {
+      this._direction.copy(this.vel).normalize();
+      this._quat.setFromUnitVectors(this._unitZ, this._direction);
+      o.quaternion.copy(this._quat);
     }
 
     // update world-sphere

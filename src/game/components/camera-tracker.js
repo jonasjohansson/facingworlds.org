@@ -7,6 +7,8 @@ AFRAME.registerComponent("camera-tracker", {
 
   init() {
     this.target = null;
+    this._targetPos = new THREE.Vector3();
+    this._cameraPos = new THREE.Vector3();
     this.setupTarget();
   },
 
@@ -21,8 +23,8 @@ AFRAME.registerComponent("camera-tracker", {
     if (!this.data.enabled || !this.target) return;
 
     // Use world positions instead of attribute positions
-    const targetWorldPos = this.target.object3D.getWorldPosition(new THREE.Vector3());
-    const cameraWorldPos = this.el.object3D.getWorldPosition(new THREE.Vector3());
+    const targetWorldPos = this.target.object3D.getWorldPosition(this._targetPos);
+    const cameraWorldPos = this.el.object3D.getWorldPosition(this._cameraPos);
 
     // Calculate direction from camera to target
     const dx = targetWorldPos.x - cameraWorldPos.x;

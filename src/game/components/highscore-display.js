@@ -188,15 +188,7 @@ AFRAME.registerComponent("highscore-display", {
     });
   },
 
-  tick(time, deltaTime) {
-    if (!this.data.enabled) return;
-
-    this.updateTimer += deltaTime;
-    if (this.updateTimer >= this.data.updateInterval) {
-      this.updateDisplay();
-      this.updateTimer = 0;
-    }
-  },
+  // No tick needed — display updates are event-driven via onPlayerJoin/Kill/Leave/etc.
 
   remove() {
     if (this.container && this.container.parentNode) {

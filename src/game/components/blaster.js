@@ -49,6 +49,9 @@ AFRAME.registerComponent("blaster", {
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("keyup", this._onKeyUp);
     document.removeEventListener("contextmenu", this._onContext);
+    if (this._flashMesh && this._flashMesh.parent) {
+      this._flashMesh.parent.remove(this._flashMesh);
+    }
   },
 
   tick(time, dtMs) {
@@ -133,7 +136,7 @@ AFRAME.registerComponent("blaster", {
 
   applyRecoil() {
     // Apply recoil to camera rotation - optimized
-    const camera = this.el.sceneEl.querySelector("#camera");
+    const camera = this.el.sceneEl.querySelector("#cam");
     if (camera && this.recoilIntensity > 0.001) {
       // Skip tiny values
       const currentRotation = camera.getAttribute("rotation");
@@ -151,31 +154,30 @@ AFRAME.registerComponent("blaster", {
   createMuzzleFlash(origin, direction) {
     const THREE = AFRAME.THREE;
 
-    // Create muzzle flash entity
-    const flash = document.createElement("a-entity");
-    flash.setAttribute("position", `${origin.x} ${origin.y} ${origin.z}`);
+    // Reuse flash mesh instead of creating/destroying DOM elements each shot
+    if (!this._flashMesh) {
+      const flashGeometry = new THREE.SphereGeometry(0.1, 6, 4);
+      this._flashMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffaa00,
+        transparent: true,
+        opacity: 0,
+      });
+      this._flashMesh = new THREE.Mesh(flashGeometry, this._flashMaterial);
+      this._flashMesh.visible = false;
+      this.el.sceneEl.object3D.add(this._flashMesh);
+    }
 
-    // Create flash geometry (small sphere that expands) - reduced complexity
-    const flashGeometry = new THREE.SphereGeometry(0.1, 6, 4);
-    const flashMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffaa00,
-      transparent: true,
-      opacity: 0.8,
-    });
-    const flashMesh = new THREE.Mesh(flashGeometry, flashMaterial);
-    flash.object3D.add(flashMesh);
+    this._flashMesh.position.set(origin.x, origin.y, origin.z);
+    this._flashMesh.visible = true;
 
-    // No light for better performance
-
-    // Add to scene
-    this.el.sceneEl.appendChild(flash);
-
-    // Optimized animation - fewer frames, faster execution
     let scale = 0.1;
     let opacity = 0.8;
+    const flashMesh = this._flashMesh;
+    const flashMaterial = this._flashMaterial;
+
     const animateFlash = () => {
-      scale += 0.5; // Faster scaling
-      opacity -= 0.2; // Faster fade
+      scale += 0.5;
+      opacity -= 0.2;
 
       flashMesh.scale.setScalar(scale);
       flashMaterial.opacity = Math.max(0, opacity);
@@ -183,14 +185,10 @@ AFRAME.registerComponent("blaster", {
       if (opacity > 0) {
         requestAnimationFrame(animateFlash);
       } else {
-        // Remove flash after animation
-        if (flash.parentNode) {
-          flash.parentNode.removeChild(flash);
-        }
+        flashMesh.visible = false;
       }
     };
 
-    // Start animation
     requestAnimationFrame(animateFlash);
   },
 });

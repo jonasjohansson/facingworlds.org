@@ -7,12 +7,14 @@ AFRAME.registerComponent("invisible-to-player", {
   init() {
     this.originalVisibility = true;
     this.isLocalPlayer = false;
+    this._lastOpacity = -1; // Track last applied opacity to avoid redundant traversals
 
     // Check if this is the local player's character
     this.checkIfLocalPlayer();
 
     // Listen for model loaded event
     this.el.addEventListener("model-loaded", () => {
+      this._lastOpacity = -1; // Reset cache on new model
       this.updateVisibility();
     });
   },
@@ -44,6 +46,10 @@ AFRAME.registerComponent("invisible-to-player", {
   },
 
   setMaterialOpacity(opacity) {
+    // Skip if opacity hasn't changed
+    if (opacity === this._lastOpacity) return;
+    this._lastOpacity = opacity;
+
     // Only affect the soldier's own meshes, not child entities
     if (this.el.id === "soldier" && this.el.object3D) {
       // Get the soldier's GLTF model directly

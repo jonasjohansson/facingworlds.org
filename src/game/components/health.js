@@ -77,4 +77,13 @@ AFRAME.registerComponent("health", {
       this.flashOverlay.style.opacity = "0";
     }, 150); // quick flash
   },
+
+  remove() {
+    if (this.flashOverlay && this.flashOverlay.parentNode) {
+      this.flashOverlay.parentNode.removeChild(this.flashOverlay);
+    }
+    if (this.label && this.label.parentNode) {
+      this.label.parentNode.removeChild(this.label);
+    }
+  },
 });

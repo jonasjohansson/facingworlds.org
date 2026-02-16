@@ -50,10 +50,13 @@ wss.on("connection", (ws) => {
       }
 
       case "setScore": {
-        const score = Math.max(0, parseInt(m.score) || 0);
-        me.kills = score;
-        console.log(`[server] Player ${me.name} set score to ${score}`);
-        broadcastHighscore(); // Update highscore with new score
+        // Cap score to prevent spoofing — only accept if within 1 of current (reconnect tolerance)
+        const score = Math.max(0, Math.min(9999, parseInt(m.score) || 0));
+        // Only allow setting score higher by at most 1 (normal kill increment)
+        if (score <= me.kills + 1) {
+          me.kills = score;
+        }
+        broadcastHighscore();
         break;
       }
 

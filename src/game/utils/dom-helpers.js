@@ -32,11 +32,7 @@ export function waitForModelLoaded(element) {
 export function createEntity(tag = "a-entity", attributes = {}) {
   const entity = document.createElement(tag);
   Object.entries(attributes).forEach(([key, value]) => {
-    if (typeof value === "object") {
-      entity.setAttribute(key, value);
-    } else {
-      entity.setAttribute(key, value);
-    }
+    entity.setAttribute(key, value);
   });
   return entity;
 }

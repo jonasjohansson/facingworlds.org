@@ -31,32 +31,31 @@ AFRAME.registerComponent("earth-sphere", {
       }
     };
 
+    const setColorSpace = (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      onTextureLoaded();
+    };
+
     // Load Earth textures
-    this.albedoTexture = loader.load("assets/graphics/earth_albedo_4096.jpg", onTextureLoaded, undefined, (error) => {
+    this.albedoTexture = loader.load("assets/graphics/earth_albedo_4096.jpg", setColorSpace, undefined, (error) => {
       console.warn("Failed to load albedo texture:", error);
       onTextureLoaded();
     });
 
-    this.bumpTexture = loader.load("assets/graphics/earth_bump_4096.jpg", onTextureLoaded, undefined, (error) => {
+    this.bumpTexture = loader.load("assets/graphics/earth_bump_4096.jpg", setColorSpace, undefined, (error) => {
       console.warn("Failed to load bump texture:", error);
       onTextureLoaded();
     });
 
-    this.cloudsTexture = loader.load("assets/graphics/earth_clouds_2048.jpg", onTextureLoaded, undefined, (error) => {
+    this.cloudsTexture = loader.load("assets/graphics/earth_clouds_2048.jpg", setColorSpace, undefined, (error) => {
       console.warn("Failed to load clouds texture:", error);
       onTextureLoaded();
     });
 
-    this.nightLightsTexture = loader.load("assets/graphics/earth_night_lights_4096.jpg", onTextureLoaded, undefined, (error) => {
+    this.nightLightsTexture = loader.load("assets/graphics/earth_night_lights_4096.jpg", setColorSpace, undefined, (error) => {
       console.warn("Failed to load night lights texture:", error);
       onTextureLoaded();
     });
-
-    // Set texture properties
-    this.albedoTexture.colorSpace = THREE.SRGBColorSpace;
-    this.bumpTexture.colorSpace = THREE.SRGBColorSpace;
-    this.cloudsTexture.colorSpace = THREE.SRGBColorSpace;
-    this.nightLightsTexture.colorSpace = THREE.SRGBColorSpace;
   },
 
   createEarth() {

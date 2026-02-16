@@ -93,24 +93,24 @@ AFRAME.registerComponent("background-music", {
   createAmbientSound() {
     // Create a simple ambient drone as fallback
     try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      this.fallbackContext = new (window.AudioContext || window.webkitAudioContext)();
 
-      if (audioContext.state === "suspended") {
-        audioContext.resume();
+      if (this.fallbackContext.state === "suspended") {
+        this.fallbackContext.resume();
       }
 
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      this.fallbackOscillator = this.fallbackContext.createOscillator();
+      const gainNode = this.fallbackContext.createGain();
 
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      this.fallbackOscillator.connect(gainNode);
+      gainNode.connect(this.fallbackContext.destination);
 
-      oscillator.frequency.setValueAtTime(60, audioContext.currentTime);
-      oscillator.type = "sine";
+      this.fallbackOscillator.frequency.setValueAtTime(60, this.fallbackContext.currentTime);
+      this.fallbackOscillator.type = "sine";
 
-      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      gainNode.gain.setValueAtTime(0.1, this.fallbackContext.currentTime);
 
-      oscillator.start(audioContext.currentTime);
+      this.fallbackOscillator.start(this.fallbackContext.currentTime);
       console.log("[background-music] Playing ambient fallback sound");
     } catch (error) {
       console.warn("[background-music] Fallback sound failed:", error);
@@ -139,6 +139,18 @@ AFRAME.registerComponent("background-music", {
     if (this.audio) {
       this.audio.setVolume(this.data.volume);
       this.audio.setLoop(this.data.loop);
+    }
+  },
+
+  remove() {
+    if (this.audio) {
+      this.audio.stop();
+    }
+    if (this.fallbackOscillator) {
+      this.fallbackOscillator.stop();
+    }
+    if (this.fallbackContext) {
+      this.fallbackContext.close();
     }
   },
 });

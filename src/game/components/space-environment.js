@@ -111,9 +111,11 @@ AFRAME.registerComponent("space-environment", {
       this.stars.rotation.y += 0.0005;
     }
 
+    if (!this._tmpVec) this._tmpVec = new THREE.Vector3();
     this.asteroids.forEach((asteroid) => {
       const userData = asteroid.userData;
-      asteroid.position.add(userData.direction.clone().multiplyScalar(userData.speed));
+      this._tmpVec.copy(userData.direction).multiplyScalar(userData.speed);
+      asteroid.position.add(this._tmpVec);
       asteroid.rotation.x += userData.rotationSpeed.x;
       asteroid.rotation.y += userData.rotationSpeed.y;
       asteroid.rotation.z += userData.rotationSpeed.z;

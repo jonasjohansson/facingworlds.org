@@ -23,6 +23,10 @@ AFRAME.registerComponent("weapon-sway", {
     this.isMoving = false;
     this.movementSpeed = 0;
 
+    // For fallback movement detection (when character component unavailable)
+    this.velocity = { x: 0, y: 0, z: 0 };
+    this.lastPosition = { x: 0, y: 0, z: 0 };
+
     // Get the rig and soldier to track movement
     this.rig = this.el.sceneEl.querySelector("#rig");
     this.soldier = this.el.sceneEl.querySelector("#soldier");
@@ -30,6 +34,10 @@ AFRAME.registerComponent("weapon-sway", {
       console.warn("[weapon-sway] No rig or soldier found");
       return;
     }
+
+    // Snapshot rig position for fallback velocity calculation
+    const rigPos = this.rig.object3D.position;
+    this.lastPosition = { x: rigPos.x, y: rigPos.y, z: rigPos.z };
 
     // Store original position
     const pos = this.el.getAttribute("position");

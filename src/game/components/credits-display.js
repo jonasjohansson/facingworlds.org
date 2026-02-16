@@ -12,6 +12,10 @@ AFRAME.registerComponent("credits-display", {
   },
 
   createCredits() {
+    // Remove any existing credits container (prevent duplicates)
+    const existing = document.getElementById("credits-container");
+    if (existing) existing.remove();
+
     // Create container div
     this.container = document.createElement("div");
     this.container.id = "credits-container";

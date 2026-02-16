@@ -3,7 +3,7 @@ export const GAME_CONFIG = {
   // Network settings
   NETWORK: {
     LOCAL_URL: "ws://localhost:8080",
-    PRODUCTION_URL: "https://unrealfest-server.onrender.com",
+    PRODUCTION_URL: "wss://unrealfest-server.onrender.com",
     POSE_UPDATE_INTERVAL: 100, // ms
     CONNECTION_TIMEOUT: 5000, // ms
   },

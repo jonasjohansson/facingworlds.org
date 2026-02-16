@@ -1,5 +1,5 @@
 // network.js (ES module) — robust init: waits for DOM, scene, and #soldier
-import { waitForElement, waitForSceneLoaded, createEntity, addClass, setDataAttribute } from "../utils/dom-helpers.js";
+import { waitForElement, waitForSceneLoaded as waitForScene, createEntity, addClass, setDataAttribute } from "../utils/dom-helpers.js";
 import { createEuler } from "../utils/three-helpers.js";
 import { getWebSocketUrl, log } from "../utils/environment.js";
 import { handleError, wrapAsync } from "../utils/error-handler.js";
@@ -15,12 +15,6 @@ export function startNetwork() {
 
   // ---- tiny utils ----
   const waitFor = waitForElement;
-  const waitForScene = (scene) => {
-    return new Promise((res) => {
-      if (scene.hasLoaded) return res();
-      scene.addEventListener("loaded", () => res(), { once: true });
-    });
-  };
 
   // ---- main init ----
   const run = async () => {
@@ -248,7 +242,7 @@ export function startNetwork() {
       const currentRotation = o.rotation.y;
 
       // Calculate velocity for animation
-      const deltaTime = 0.1; // 100ms interval
+      const deltaTime = 0.05; // 50ms interval
       const velocity = {
         x: (currentPosition.x - lastPosition.x) / deltaTime,
         y: (currentPosition.y - lastPosition.y) / deltaTime,
@@ -275,13 +269,8 @@ export function startNetwork() {
           }
         : { idle: 1, walk: 0, run: 0 };
 
-      // Always send pose with animation state
-      if (Math.random() < 0.01) {
-        // Log 1% of the time to reduce spam
-        console.log("[network] Animation state:", animationState);
-        console.log("[network] Character component:", characterComponent);
-        console.log("[network] Target values:", characterComponent ? characterComponent.target : "No character component");
-      }
+      // Only send when something changed
+      if (!positionChanged && !rotationChanged) return;
 
       send({
         type: "pose",
@@ -417,10 +406,6 @@ export function startNetwork() {
       vy = dir.y * speed,
       vz = dir.z * speed;
 
-    console.log(`[spawnBulletVisual] Creating bullet at origin:`, origin);
-    console.log(`[spawnBulletVisual] Direction:`, dir);
-    console.log(`[spawnBulletVisual] Velocity:`, { vx, vy, vz });
-
     const b = createEntity("a-entity", {
       position: `${origin.x} ${origin.y} ${origin.z}`,
       // Note: Visual geometry is created by the bullet component itself
@@ -435,12 +420,7 @@ export function startNetwork() {
       },
     });
 
-    // Add some debugging attributes
-    b.setAttribute("id", `bullet-${Date.now()}`);
-    b.setAttribute("visible", "true");
-
     scene.appendChild(b);
-    console.log(`[spawnBulletVisual] Bullet created and added to scene`);
   }
 
   // ---- persistent name and score management ----
