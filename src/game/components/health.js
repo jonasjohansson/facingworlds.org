@@ -40,6 +40,57 @@ AFRAME.registerComponent("health", {
       });
       document.body.appendChild(this.flashOverlay);
 
+      // HUD health bar (bottom-left)
+      this.hudContainer = document.createElement("div");
+      Object.assign(this.hudContainer.style, {
+        position: "fixed",
+        bottom: "20px",
+        left: "20px",
+        background: "rgba(0, 0, 0, 0.6)",
+        borderRadius: "6px",
+        padding: "8px 12px",
+        pointerEvents: "none",
+        zIndex: "9998",
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        fontFamily: "Arial, sans-serif",
+        backdropFilter: "blur(4px)",
+      });
+      // HP number
+      this.hudNumber = document.createElement("div");
+      Object.assign(this.hudNumber.style, {
+        color: "#4caf50",
+        fontSize: "28px",
+        fontWeight: "bold",
+        minWidth: "50px",
+        textAlign: "right",
+        textShadow: "0 0 8px rgba(76, 175, 80, 0.5)",
+      });
+      this.hudNumber.textContent = this.hp;
+      // Bar track
+      this.hudBarTrack = document.createElement("div");
+      Object.assign(this.hudBarTrack.style, {
+        width: "120px",
+        height: "10px",
+        background: "rgba(255, 255, 255, 0.15)",
+        borderRadius: "5px",
+        overflow: "hidden",
+      });
+      // Bar fill
+      this.hudBarFill = document.createElement("div");
+      Object.assign(this.hudBarFill.style, {
+        width: "100%",
+        height: "100%",
+        background: "#4caf50",
+        borderRadius: "5px",
+        transition: "width 0.2s ease-out, background 0.2s ease-out",
+      });
+      this.hudBarTrack.appendChild(this.hudBarFill);
+      this.hudContainer.appendChild(this.hudNumber);
+      this.hudContainer.appendChild(this.hudBarTrack);
+      document.body.appendChild(this.hudContainer);
+
       // Death overlay
       this.deathOverlay = document.createElement("div");
       Object.assign(this.deathOverlay.style, {
@@ -110,6 +161,15 @@ AFRAME.registerComponent("health", {
     const g = Math.round(200 * pct);
     const color = `rgb(${r},${g},50)`;
     this.label.setAttribute("text", "color", color);
+
+    // Update HUD health bar
+    if (this.isLocalPlayer && this.hudContainer) {
+      this.hudNumber.textContent = this.hp;
+      this.hudNumber.style.color = color;
+      this.hudNumber.style.textShadow = `0 0 8px ${color}`;
+      this.hudBarFill.style.width = `${Math.max(0, pct * 100)}%`;
+      this.hudBarFill.style.background = color;
+    }
   },
 
   onDeath() {
@@ -124,6 +184,8 @@ AFRAME.registerComponent("health", {
       // Disable firing
       const cam = document.querySelector("#cam");
       if (cam) cam.setAttribute("first-person-weapon", "enabled", false);
+      // Emit local-death for spree tracking
+      this.el.sceneEl.emit("local-death");
     }
   },
 
@@ -155,6 +217,9 @@ AFRAME.registerComponent("health", {
     }
     if (this.deathOverlay && this.deathOverlay.parentNode) {
       this.deathOverlay.remove();
+    }
+    if (this.hudContainer && this.hudContainer.parentNode) {
+      this.hudContainer.remove();
     }
     if (this.label && this.label.parentNode) {
       this.label.parentNode.removeChild(this.label);

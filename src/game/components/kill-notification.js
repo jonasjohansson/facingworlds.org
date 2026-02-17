@@ -1,86 +1,88 @@
-// kill-notification.js — Shows kill notifications on screen
+// kill-notification.js — Top-right stacking kill feed
 AFRAME.registerComponent("kill-notification", {
   schema: {
     enabled: { type: "boolean", default: true },
-    duration: { type: "number", default: 3000 }, // 3 seconds
-    fadeInDuration: { type: "number", default: 500 }, // 0.5 seconds
-    fadeOutDuration: { type: "number", default: 1000 }, // 1 second
+    maxEntries: { type: "number", default: 4 },
+    displayDuration: { type: "number", default: 4000 },
   },
 
   init() {
-    this.notifications = [];
+    // Persistent container (top-right corner)
+    this.container = document.createElement("div");
+    Object.assign(this.container.style, {
+      position: "fixed",
+      top: "20px",
+      right: "20px",
+      display: "flex",
+      flexDirection: "column",
+      gap: "6px",
+      pointerEvents: "none",
+      zIndex: "10000",
+      fontFamily: "Arial, sans-serif",
+    });
+    document.body.appendChild(this.container);
 
-    // Listen for kill events (store bound ref for proper cleanup)
+    this.entries = [];
+
     this._onLocalKill = this.onLocalKill.bind(this);
     this.el.sceneEl.addEventListener("local-kill", this._onLocalKill);
   },
 
   onLocalKill(event) {
     if (!this.data.enabled) return;
-
     const victimName = event.detail.victimName || "Unknown Player";
-    this.showKillNotification(victimName);
+    this.addEntry(victimName);
   },
 
-  showKillNotification(victimName) {
-    // Create notification element
-    const notification = document.createElement("div");
-    notification.style.position = "fixed";
-    notification.style.top = "50%";
-    notification.style.left = "50%";
-    notification.style.transform = "translate(-50%, -50%)";
-    notification.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
-    notification.style.color = "#ff6b6b";
-    notification.style.padding = "20px 40px";
-    notification.style.borderRadius = "10px";
-    notification.style.fontSize = "24px";
-    notification.style.fontWeight = "bold";
-    notification.style.fontFamily = "Arial, sans-serif";
-    notification.style.textAlign = "center";
-    notification.style.zIndex = "10000";
-    notification.style.pointerEvents = "none";
-    notification.style.opacity = "0";
-    notification.style.transition = `opacity ${this.data.fadeInDuration}ms ease-in`;
-    notification.style.border = "2px solid #ff6b6b";
-    notification.style.boxShadow = "0 0 20px rgba(255, 107, 107, 0.5)";
+  addEntry(victimName) {
+    const entry = document.createElement("div");
+    Object.assign(entry.style, {
+      background: "rgba(0, 0, 0, 0.7)",
+      color: "#ff6b6b",
+      padding: "6px 14px",
+      borderRadius: "4px",
+      fontSize: "14px",
+      fontWeight: "bold",
+      borderLeft: "3px solid #ff6b6b",
+      opacity: "0",
+      transform: "translateX(30px)",
+      transition: "opacity 0.3s ease-out, transform 0.3s ease-out",
+      whiteSpace: "nowrap",
+    });
+    entry.textContent = `You killed ${victimName}`;
 
-    notification.textContent = `You killed ${victimName}`;
+    // Insert at top of container
+    this.container.prepend(entry);
+    this.entries.unshift(entry);
 
-    document.body.appendChild(notification);
-    this.notifications.push(notification);
+    // Slide in
+    requestAnimationFrame(() => {
+      entry.style.opacity = "1";
+      entry.style.transform = "translateX(0)";
+    });
 
-    // Fade in
+    // Trim excess entries
+    while (this.entries.length > this.data.maxEntries) {
+      const old = this.entries.pop();
+      if (old.parentNode) old.remove();
+    }
+
+    // Fade out and remove after duration
     setTimeout(() => {
-      notification.style.opacity = "1";
-    }, 10);
-
-    // Fade out and remove
-    setTimeout(() => {
-      notification.style.transition = `opacity ${this.data.fadeOutDuration}ms ease-out`;
-      notification.style.opacity = "0";
-
+      entry.style.transition = "opacity 0.5s ease-out";
+      entry.style.opacity = "0";
       setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-        const index = this.notifications.indexOf(notification);
-        if (index > -1) {
-          this.notifications.splice(index, 1);
-        }
-      }, this.data.fadeOutDuration);
-    }, this.data.duration);
+        if (entry.parentNode) entry.remove();
+        const idx = this.entries.indexOf(entry);
+        if (idx > -1) this.entries.splice(idx, 1);
+      }, 500);
+    }, this.data.displayDuration);
   },
 
   remove() {
-    // Clean up any remaining notifications
-    this.notifications.forEach((notification) => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    });
-    this.notifications = [];
-
-    // Remove event listener
+    this.entries.forEach((e) => { if (e.parentNode) e.remove(); });
+    this.entries = [];
+    if (this.container && this.container.parentNode) this.container.remove();
     this.el.sceneEl.removeEventListener("local-kill", this._onLocalKill);
   },
 });

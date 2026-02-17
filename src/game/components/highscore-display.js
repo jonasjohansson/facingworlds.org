@@ -13,6 +13,22 @@ AFRAME.registerComponent("highscore-display", {
     // Create UI elements
     this.createUI();
 
+    // TAB toggle
+    this._onKeyDown = (e) => {
+      if (e.code === "Tab") {
+        e.preventDefault();
+        if (this.container) this.container.style.display = "block";
+      }
+    };
+    this._onKeyUp = (e) => {
+      if (e.code === "Tab") {
+        e.preventDefault();
+        if (this.container) this.container.style.display = "none";
+      }
+    };
+    window.addEventListener("keydown", this._onKeyDown, { passive: false });
+    window.addEventListener("keyup", this._onKeyUp);
+
     // Listen for network events
     this.scene = this.el.sceneEl;
     this.scene.addEventListener("player-join", this.onPlayerJoin.bind(this));
@@ -40,6 +56,7 @@ AFRAME.registerComponent("highscore-display", {
       min-width: 200px;
       z-index: 1000;
       backdrop-filter: blur(5px);
+      display: none;
     `;
 
     // Create title
@@ -64,6 +81,21 @@ AFRAME.registerComponent("highscore-display", {
     this.container.appendChild(this.title);
     this.container.appendChild(this.playersList);
     document.body.appendChild(this.container);
+
+    // TAB hint (always visible, bottom-left area)
+    this.tabHint = document.createElement("div");
+    Object.assign(this.tabHint.style, {
+      position: "fixed",
+      top: "20px",
+      left: "20px",
+      color: "rgba(255, 255, 255, 0.4)",
+      fontSize: "12px",
+      fontFamily: "'Courier New', monospace",
+      pointerEvents: "none",
+      zIndex: "999",
+    });
+    this.tabHint.textContent = "TAB: Scoreboard";
+    document.body.appendChild(this.tabHint);
 
     // Initial empty state
     this.updateDisplay();
@@ -191,8 +223,13 @@ AFRAME.registerComponent("highscore-display", {
   // No tick needed — display updates are event-driven via onPlayerJoin/Kill/Leave/etc.
 
   remove() {
+    window.removeEventListener("keydown", this._onKeyDown);
+    window.removeEventListener("keyup", this._onKeyUp);
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
+    }
+    if (this.tabHint && this.tabHint.parentNode) {
+      this.tabHint.remove();
     }
   },
 });

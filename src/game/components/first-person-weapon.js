@@ -56,6 +56,7 @@ AFRAME.registerComponent("first-person-weapon", {
     this.lastFireTime = 0;
     this.killStreak = 0;
     this.lastKillTime = 0;
+    this.spreeCount = 0;
 
     // Create reusable flash overlay (for kill flash)
     this.flashOverlay = document.createElement("div");
@@ -155,9 +156,55 @@ AFRAME.registerComponent("first-person-weapon", {
     // Create touch fire button for mobile devices
     this.createTouchFireButton();
 
+    // Multi-kill announcement element (center screen)
+    this.announceEl = document.createElement("div");
+    Object.assign(this.announceEl.style, {
+      position: "fixed",
+      top: "30%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      color: "#ffcc00",
+      fontSize: "42px",
+      fontWeight: "bold",
+      fontFamily: "Arial, sans-serif",
+      textShadow: "0 0 20px rgba(255, 204, 0, 0.8), 0 0 40px rgba(255, 204, 0, 0.4)",
+      pointerEvents: "none",
+      zIndex: "10001",
+      opacity: "0",
+      transition: "opacity 0.5s ease-out",
+      textAlign: "center",
+      letterSpacing: "3px",
+    });
+    document.body.appendChild(this.announceEl);
+
+    // Spree announcement element (below multi-kill)
+    this.spreeEl = document.createElement("div");
+    Object.assign(this.spreeEl.style, {
+      position: "fixed",
+      top: "37%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      color: "#ff4444",
+      fontSize: "32px",
+      fontWeight: "bold",
+      fontFamily: "Arial, sans-serif",
+      textShadow: "0 0 20px rgba(255, 68, 68, 0.8), 0 0 40px rgba(255, 68, 68, 0.4)",
+      pointerEvents: "none",
+      zIndex: "10001",
+      opacity: "0",
+      transition: "opacity 0.5s ease-out",
+      textAlign: "center",
+      letterSpacing: "3px",
+    });
+    document.body.appendChild(this.spreeEl);
+
     // Listen for hit events
     this.el.sceneEl.addEventListener("local-hit", this.onLocalHit.bind(this));
     this.el.sceneEl.addEventListener("local-kill", this.onLocalKill.bind(this));
+
+    // Listen for death to reset spree
+    this._onLocalDeath = () => { this.spreeCount = 0; };
+    this.el.sceneEl.addEventListener("local-death", this._onLocalDeath);
   },
 
   tick(time) {
@@ -478,12 +525,44 @@ AFRAME.registerComponent("first-person-weapon", {
     }
 
     this.lastKillTime = now;
+    this.spreeCount++;
+
+    // Show multi-kill announcement
+    if (this.killStreak >= 2) {
+      const labels = {
+        2: "DOUBLE KILL",
+        3: "MULTI KILL",
+        4: "ULTRA KILL",
+        5: "MEGA KILL",
+      };
+      const text = labels[this.killStreak] || "MONSTER KILL";
+      this.showAnnouncement(this.announceEl, text);
+    }
+
+    // Show spree announcement at thresholds
+    const spreeLabels = { 5: "KILLING SPREE", 10: "RAMPAGE", 15: "DOMINATING", 20: "UNSTOPPABLE", 25: "GODLIKE" };
+    if (spreeLabels[this.spreeCount]) {
+      this.showAnnouncement(this.spreeEl, spreeLabels[this.spreeCount]);
+    }
 
     // Play multikill sound based on streak
     this.playMultikillSound(this.killStreak);
 
     // Flash screen for kill (green)
     this.flashScreen("#00ff00", 150);
+  },
+
+  showAnnouncement(el, text) {
+    if (!el) return;
+    clearTimeout(el._hideTimer);
+    el.textContent = text;
+    el.style.transition = "none";
+    el.style.opacity = "1";
+    void el.offsetWidth;
+    el.style.transition = "opacity 0.5s ease-out";
+    el._hideTimer = setTimeout(() => {
+      el.style.opacity = "0";
+    }, 2000);
   },
 
   flashScreen(color, duration) {
@@ -518,5 +597,12 @@ AFRAME.registerComponent("first-person-weapon", {
     if (this.flashOverlay && this.flashOverlay.parentNode) this.flashOverlay.remove();
     if (this.crosshair && this.crosshair.parentNode) this.crosshair.remove();
     if (this.hitmarker && this.hitmarker.parentNode) this.hitmarker.remove();
+    if (this.announceEl && this.announceEl.parentNode) this.announceEl.remove();
+    if (this.spreeEl && this.spreeEl.parentNode) this.spreeEl.remove();
+
+    // Remove death listener
+    if (this._onLocalDeath) {
+      this.el.sceneEl.removeEventListener("local-death", this._onLocalDeath);
+    }
   },
 });
