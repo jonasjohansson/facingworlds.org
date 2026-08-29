@@ -1,26 +1,12 @@
-// Occlude component for AR
-AFRAME.registerComponent("occlude", {
-  init: function () {
-    var el = this.el;
-    var applyOcclusion = function () {
-      var mesh = el.getObject3D("mesh");
-      if (mesh && mesh.material) {
-        mesh.material.colorWrite = false;
-        mesh.material.needsUpdate = true;
-      }
-    };
-
-    el.addEventListener("object3dset", applyOcclusion);
-    applyOcclusion();
-  },
-});
+import { AR_CONFIG } from "../config/ar-config.js";
+import "./occlude.js";
 
 // Portal component for AR
 AFRAME.registerComponent("portal", {
   schema: {
-    radius: { type: "number", default: 1 },
-    skyTexture: { type: "string", default: "#sky" },
-    animated: { type: "boolean", default: false },
+    radius: { type: "number", default: AR_CONFIG.portal.radius },
+    skyTexture: { type: "string", default: AR_CONFIG.portal.skyTexture },
+    animated: { type: "boolean", default: AR_CONFIG.portal.animated },
   },
 
   init: function () {
@@ -34,7 +20,6 @@ AFRAME.registerComponent("portal", {
     // Create the portal structure
     this.createPortalRings(el, data);
     this.createSkySphere(el, data);
-    this.createGameWorld(el, data);
   },
 
   createPortalRings: function (parent, data) {
@@ -73,9 +58,5 @@ AFRAME.registerComponent("portal", {
     }
 
     parent.appendChild(skySphere);
-  },
-
-  createGameWorld: function (parent, data) {
-    console.log("[portal] Creating game world lighting...");
   },
 });

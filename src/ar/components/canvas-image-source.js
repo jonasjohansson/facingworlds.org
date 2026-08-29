@@ -1,4 +1,8 @@
-// Canvas-based image source component for AR debugging
+import { AR_CONFIG } from "../config/ar-config.js";
+
+// Canvas-based image source component for AR debugging.
+// Feeds a still of the tracker image into <ar-video-source> so the tracking
+// pipeline can be exercised on a desktop with no camera.
 AFRAME.registerComponent("canvas-image-source", {
   init: function () {
     // Load and draw the tracker image
@@ -16,7 +20,7 @@ AFRAME.registerComponent("canvas-image-source", {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
       // Convert canvas to video stream
-      const stream = canvas.captureStream(30); // 30 FPS
+      const stream = canvas.captureStream(AR_CONFIG.canvas.fps);
       const video = document.getElementById("tracker-video");
 
       if (video) {
@@ -34,6 +38,6 @@ AFRAME.registerComponent("canvas-image-source", {
         console.error("Canvas Image Source: Video element not found");
       }
     };
-    img.src = "assets/images/tracker.jpg";
+    img.src = AR_CONFIG.tracker.image;
   },
 });

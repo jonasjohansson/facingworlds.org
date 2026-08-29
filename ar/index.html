@@ -1,153 +1,311 @@
 <!DOCTYPE html>
-<html>
+<!--
+  Facing Worlds AR - a live spectator table.
+
+  Point a phone at the printed marker and the Facing Worlds map appears anchored to it,
+  perfectly still, with every player currently in the game standing on it in real time.
+  The stillness is the point: encantar gives a full 6DoF pose relative to the print, so
+  a model that does not move is a model you can walk around.
+
+  This page is pure Three.js. A-Frame was dropped deliberately - see src/ar/three/main.js
+  for the reasoning. The previous A-Frame version is preserved at ar/aframe.html.
+-->
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta
       name="viewport"
-      content="width=device-width, user-scalable=no, minimum-scale=1, maximum-scale=1" />
-    <title>AR Portal Demo</title>
+      content="width=device-width, user-scalable=no, minimum-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <meta
+      name="theme-color"
+      content="#000000" />
+    <meta
+      name="description"
+      content="Watch a live Facing Worlds match on your table, in augmented reality." />
+    <title>Facing Worlds AR</title>
 
-    <!-- Custom CSS for A-Frame UI -->
     <style>
-      .a-dialog-allow-button {
-        background-color: #4caf50;
-        color: white;
+      :root {
+        --ink: #e8eef7;
+        --dim: #93a4bb;
+        --live: #57e08a;
+        --warn: #ffb84a;
+        --dead: #ff5a5a;
       }
-      .a-dialog-deny-button {
-        background-color: #f44336;
-        color: white;
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        color: var(--ink);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
-      .a-dialog-ok-button {
-        background-color: #2196f3;
-        color: white;
+
+      /* encantar takes this container over completely: it sets position, size and
+         z-index on every resize. It only needs to exist. */
+      #ar-viewport {
+        position: fixed;
+        inset: 0;
+      }
+
+      /* The HUD container is handed to encantar, which requires it to start hidden and
+         relocates it into the viewport's sub-container when the session begins. */
+      #ar-hud {
+        pointer-events: none;
+      }
+
+      /* --- scan hint: shown exactly while the marker is not tracked --------- */
+      #ar-scan {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        gap: 1.25rem;
+        justify-items: center;
+        text-align: center;
+      }
+
+      #ar-scan[hidden] {
+        display: none;
+      }
+
+      .scan-frame {
+        width: min(58vw, 58vh);
+        aspect-ratio: 1;
+        position: relative;
+        opacity: 0.75;
+        animation: scan-pulse 2.4s ease-in-out infinite;
+      }
+
+      .scan-frame span {
+        position: absolute;
+        width: 26%;
+        height: 26%;
+        border: 3px solid var(--ink);
+      }
+      .scan-frame span:nth-child(1) {
+        top: 0;
+        left: 0;
+        border-right: 0;
+        border-bottom: 0;
+        border-radius: 10px 0 0 0;
+      }
+      .scan-frame span:nth-child(2) {
+        top: 0;
+        right: 0;
+        border-left: 0;
+        border-bottom: 0;
+        border-radius: 0 10px 0 0;
+      }
+      .scan-frame span:nth-child(3) {
+        bottom: 0;
+        right: 0;
+        border-left: 0;
+        border-top: 0;
+        border-radius: 0 0 10px 0;
+      }
+      .scan-frame span:nth-child(4) {
+        bottom: 0;
+        left: 0;
+        border-right: 0;
+        border-top: 0;
+        border-radius: 0 0 0 10px;
+      }
+
+      @keyframes scan-pulse {
+        0%,
+        100% {
+          opacity: 0.35;
+          transform: scale(0.97);
+        }
+        50% {
+          opacity: 0.85;
+          transform: scale(1);
+        }
+      }
+
+      .scan-label {
+        font-size: 0.95rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+      }
+
+      .scan-sub {
+        font-size: 0.8rem;
+        color: var(--dim);
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+      }
+
+      /* --- spectator chip --------------------------------------------------- */
+      #ar-spectator {
+        position: absolute;
+        top: calc(env(safe-area-inset-top, 0px) + 0.9rem);
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.38rem 0.8rem;
+        border-radius: 999px;
+        background: rgba(8, 12, 20, 0.66);
+        backdrop-filter: blur(6px);
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+      }
+
+      #ar-spectator::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--dead);
+      }
+      #ar-spectator[data-state="online"]::before {
+        background: var(--live);
+      }
+      #ar-spectator[data-state="connecting"]::before {
+        background: var(--warn);
+      }
+
+      /* --- boot overlay: outside the viewport so encantar never touches it --- */
+      #ar-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 2000000000;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 1rem;
+        padding: 2rem;
+        text-align: center;
+        background: #05070c;
+        transition: opacity 420ms ease;
+      }
+
+      #ar-boot.is-gone {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #ar-boot.is-error .boot-spinner {
+        display: none;
+      }
+      #ar-boot.is-error #ar-boot-text {
+        color: var(--dead);
+      }
+
+      .boot-title {
+        font-size: 1.05rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      #ar-boot-text {
+        font-size: 0.85rem;
+        color: var(--dim);
+        max-width: 26ch;
+        line-height: 1.5;
+      }
+
+      .boot-spinner {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 2px solid rgba(232, 238, 247, 0.2);
+        border-top-color: var(--ink);
+        animation: boot-spin 900ms linear infinite;
+      }
+
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .scan-frame,
+        .boot-spinner {
+          animation: none;
+        }
       }
     </style>
 
-    <!-- Load A-Frame globally (includes Three.js) -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-v1.6.0.min.js"></script>
-
-    <!-- Suppress Three.js lighting deprecation warning -->
-    <script>
-      // Suppress the useLegacyLights deprecation warning
-      const originalWarn = console.warn;
-      console.warn = function (message) {
-        if (message && message.includes("useLegacyLights has been deprecated")) {
-          return; // Suppress this specific warning
-        }
-        originalWarn.apply(console, arguments);
-      };
-    </script>
-
-    <!-- Load encantar libraries synchronously (required before scene initialization) -->
+    <!--
+      encantar.js. A classic script, so window.AR exists before any module runs.
+      The Three.js plugin next to it is an ES module and is imported from
+      src/ar/three/main.js instead.
+    -->
     <script src="../assets/libraries/encantar/encantar.min.js"></script>
-    <script src="../assets/libraries/encantar/plugins/aframe-with-encantar.js"></script>
-    <script src="../assets/libraries/encantar/addons/ar-scan-gimmick.min.js"></script>
-    <script src="../assets/libraries/encantar/addons/gltf-anim.min.js"></script>
-  </head>
-  <body>
-    <a-scene
-      encantar="stats: false; gizmos: true"
-      loading-screen="enabled: false"
-      device-orientation-permission-ui="enabled: true">
-      <ar-sources>
-        <ar-camera-source></ar-camera-source>
-      </ar-sources>
 
-      <ar-trackers>
-        <ar-image-tracker>
-          <ar-reference-image
-            name="tracker"
-            src="../assets/images/tracker.jpg"></ar-reference-image>
-        </ar-image-tracker>
-      </ar-trackers>
+    <!--
+      ONE three.js instance, and only one.
 
-      <ar-viewport>
-        <ar-hud>
-          <ar-scan-gimmick opacity="0.75"></ar-scan-gimmick>
-        </ar-hud>
-      </ar-viewport>
+      The encantar Three.js plugin and every module under src/ar/three/ import the bare
+      specifier "three". This import map points that at the vendored r180 build. A
+      second copy of three anywhere on the page would give the plugin's Group/Camera
+      different class identities than the ones the renderer checks with instanceof, and
+      the failures that produces are baffling - so there is exactly one entry here and
+      nothing else loads three.
 
-      <ar-camera></ar-camera>
-
-      <ar-root reference-image="tracker">
-        <!-- Ambient Light (Neutral Environment) - from main game -->
-        <a-light
-          type="hemisphere"
-          color="#ffe2c2"
-          groundColor="#7c5c46"
-          decay="6.82"
-          intensity="0.5"
-          position="3.91645 6.02928 0">
-        </a-light>
-
-        <a-entity
-          light="color: #ffffff; intensity: 0.6; type: ambient"
-          position="44.40337 3.60006 -0.55222"></a-entity>
-
-        <!-- Game world GLTF model with rotation and music -->
-        <a-entity rotation="90 0 0">
-          <a-entity
-            id="facing-worlds-model"
-            gltf-model="../assets/3d/map/FacingWorlds_tex_5.gltf"
-            scale="0.05 0.05 0.05"
-            position="0 0 0"
-            shadow=""
-            rotation-component="enabled: true; speed: 0.5"
-            music-trigger>
-          </a-entity>
-        </a-entity>
-      </ar-root>
-
-      <a-assets>
-        <!-- Game world GLTF model -->
-        <a-asset-item
-          id="facing-worlds-model"
-          src="../assets/3d/map/FacingWorlds_tex_5.gltf"></a-asset-item>
-      </a-assets>
-    </a-scene>
-
-    <!-- Rotation Component for 3D Model -->
-    <script>
-      AFRAME.registerComponent("rotation-component", {
-        schema: {
-          enabled: { type: "boolean", default: true },
-          speed: { type: "number", default: 0.5 },
-        },
-
-        init: function () {
-          this.rotationSpeed = this.data.speed;
-        },
-
-        tick: function (time, deltaTime) {
-          if (this.data.enabled) {
-            this.el.object3D.rotation.y += (this.rotationSpeed * deltaTime) / 10000;
-          }
-        },
-      });
-    </script>
-
-    <!-- Music Trigger Component -->
-    <script>
-      AFRAME.registerComponent("music-trigger", {
-        init: function () {
-          this.audio = new Audio("../assets/audio/110-van_den_bos--foregone_destruction-i-gameplay-audio.mp3");
-          this.audio.loop = true;
-          this.audio.volume = 0.3;
-          this.hasPlayed = false;
-
-          // Play music when model is detected
-          this.el.addEventListener("model-loaded", () => {
-            if (!this.hasPlayed) {
-              this.audio.play().catch((e) => console.log("Audio play failed:", e));
-              this.hasPlayed = true;
-            }
-          });
-        },
-      });
+      Note it must be three.module.min.js: the unminified three.module.js in the same
+      folder imports "./three.core.js", which is not vendored, and would 404.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../assets/libraries/three/three.module.min.js"
+        }
+      }
     </script>
 
     <script
       type="module"
       src="../ar.js"></script>
+  </head>
+
+  <body>
+    <!-- Handed to encantar as the viewport container. It styles and fills this. -->
+    <div id="ar-viewport">
+      <!-- Handed to encantar as the HUD container. It MUST start hidden: encantar
+           warns and hides it otherwise, and it unhides it when the session starts. -->
+      <div
+        id="ar-hud"
+        hidden>
+        <div
+          id="ar-scan"
+          hidden>
+          <div class="scan-frame">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div class="scan-label">Point at the marker</div>
+          <div
+            id="ar-scan-sub"
+            class="scan-sub">
+            The map appears on the print. Walk around it.
+          </div>
+        </div>
+
+        <div
+          id="ar-spectator"
+          data-state="offline">
+          <span id="ar-spectator-text">offline</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Boot / failure overlay. Deliberately a sibling of the viewport: encantar
+         attaches a closed shadow root inside the viewport, and this has to stay
+         reachable and paint before any module has executed. -->
+    <div id="ar-boot">
+      <div class="boot-spinner"></div>
+      <div class="boot-title">Facing Worlds</div>
+      <div id="ar-boot-text">Starting the camera and loading the map&hellip;</div>
+    </div>
   </body>
 </html>
