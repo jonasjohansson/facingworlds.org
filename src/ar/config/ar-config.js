@@ -154,6 +154,21 @@ export const AR_CONFIG = {
   // go through the map's own fitted transform, so a figure always stands exactly
   // where the player stands.
   avatar: {
+    // The actual player character, so a figure on the table reads as a
+    // soldier rather than a pill. Ordered fallback; if none loads, players.js
+    // falls back to a built-in capsule and the table still works.
+    //
+    // The model carries Idle/Walk/Run clips, and the poses already carry
+    // `speed`, so figures walk and run on the rock rather than sliding.
+    // Skinning one skeleton per player is the real cost here — cap it, and
+    // fall back to capsules past the cap rather than dropping frames on a
+    // phone that is also running camera capture and image tracking.
+    modelUrls: ["../assets-optimized/3d/Soldier.glb", "../assets/3d/Soldier.glb"],
+    maxSkinned: 8,
+    // Clip names in the file, and the speeds (game units/s) they belong to.
+    walkSpeed: 2.2,
+    runSpeed: 6.5,
+    clips: { idle: "Idle", walk: "Walk", run: "Run" },
     scale: 4,
     // Body capsule, in game units before `scale`.
     radius: 0.34,

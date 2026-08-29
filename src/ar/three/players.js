@@ -1,5 +1,7 @@
 import * as THREE from "three";
+import { clone as cloneSkinned } from "../vendor/utils/SkeletonUtils.js";
 import { AR_CONFIG } from "../config/ar-config.js";
+import { createGLTFLoader, loadFirstAvailable, disposeModel } from "./assets.js";
 
 // The live spectator table.
 //
@@ -16,19 +18,27 @@ import { AR_CONFIG } from "../config/ar-config.js";
 // transform, no hardcoded 0.05: if the map moves, scales or is re-exported, the
 // figures move with it because they are in its coordinate system.
 //
-// WHY CAPSULES AND NOT THE SOLDIER MODEL. Not a guess, arithmetic: the map is ~111
-// game units across and is fitted to 2.2 marker units, so one game unit is ~0.02
-// marker units. On a print ~15 cm wide (2 marker units) a life-sized player stands
-// under 3 mm tall. A rigged, skinned, four-clip character is being asked to render at
-// a handful of pixels while the phone also runs camera capture and image tracking.
-// Figures are drawn instead from two shared buffer geometries and one material each -
-// no skinning, no animation mixer, no second 900 KB download - and inflated by
-// AR_CONFIG.avatar.scale so they read like wargaming pieces. Positions are NOT
-// inflated, so a figure always stands exactly where its player stands.
+// FIGURES. The real Soldier model, with its Idle/Walk/Run clips driven by the
+// `speed` the poses already carry, so a figure walks and runs on the rock rather
+// than sliding. It was capsules first, on size arithmetic: the map is ~111 game
+// units across and is fitted to 3.2 marker units, so a life-sized player stands
+// only a few millimetres tall on the print and a skinned character is being asked
+// to render at a handful of pixels while the phone also runs camera capture and
+// image tracking. That reasoning was sound: a capsule reads as a blob, and the
+// blob is what people notice. So: the model, with the cost capped.
 //
-// I could not measure the Soldier path: this was built without a camera, so nothing
-// about tracking or on-device framerate has been observed. The choice above rests on
-// the size arithmetic, not on a measurement.
+// The cap is AR_CONFIG.avatar.maxSkinned. Each skinned figure costs a cloned
+// skeleton and a mixer advanced every frame; past the cap, and if the model
+// fails to load at all, figures fall back to the capsule build below and the
+// table keeps working.
+//
+// Either way the figure is inflated by AR_CONFIG.avatar.scale so it reads like
+// a wargaming piece. Positions are NOT inflated, so a figure always stands
+// exactly where its player stands.
+//
+// ON-DEVICE COST IS STILL UNMEASURED. The cap and the capsule fallback exist
+// because this was built without a phone to profile on. If figures stutter,
+// lower maxSkinned before reaching for anything else.
 
 // Resolved against THIS module's URL (src/ar/three/), not against the page.
 const SPECTATOR_CLIENT_URL = "../../shared/net/spectator-client.js";
@@ -63,6 +73,131 @@ export class SpectatorTable {
     this.deadColor = new THREE.Color(cfg.deadColor);
     this.palette = cfg.colors.map((hex) => new THREE.Color(hex));
     this.nextColor = 0;
+
+    // The skinned model. Loaded once, cloned per player. Loading is
+    // best-effort and off the critical path: figures appear as capsules the
+    // moment a player joins and are upgraded in place when the model lands,
+    // so a slow or failed download never delays or blocks the table.
+    this.model = null;
+    this.modelScale = 1;
+    this.modelFootY = 0;
+    this.mixers = new Set();
+    this.modelLoader = null;
+    this._loadModel();
+  }
+
+  // Loads the character once, then upgrade any figures already standing.
+  // Never throws: the table must survive a missing file or a dead network.
+  _loadModel() {
+    const cfg = AR_CONFIG.avatar;
+    if (!cfg.modelUrls || !cfg.modelUrls.length) return;
+
+    this.modelLoader = createGLTFLoader();
+    loadFirstAvailable(this.modelLoader, cfg.modelUrls, "avatar")
+      .then((gltf) => {
+        if (this.disposed) {
+          return;
+        }
+        this.model = gltf;
+
+        // Measure the model ONCE, here, with its matrices forced up to
+        // date. A freshly cloned skinned mesh has unset bone matrices, so
+        // Box3.setFromObject on a clone collapses to ~0 and any per-clone
+        // fit silently does nothing. Measured on the source it is honest,
+        // and every clone reuses the number for free.
+        gltf.scene.updateWorldMatrix(true, true);
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const h = box.max.y - box.min.y;
+        this.modelScale = h > 0.01 ? AR_CONFIG.avatar.height / h : 1;
+        // Feet to y=0, so a figure stands ON the rock rather than
+        // hovering above it or sinking into it.
+        this.modelFootY = box.min.y * this.modelScale;
+
+        for (const entry of this.players.values()) {
+          this._upgradeToModel(entry);
+        }
+      })
+      .catch((err) => {
+        // Not fatal. Capsules are a complete figure, just a duller one.
+        console.warn("[players] soldier model unavailable, using capsules:", err);
+      });
+  }
+
+  /** Swap a placed capsule figure for a skinned one, keeping its pose. */
+  _upgradeToModel(entry) {
+    if (!this.model || entry.skinned || this.mixers.size >= AR_CONFIG.avatar.maxSkinned) {
+      return;
+    }
+
+    const skinned = this._buildSkinned(entry.aliveColor);
+    if (!skinned) {
+      return;
+    }
+
+    // Drop the capsule body, keep the group/tilt/label rig intact so the
+    // pose, the bob state and the name label all carry straight over.
+    entry.tilt.remove(entry.capsuleBody);
+    entry.tilt.remove(entry.capsuleNose);
+    entry.tilt.add(skinned.root);
+
+    entry.skinned = skinned;
+    // The model animates its own footfalls; the sine bob was standing in
+    // for exactly that and now fights it.
+    entry.tilt.position.y = 0;
+  }
+
+  /**
+   * Clone the loaded model for one player and wire up its clips.
+   * Returns null if anything is missing, so the caller keeps its capsule.
+   */
+  _buildSkinned(color) {
+    if (!this.model) return null;
+
+    const cfg = AR_CONFIG.avatar;
+    const root = cloneSkinned(this.model.scene);
+
+    // Geometry and skeleton are per-clone; the material is shared with the
+    // source until we tint it, so clone it per player and track it for
+    // disposal. Lambert for the same reason as the capsules: these are a
+    // few dozen pixels tall and a full PBR shade buys nothing legible.
+    const materials = [];
+    root.traverse((obj) => {
+      if (!obj.isMesh && !obj.isSkinnedMesh) return;
+      obj.castShadow = true;
+      obj.receiveShadow = false;
+      const src = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      const mat = new THREE.MeshLambertMaterial({
+        color: color.clone(),
+        map: src && src.map ? src.map : null,
+        skinning: true,
+      });
+      obj.material = mat;
+      materials.push(mat);
+    });
+
+    // The clip set is on the glTF root, not on the cloned nodes.
+    const mixer = new THREE.AnimationMixer(root);
+    const clipsBy = {};
+    for (const [key, name] of Object.entries(cfg.clips)) {
+      const clip = THREE.AnimationClip.findByName(this.model.animations || [], name);
+      if (clip) {
+        const action = mixer.clipAction(clip);
+        action.play();
+        action.setEffectiveWeight(key === "idle" ? 1 : 0);
+        clipsBy[key] = action;
+      }
+    }
+
+    this.mixers.add(mixer);
+
+    // Scale and foot offset were measured once from the source model in
+    // _loadModel(); do NOT re-measure here. A clone's bone matrices are
+    // unset until it has been through a render, so Box3.setFromObject on
+    // it collapses to ~0 and the fit silently does nothing.
+    root.scale.setScalar(this.modelScale);
+    root.position.y = -this.modelFootY;
+
+    return { root, mixer, clips: clipsBy, materials };
   }
 
   // --- connection ---------------------------------------------------------------
@@ -195,7 +330,13 @@ export class SpectatorTable {
       // Inside the scale it is 0.12 against a 1.75-unit body: ~7% of the figure's own
       // height, which is what "a bob" is supposed to mean.
       const speed = pose.speed || 0;
-      if (speed > 0.05 && entry.alive) {
+
+      if (entry.skinned) {
+        // The model has its own footfalls. Blend idle/walk/run by the
+        // speed the pose already carries, so a figure on the table walks
+        // when its player walks and runs when they run.
+        this._blend(entry, entry.alive ? speed : 0);
+      } else if (speed > 0.05 && entry.alive) {
         entry.phase += deltaMs * 0.012 * Math.min(speed, 2);
         entry.tilt.position.y = Math.sin(entry.phase) * AR_CONFIG.avatar.bob * Math.min(speed, 1);
       } else if (entry.tilt.position.y !== 0) {
@@ -208,6 +349,65 @@ export class SpectatorTable {
       if (!entry.placed) {
         entry.placed = true;
         entry.group.visible = true;
+      }
+    }
+
+    // One tick for every mixer. Advanced after the blend weights above are
+    // set, so a weight change lands on the same frame it was decided.
+    const dt = deltaMs / 1000;
+    for (const mixer of this.mixers) {
+      mixer.update(dt);
+    }
+  }
+
+  /**
+   * Crossfade idle -> walk -> run for one figure.
+   *
+   * Weights are set directly rather than through crossFadeTo: the target
+   * speed can jump either way between frames (a teleport, a respawn, a
+   * dropped packet) and a fade queued against the wrong current action
+   * leaves an arm frozen mid-swing. An exponential approach to the target
+   * weight cannot get stuck like that and settles in ~100 ms.
+   */
+  _blend(entry, speed) {
+    const clips = entry.skinned.clips;
+    const cfg = AR_CONFIG.avatar;
+
+    let idle = 0;
+    let walk = 0;
+    let run = 0;
+
+    if (speed <= 0.05) {
+      idle = 1;
+    } else if (speed <= cfg.walkSpeed) {
+      // Idle -> walk. Below walkSpeed a figure is easing into a stride.
+      walk = speed / cfg.walkSpeed;
+      idle = 1 - walk;
+    } else if (speed <= cfg.runSpeed) {
+      const t = (speed - cfg.walkSpeed) / Math.max(cfg.runSpeed - cfg.walkSpeed, 0.001);
+      walk = 1 - t;
+      run = t;
+    } else {
+      run = 1;
+    }
+
+    const targets = { idle, walk, run };
+    for (const key of Object.keys(targets)) {
+      const action = clips[key];
+      if (!action) continue;
+      const current = action.getEffectiveWeight();
+      const next = current + (targets[key] - current) * 0.25;
+      action.setEffectiveWeight(next);
+      // Keep the clip's own playback rate honest: a walk cycle authored at
+      // one speed looks like skating if the figure is moving faster.
+      if (key === "walk" && speed > 0.01) {
+        action.setEffectiveTimeScale(
+          Math.min(Math.max(speed / cfg.walkSpeed, 0.6), 1.6)
+        );
+      } else if (key === "run" && speed > 0.01) {
+        action.setEffectiveTimeScale(
+          Math.min(Math.max(speed / cfg.runSpeed, 0.7), 1.4)
+        );
       }
     }
   }
@@ -254,15 +454,15 @@ export class SpectatorTable {
     // still takes the key, the fill and the environment.
     const material = new THREE.MeshLambertMaterial({ color: color.clone() });
 
-    const body = new THREE.Mesh(this.bodyGeometry, material);
-    body.castShadow = true;
-    const nose = new THREE.Mesh(this.noseGeometry, material);
-    nose.castShadow = true;
+    const capsuleBody = new THREE.Mesh(this.bodyGeometry, material);
+    capsuleBody.castShadow = true;
+    const capsuleNose = new THREE.Mesh(this.noseGeometry, material);
+    capsuleNose.castShadow = true;
 
     // tilt exists so death can lay a figure down without disturbing its yaw.
     const tilt = new THREE.Group();
-    tilt.add(body);
-    tilt.add(nose);
+    tilt.add(capsuleBody);
+    tilt.add(capsuleNose);
 
     const figure = new THREE.Group();
     figure.scale.setScalar(cfg.scale);
@@ -274,7 +474,7 @@ export class SpectatorTable {
     group.visible = false;
     this.worldGroup.add(group);
 
-    return {
+    const entry = {
       id,
       group,
       figure,
@@ -288,7 +488,16 @@ export class SpectatorTable {
       alive: true,
       placed: false,
       phase: 0,
+      // Kept so the capsule can be swapped out for the real model the
+      // moment it finishes loading, without disturbing pose or label.
+      capsuleBody,
+      capsuleNose,
+      skinned: null,
     };
+
+    this._upgradeToModel(entry);
+
+    return entry;
   }
 
   _removePlayer(id) {
@@ -312,6 +521,20 @@ export class SpectatorTable {
   _disposePlayer(entry) {
     this.worldGroup.remove(entry.group);
     entry.material.dispose();
+
+    // The skinned clone owns its materials and its mixer. Geometry and
+    // skeleton come from SkeletonUtils.clone and are shared with the
+    // source glTF, so they are NOT disposed here — that would tear the
+    // model out from under every other figure.
+    if (entry.skinned) {
+      entry.skinned.mixer.stopAllAction();
+      entry.skinned.mixer.uncacheRoot(entry.skinned.root);
+      this.mixers.delete(entry.skinned.mixer);
+      for (const mat of entry.skinned.materials) {
+        mat.dispose();
+      }
+      entry.skinned = null;
+    }
     if (entry.label) {
       entry.figure.remove(entry.label);
       entry.label.material.dispose();
@@ -409,6 +632,14 @@ export class SpectatorTable {
     this._clearPlayers();
     this.bodyGeometry.dispose();
     this.noseGeometry.dispose();
+
+    // The source model's own geometries and textures, disposed once here
+    // rather than per player.
+    if (this.model) {
+      disposeModel(this.model.scene);
+      this.model = null;
+    }
+    this.mixers.clear();
   }
 }
 
