@@ -7,6 +7,11 @@ import { GAME_CONFIG } from "../config/game-config.js";
 
 const BULLET_SPEED = GAME_CONFIG.BULLET.SPEED;
 
+// ---- reconnect tuning ----
+const RECONNECT_BASE = 500; // ms before the first retry
+const RECONNECT_MAX = 15000; // ms ceiling on the backoff
+const RECONNECT_JITTER = 0.3; // ±30% so a server restart doesn't stampede every client
+
 export function startNetwork() {
   const WS_URL = getWebSocketUrl();
   let ws,
@@ -15,8 +20,16 @@ export function startNetwork() {
   let me = null;
   const remotes = new Map();
 
+  // reconnect state
+  let reconnectAttempts = 0;
+  let reconnectTimer = null;
+  let closedByUs = false;
+  let statusEl = null;
+
   // ---- tiny utils ----
   const waitFor = waitForElement;
+  const q2 = (n) => Math.round(n * 100) / 100;
+  const q3 = (n) => Math.round(n * 1000) / 1000;
 
   // ---- main init ----
   const run = async () => {
@@ -31,6 +44,8 @@ export function startNetwork() {
     scene.addEventListener("change-name", onNameChange);
     scene.addEventListener("local-kill", onLocalKill);
 
+    createStatusIndicator();
+
     // Connect WS AFTER we have me
     connect();
     // Start pose sender when me is ready
@@ -40,20 +55,101 @@ export function startNetwork() {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", run, { once: true });
   else run();
 
+  // Best effort: tell the server we are going away so it doesn't wait for a timeout
+  window.addEventListener("beforeunload", () => {
+    closedByUs = true;
+    if (ws) {
+      try {
+        ws.close(1000, "page unload");
+      } catch {
+        /* nothing useful to do here */
+      }
+    }
+  });
+
+  // ---- connection status indicator ----
+  function createStatusIndicator() {
+    if (statusEl) return;
+    statusEl = document.createElement("div");
+    statusEl.id = "net-status";
+    statusEl.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 6px 12px;
+      background: rgba(0, 0, 0, 0.75);
+      border: 1px solid #ffcc00;
+      border-radius: 4px;
+      color: #ffcc00;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      letter-spacing: 1px;
+      z-index: 9000;
+      pointer-events: auto;
+      cursor: pointer;
+      transition: opacity 0.4s ease-out;
+      opacity: 0;
+    `;
+    statusEl.title = "Click to reconnect now";
+    statusEl.addEventListener("click", () => {
+      if (ws && ws.readyState <= 1) return; // already connecting or connected
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      reconnectAttempts = 0;
+      scheduleReconnect(0);
+    });
+    document.body.appendChild(statusEl);
+    setStatus("connecting", "CONNECTING…");
+  }
+
+  function setStatus(state, text) {
+    if (!statusEl) return;
+    statusEl.dataset.state = state;
+    statusEl.textContent = text;
+    const color = state === "online" ? "#66ff88" : state === "offline" ? "#ff5555" : "#ffcc00";
+    statusEl.style.color = color;
+    statusEl.style.borderColor = color;
+    // Fade the indicator out once we're healthy; keep it visible while degraded
+    statusEl.style.opacity = state === "online" ? "0" : "1";
+    statusEl.style.pointerEvents = state === "online" ? "none" : "auto";
+  }
+
   // ---- websocket wiring ----
   function connect() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    closedByUs = false;
     console.log("[network] Attempting to connect to:", WS_URL);
-    ws = new WebSocket(WS_URL);
-    ws.onopen = () => {
+    setStatus(reconnectAttempts ? "reconnecting" : "connecting", reconnectAttempts ? `RECONNECTING… (${reconnectAttempts})` : "CONNECTING…");
+
+    let sock;
+    try {
+      sock = new WebSocket(WS_URL);
+      ws = sock;
+    } catch (err) {
+      console.error("[network] WebSocket construction failed:", err);
+      scheduleReconnect();
+      return;
+    }
+
+    // A socket we have already replaced must not be able to speak for the session: an
+    // old socket's late onclose would otherwise tear down the remotes and schedule a
+    // reconnect on top of a connection that is already healthy.
+    const stale = () => ws !== sock;
+
+    sock.onopen = () => {
+      if (stale()) return;
       console.log("[network] WebSocket connected successfully!");
+      reconnectAttempts = 0;
+      setStatus("online", "ONLINE");
 
-      // Get persistent name and score from localStorage
-      const name = getPersistentName();
-      const score = getPersistentScore();
-
-      // Tell server my name and score
-      send({ type: "setName", name });
-      send({ type: "setScore", score });
+      // Tell server my name. The session token lets the server hand back the score
+      // IT counted for us before the drop — the client no longer declares a score.
+      send({ type: "setName", name: getPersistentName(), session: getSessionToken() });
 
       // Also request to spawn with current position
       const rig = document.querySelector("#rig");
@@ -61,15 +157,21 @@ export function startNetwork() {
         const pos = rig.object3D.position;
         send({
           type: "spawn",
-          position: { x: pos.x, y: pos.y, z: pos.z },
-          ry: rig.object3D.rotation.y,
+          position: { x: q2(pos.x), y: q2(pos.y), z: q2(pos.z) },
+          ry: q3(rig.object3D.rotation.y),
         });
       } else {
         send({ type: "spawn" });
       }
     };
-    ws.onmessage = (e) => {
-      const m = JSON.parse(e.data);
+    sock.onmessage = (e) => {
+      if (stale()) return;
+      let m;
+      try {
+        m = JSON.parse(e.data);
+      } catch {
+        return;
+      }
       switch (m.type) {
         case "hello": {
           myId = m.yourId;
@@ -82,7 +184,7 @@ export function startNetwork() {
           scene.emit("player-join", {
             id: myId,
             name: getPersistentName(), // Use persistent name
-            kills: getPersistentScore(), // Use persistent score
+            kills: getPersistentScore(),
             isLocal: true,
           });
 
@@ -127,7 +229,6 @@ export function startNetwork() {
         case "pose": {
           const e = remotes.get(m.id);
           if (e) {
-            // Log pose data occasionally to debug animation transmission
             setPose(e, m);
           } else {
             console.warn(`[network] Received pose for unknown player ${m.id}`);
@@ -210,19 +311,51 @@ export function startNetwork() {
           break;
         }
         case "highscore-update": {
-          // Emit highscore update event
-          scene.emit("highscore-update", { players: m.players });
+          // The server sends one payload to everyone, so tag our own row here — the
+          // scoreboard rebuilds from this list and would otherwise lose `isLocal`.
+          const players = (m.players || []).map((p) => ({ ...p, isLocal: p.id === myId }));
+          const mine = players.find((p) => p.isLocal);
+          // Server-counted kills are the truth; mirror them so the UI survives a reload
+          if (mine) setPersistentScore(mine.kills || 0);
+          scene.emit("highscore-update", { players });
           break;
         }
       }
     };
-    ws.onclose = (event) => {
+    sock.onclose = (event) => {
       console.log("[network] WebSocket closed:", event.code, event.reason);
-      setTimeout(connect, 1000);
+      if (stale()) return;
+      clearRemotes();
+      myId = null;
+      if (!closedByUs) scheduleReconnect();
     };
-    ws.onerror = (error) => {
+    sock.onerror = (error) => {
       console.error("[network] WebSocket error:", error);
+      // onerror is always followed by onclose; let onclose own the reconnect.
     };
+  }
+
+  // Exponential backoff with jitter, capped. Retries forever — the indicator tells
+  // the player what is happening and can be clicked to retry immediately.
+  function scheduleReconnect(forcedDelay) {
+    if (reconnectTimer) return;
+    reconnectAttempts++;
+
+    let delay = forcedDelay;
+    if (delay === undefined) {
+      const backoff = Math.min(RECONNECT_MAX, RECONNECT_BASE * Math.pow(2, reconnectAttempts - 1));
+      const jitter = 1 + (Math.random() * 2 - 1) * RECONNECT_JITTER;
+      delay = Math.round(backoff * jitter);
+    }
+
+    const state = reconnectAttempts > 6 ? "offline" : "reconnecting";
+    setStatus(state, `RECONNECTING… (${reconnectAttempts})`);
+    console.log(`[network] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
+
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, delay);
   }
 
   function send(obj) {
@@ -234,6 +367,7 @@ export function startNetwork() {
     let lastPosition = { x: 0, y: 0, z: 0 };
     let lastRotation = 0;
     let lastAnimKey = "1,0,0"; // idle by default
+    let lastSampleTime = performance.now();
     const threshold = 0.005; // Lower threshold for smoother updates
 
     setInterval(() => {
@@ -248,14 +382,13 @@ export function startNetwork() {
       };
       const currentRotation = o.rotation.y;
 
-      // Calculate velocity for animation
-      const deltaTime = 0.05; // 50ms interval
-      const velocity = {
-        x: (currentPosition.x - lastPosition.x) / deltaTime,
-        y: (currentPosition.y - lastPosition.y) / deltaTime,
-        z: (currentPosition.z - lastPosition.z) / deltaTime,
-      };
-      const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+      // Calculate velocity for animation from the real elapsed time, not a constant
+      const now = performance.now();
+      const deltaTime = Math.max(0.001, (now - lastSampleTime) / 1000);
+      lastSampleTime = now;
+      const vx = (currentPosition.x - lastPosition.x) / deltaTime;
+      const vz = (currentPosition.z - lastPosition.z) / deltaTime;
+      const speed = Math.sqrt(vx * vx + vz * vz);
 
       // Check if position or rotation has changed significantly
       const positionChanged =
@@ -284,16 +417,15 @@ export function startNetwork() {
       if (!positionChanged && !rotationChanged && !animChanged) return;
       lastAnimKey = animKey;
 
+      // Quantized on the wire — 1cm of position and ~0.06° of yaw is far below what
+      // anyone can see, and it roughly halves the JSON payload.
       send({
         type: "pose",
-        x: currentPosition.x,
-        y: currentPosition.y,
-        z: currentPosition.z,
-        ry: currentRotation,
-        vx: velocity.x,
-        vy: velocity.y,
-        vz: velocity.z,
-        speed: speed,
+        x: q2(currentPosition.x),
+        y: q2(currentPosition.y),
+        z: q2(currentPosition.z),
+        ry: q3(currentRotation),
+        speed: q2(speed),
         animation: animationState,
       });
 
@@ -306,7 +438,12 @@ export function startNetwork() {
   // ---- scene event handlers ----
   function onLocalFire(ev) {
     const { origin, dir } = ev.detail || {};
-    send({ type: "fire", origin, dir });
+    if (!origin || !dir) return;
+    send({
+      type: "fire",
+      origin: { x: q2(origin.x), y: q2(origin.y), z: q2(origin.z) },
+      dir: { x: q3(dir.x), y: q3(dir.y), z: q3(dir.z) },
+    });
     // Don't create local bullet here - it's already created in blaster component
     // This prevents duplicate bullets and lag
   }
@@ -314,25 +451,27 @@ export function startNetwork() {
   function onLocalHit(ev) {
     const { victimId, dmg } = ev.detail || {};
     if (!victimId) return;
-    send({ type: "clientHit", victimId, dmg });
+    // The hitscan weapon resolves the trace and emits 'local-hit' BEFORE it emits the
+    // 'local-fire' for the same shot. The server only credits a hit against a shot it
+    // has already seen, so defer by one microtask: anything emitted synchronously
+    // after us — the matching 'local-fire' — goes out on the wire first.
+    queueMicrotask(() => send({ type: "clientHit", victimId, dmg }));
   }
 
   function onNameChange(ev) {
     const { name } = ev.detail || {};
     if (!name) return;
-    send({ type: "setName", name });
+    send({ type: "setName", name, session: getSessionToken() });
   }
 
   function onLocalKill(ev) {
-    const { victimId, victimName } = ev.detail || {};
+    const { victimId } = ev.detail || {};
     if (!victimId) return;
 
-    // Update persistent score
+    // Optimistic local bump for instant UI feedback. The authoritative count arrives
+    // in the next highscore-update and overwrites this — we no longer send a score.
     const newScore = addPersistentKill();
-    console.log(`[network] Local kill! New persistent score: ${newScore}`);
-
-    // Send updated score to server
-    send({ type: "setScore", score: newScore });
+    console.log(`[network] Local kill! Score (pending server confirm): ${newScore}`);
   }
 
   function getVictimName(victimId) {
@@ -398,12 +537,22 @@ export function startNetwork() {
     e.parentNode && e.parentNode.removeChild(e);
     remotes.delete(id);
   }
+
+  // Tear down every remote avatar — on reconnect the server hands out fresh ids, so
+  // anything left over would be a permanent ghost standing in the map.
+  function clearRemotes() {
+    for (const [id, el] of remotes) {
+      el.parentNode && el.parentNode.removeChild(el);
+      if (scene) scene.emit("player-leave", { id });
+    }
+    remotes.clear();
+  }
+
   function setPose(rig, p) {
     // Find the soldier entity inside the rig and set pose
     const soldier = rig.querySelector("[remote-avatar]");
     const c = soldier && soldier.components["remote-avatar"];
     if (c && p) {
-      // console.log(`[network] Setting pose for rig ${rig.id}:`, p); // Reduced logging
       c.setNetPose(p);
     } else {
       console.warn(`[network] Could not find remote-avatar component for rig ${rig.id}`);
@@ -412,7 +561,7 @@ export function startNetwork() {
 
   // ---- visual bullets ----
   function spawnBulletVisual(origin, dir, ownerId, reportHits = false) {
-    if (!scene) return;
+    if (!scene || !origin || !dir) return;
     const vx = dir.x * BULLET_SPEED,
       vy = dir.y * BULLET_SPEED,
       vz = dir.z * BULLET_SPEED;
@@ -469,6 +618,18 @@ export function startNetwork() {
     const newScore = currentScore + 1;
     setPersistentScore(newScore);
     return newScore;
+  }
+
+  // Stable per-browser token. It only identifies us to the server so it can restore
+  // the score IT counted for us after a drop; it carries no score of its own.
+  function getSessionToken() {
+    let token = localStorage.getItem("facingworlds_session");
+    if (!token) {
+      token =
+        typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem("facingworlds_session", token);
+    }
+    return token;
   }
 
   // Expose management functions globally for UI

@@ -1,20 +1,49 @@
 // remote-avatar.js — Handles position updates and animations for remote players
+//
+// Remote poses arrive every 50–100ms over the network. Applying them raw makes other
+// players teleport, so instead we buffer incoming snapshots and render the avatar a
+// fixed amount of time IN THE PAST (INTERP_DELAY). At any render frame there are then
+// two snapshots bracketing the render time and we interpolate between them, which
+// turns a 10–20Hz packet stream into smooth 60Hz motion.
+//
+// The buffering/interpolation math itself lives in src/shared/net/interpolation.js so
+// the AR spectator view (pure three.js, no A-Frame) renders the same players with the
+// same behaviour instead of growing a second copy that re-acquires the teleporting this
+// one already fixed. This component owns only the A-Frame side: the animation mixer,
+// the residual visual smoothing, and writing the result onto the rig.
+import { SnapshotBuffer, lerpYaw } from "../../shared/net/interpolation.js";
+
+// One buffer per component, so it tracks exactly one entity.
+const SELF = "self";
+
 AFRAME.registerComponent("remote-avatar", {
   schema: {
     enabled: { type: "boolean", default: true },
+    // How far in the past to render, in ms. One-and-a-bit packet intervals of slack.
+    delay: { type: "number", default: 100 },
+    // Residual visual smoothing applied on top of the interpolation (per 16.67ms frame).
+    // Absorbs the small pops caused by extrapolation and by snapshots arriving late.
+    smoothing: { type: "number", default: 0.35 },
   },
 
   init: function () {
     this.lastPosition = { x: 0, y: 0, z: 0 };
     this.lastRotation = 0;
     this.currentSpeed = 0;
-    this.lerpSpeed = 0.2; // Smooth interpolation speed
-    this._firstPose = true; // Snap to first pose instead of lerping from origin
 
-    // Target values for smooth interpolation
+    // Target values produced by the interpolator, consumed by the visual smoothing
     this.targetPosition = { x: 0, y: 0, z: 0 };
     this.targetRotation = 0;
     this.targetSpeed = 0;
+
+    // ---- interpolation buffer ----
+    // maxExtrapolationMs matches the old inline cap (delay + 20): remote players stop
+    // sending poses when they stand still, so open ended extrapolation would slide an
+    // idle avatar across the map.
+    this.buffer = new SnapshotBuffer({
+      delayMs: this.data.delay,
+      maxExtrapolationMs: this.data.delay + 20,
+    });
 
     // Animation system for remote players
     this.mixer = null;
@@ -24,40 +53,58 @@ AFRAME.registerComponent("remote-avatar", {
     this.clock = new AFRAME.THREE.Clock();
 
     // Wait for GLTF model to load
-    this.el.addEventListener("model-loaded", () => {
-      this.setupAnimations();
-    });
+    this._onModelLoaded = () => this.setupAnimations();
+    this.el.addEventListener("model-loaded", this._onModelLoaded);
+  },
+
+  update: function () {
+    // Keep the buffer's timing in sync if the schema is changed at runtime
+    if (!this.buffer) return;
+    this.buffer.delayMs = this.data.delay;
+    this.buffer.maxExtrapolationMs = this.data.delay + 20;
+  },
+
+  // Monotonic local clock — immune to wall-clock jumps mid-session
+  _now: function () {
+    return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
   },
 
   setNetPose: function (pose) {
     if (!this.data.enabled || !pose) return;
 
-    const { x, y, z, ry, animation } = pose;
+    // The buffer validates the pose, estimates the server clock offset, carries the
+    // animation block forward, and sorts late/duplicate arrivals into place. It reports
+    // "snap" for the first pose and for a teleport (a respawn) — interpolating those
+    // would drag the avatar across the whole map, so we place it there outright.
+    if (this.buffer.push(SELF, pose, pose.t) === "snap") this._snapToLatest();
+  },
 
-    // Snap position and rotation together on first pose
-    if (this._firstPose) {
-      if (x !== undefined && y !== undefined && z !== undefined) {
-        this.targetPosition = { x, y, z };
-        this.lastPosition = { x, y, z };
-      }
-      if (ry !== undefined) {
-        this.targetRotation = ry;
-        this.lastRotation = ry;
-      }
-      this._firstPose = false;
-    } else {
-      if (x !== undefined && y !== undefined && z !== undefined) {
-        this.targetPosition = { x, y, z };
-      }
-      if (ry !== undefined) {
-        this.targetRotation = ry;
-      }
-    }
+  // Place the avatar exactly on the snapshot the buffer just snapped to, bypassing both
+  // the interpolation and the residual smoothing.
+  _snapToLatest: function () {
+    const s = this.buffer.sample(SELF, this._now());
+    if (!s) return;
+    this.targetPosition.x = this.lastPosition.x = s.x;
+    this.targetPosition.y = this.lastPosition.y = s.y;
+    this.targetPosition.z = this.lastPosition.z = s.z;
+    this.targetRotation = this.lastRotation = s.ry;
+    this.targetSpeed = this.currentSpeed = s.speed;
+    this.updateAnimationFromState(s.animation);
+    this._applyToRig();
+  },
 
-    // Update animation state directly
-    if (animation) {
-      this.updateAnimationFromState(animation);
-    }
+  // Blend the two snapshots bracketing the render time into targetPosition et al.
+  _sampleBuffer: function () {
+    const s = this.buffer.sample(SELF, this._now());
+    if (!s) return;
+    this.targetPosition.x = s.x;
+    this.targetPosition.y = s.y;
+    this.targetPosition.z = s.z;
+    this.targetRotation = s.ry;
+    this.targetSpeed = s.speed;
+    // Animation state comes from the snapshot we are leaving, so the legs match the
+    // motion we are actually rendering rather than a state 100ms in the future.
+    this.updateAnimationFromState(s.animation);
   },
 
   setupAnimations: function () {
@@ -114,11 +161,26 @@ AFRAME.registerComponent("remote-avatar", {
   updateAnimationFromState: function (animationState) {
     if (!this.mixer || !this.actions.Idle) return;
 
+    if (!animationState) {
+      // No animation block was ever sent — derive one from the interpolated speed so
+      // the avatar still animates instead of standing frozen while it slides around.
+      const s = this.targetSpeed || 0;
+      this.target = { Idle: s < 0.5 ? 1 : 0, Walk: s >= 0.5 && s < 3 ? 1 : 0, Run: s >= 3 ? 1 : 0 };
+      return;
+    }
+
     this.target = {
       Idle: animationState.idle || 0,
       Walk: animationState.walk || 0,
       Run: animationState.run || 0,
     };
+  },
+
+  _applyToRig: function () {
+    const rig = this.el.parentElement;
+    if (!rig || !rig.object3D) return;
+    rig.object3D.position.set(this.lastPosition.x, this.lastPosition.y, this.lastPosition.z);
+    rig.object3D.rotation.set(0, this.lastRotation, 0);
   },
 
   tick: function (time, deltaTime) {
@@ -127,23 +189,20 @@ AFRAME.registerComponent("remote-avatar", {
     const rig = this.el.parentElement;
     if (!rig || !rig.object3D) return;
 
-    // Smooth position interpolation — set object3D directly (no setAttribute overhead)
-    const posLerp = Math.min(this.lerpSpeed * (deltaTime / 16.67), 1);
-    this.lastPosition.x += (this.targetPosition.x - this.lastPosition.x) * posLerp;
-    this.lastPosition.y += (this.targetPosition.y - this.lastPosition.y) * posLerp;
-    this.lastPosition.z += (this.targetPosition.z - this.lastPosition.z) * posLerp;
+    // Interpolate the network snapshots into this frame's target pose
+    this._sampleBuffer();
 
-    rig.object3D.position.set(this.lastPosition.x, this.lastPosition.y, this.lastPosition.z);
+    // Residual smoothing — set object3D directly (no setAttribute overhead)
+    const lerp = Math.min(this.data.smoothing * (deltaTime / 16.67), 1);
+    this.lastPosition.x += (this.targetPosition.x - this.lastPosition.x) * lerp;
+    this.lastPosition.y += (this.targetPosition.y - this.lastPosition.y) * lerp;
+    this.lastPosition.z += (this.targetPosition.z - this.lastPosition.z) * lerp;
 
-    // Smooth rotation interpolation with angle wrapping
-    let rotDiff = this.targetRotation - this.lastRotation;
-    // Wrap to [-PI, PI] so we always take the short path
-    while (rotDiff > Math.PI) rotDiff -= 2 * Math.PI;
-    while (rotDiff < -Math.PI) rotDiff += 2 * Math.PI;
-    const rotLerp = Math.min(this.lerpSpeed * (deltaTime / 16.67), 1);
-    this.lastRotation += rotDiff * rotLerp;
+    // Shortest-path yaw so the avatar never spins the long way round
+    this.lastRotation = lerpYaw(this.lastRotation, this.targetRotation, lerp);
+    this.currentSpeed += (this.targetSpeed - this.currentSpeed) * lerp;
 
-    rig.object3D.rotation.set(0, this.lastRotation, 0);
+    this._applyToRig();
 
     // Update animations
     if (this.mixer) {
@@ -168,8 +227,14 @@ AFRAME.registerComponent("remote-avatar", {
   },
 
   remove: function () {
+    this.el.removeEventListener("model-loaded", this._onModelLoaded);
+    this.buffer.clear();
     if (this.mixer) {
       this.mixer.stopAllAction();
+      const mesh = this.el.getObject3D("mesh");
+      if (mesh) this.mixer.uncacheRoot(mesh);
+      this.mixer = null;
     }
+    this.actions = {};
   },
 });
