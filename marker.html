@@ -73,14 +73,66 @@
       #wake { font-size: 12px; color: #7ec87e; }
       #wake[data-on="false"] { color: #9a9aa2; }
 
+      /* Scan-to-open panel. Sits over the white stage in the corner and hides
+         with the rest of the chrome, since you scan it first and then want
+         nothing but the marker on screen. */
+      #qr {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        width: 168px;
+        padding: 12px;
+        border-radius: 10px;
+        background: rgba(16,16,18,.93);
+        border: 1px solid rgba(255,255,255,.14);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        transition: opacity .35s ease;
+      }
+      #qr.hidden { opacity: 0; pointer-events: none; }
+      #qr svg { width: 100%; height: auto; display: block; border-radius: 4px; }
+      #qr .cap { font-size: 11px; color: #9a9aa2; line-height: 1.35; }
+      #qr .url {
+        font-size: 10px;
+        color: #6f6f78;
+        word-break: break-all;
+        line-height: 1.3;
+      }
+      #qr input {
+        font: inherit;
+        font-size: 12px;
+        width: 100%;
+        color: #e8e8ea;
+        background: rgba(255,255,255,.09);
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 6px;
+        padding: 5px 7px;
+      }
+      #qr .warn { font-size: 11px; color: #e8c47e; line-height: 1.35; }
+      #qr[data-needs-host="false"] .warn,
+      #qr[data-needs-host="false"] input { display: none; }
+
       @media (max-width: 620px) {
         #hint { margin-left: 0; width: 100%; text-align: left; }
+        #qr { display: none; }
       }
     </style>
   </head>
   <body>
     <div id="stage">
       <img id="marker" src="assets/images/tracker.jpg" alt="AR tracker marker" />
+    </div>
+
+    <div id="qr" data-needs-host="false">
+      <div id="qrsvg"></div>
+      <span class="cap">Scan to open the AR view on your phone</span>
+      <span class="warn">
+        This page is on localhost, which your phone cannot reach. Enter this
+        machine's LAN address so the code points somewhere useful.
+      </span>
+      <input id="qrhost" placeholder="192.168.x.x:8080" aria-label="LAN address" />
+      <span class="url"></span>
     </div>
 
     <div id="chrome">
@@ -98,10 +150,81 @@
       </span>
     </div>
 
-    <script>
+    <script type="module">
+      import qrcode from "./assets/libraries/qrcode/qrcode.mjs";
+
       const img = document.getElementById("marker");
       const chrome = document.getElementById("chrome");
       const wakeEl = document.getElementById("wake");
+      const qrEl = document.getElementById("qr");
+
+      // ---- scan-to-open ------------------------------------------------
+      // The AR page needs a WebSocket to show live players. Point it at the
+      // deployed server rather than a local one: the phone then has to trust
+      // one certificate (this origin) instead of two, and the LAN address of
+      // this machine can change without breaking the link.
+      const AR_SERVER = "wss://unrealfest-server.onrender.com";
+
+      const isLocal = (h) =>
+        h === "localhost" || h === "127.0.0.1" || h === "[::1]";
+
+      // A phone cannot reach localhost, so when this page is opened that way
+      // the QR would encode a dead link. Ask for the LAN address instead and
+      // remember it — it is the one thing this page cannot work out on its own
+      // (WebRTC now hides local IPs behind mDNS .local candidates).
+      const savedHost = (() => {
+        try {
+          return localStorage.getItem("fw_lan_host") || "";
+        } catch (_) {
+          return "";
+        }
+      })();
+
+      const hostInput = document.getElementById("qrhost");
+      hostInput.value = savedHost;
+
+      function targetUrl() {
+        const host = isLocal(location.hostname)
+          ? hostInput.value.trim()
+          : location.host;
+        if (!host) return null;
+        const scheme = location.protocol === "http:" ? "http" : "https";
+        return `${scheme}://${host}/ar/?server=${encodeURIComponent(AR_SERVER)}`;
+      }
+
+      function renderQr() {
+        const needsHost = isLocal(location.hostname);
+        qrEl.dataset.needsHost = String(needsHost);
+
+        const url = targetUrl();
+        const svgEl = document.getElementById("qrsvg");
+        const urlEl = qrEl.querySelector(".url");
+
+        if (!url) {
+          svgEl.innerHTML = "";
+          urlEl.textContent = "";
+          return;
+        }
+
+        // Level M correction: this is scanned off a bright screen at an angle,
+        // and the extra redundancy costs nothing at this size.
+        const qr = qrcode(0, "M");
+        qr.addData(url);
+        qr.make();
+        svgEl.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 1 });
+        urlEl.textContent = url;
+      }
+
+      hostInput.addEventListener("input", () => {
+        try {
+          localStorage.setItem("fw_lan_host", hostInput.value.trim());
+        } catch (_) {
+          /* private window — the QR still works for this session */
+        }
+        renderQr();
+      });
+
+      renderQr();
 
       // Swap marker — the AR page's <ar-reference-image> currently points at tracker.jpg,
       // so that is the default. The others are here for when the reference image changes.
@@ -119,10 +242,12 @@
         }
       });
 
-      // Hide the chrome so nothing but the marker is on screen while tracking
+      // Hide the chrome so nothing but the marker is on screen while tracking.
+      // The QR goes with it — you scan it once, then you want a clean frame.
       document.addEventListener("click", (e) => {
-        if (e.target.closest("#chrome")) return;
+        if (e.target.closest("#chrome") || e.target.closest("#qr")) return;
         chrome.classList.toggle("hidden");
+        qrEl.classList.toggle("hidden");
       });
 
       // Keep the display awake — a screen that sleeps mid-test looks like a tracking failure
