@@ -160,6 +160,28 @@ AFRAME.registerComponent("first-person-weapon", {
     window.addEventListener("keydown", this._onKeyDown, { passive: false });
     window.addEventListener("keyup", this._onKeyUp);
 
+    // Left mouse fires. Only while the pointer is locked: A-Frame's
+    // look-controls uses a canvas click to REQUEST pointer lock, so firing on
+    // an unlocked click would put a shot into the floor every time the player
+    // clicks in to play. Once locked, every click is a shot.
+    this._onMouseDown = (e) => {
+      if (e.button !== 0 || !document.pointerLockElement) return;
+      this.isFiring = true;
+    };
+    this._onMouseUp = (e) => {
+      if (e.button !== 0) return;
+      this.isFiring = false;
+    };
+    // Release on pointer-lock exit too, or holding the button while pressing
+    // Escape leaves isFiring stuck true with no mouseup ever arriving.
+    this._onPointerLockChange = () => {
+      if (!document.pointerLockElement) this.isFiring = false;
+    };
+
+    window.addEventListener("mousedown", this._onMouseDown);
+    window.addEventListener("mouseup", this._onMouseUp);
+    document.addEventListener("pointerlockchange", this._onPointerLockChange);
+
     // Create touch fire button for mobile devices
     this.createTouchFireButton();
 
