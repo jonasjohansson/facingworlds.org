@@ -1,4 +1,9 @@
-// kill-notification.js — Top-right stacking kill feed
+// kill-notification.js — top-right stacking kill feed
+//
+// Entries are bevelled mini-plates matching the corner readouts; all presentation
+// is in styles.css under `.ut-killfeed`. The `local-kill` contract is unchanged.
+import { getHud } from "./hud/hud-root.js";
+
 AFRAME.registerComponent("kill-notification", {
   schema: {
     enabled: { type: "boolean", default: true },
@@ -7,20 +12,12 @@ AFRAME.registerComponent("kill-notification", {
   },
 
   init() {
-    // Persistent container (top-right corner)
+    this.hud = getHud();
+
+    // Persistent rail, parked under the network status chip
     this.container = document.createElement("div");
-    Object.assign(this.container.style, {
-      position: "fixed",
-      top: "20px",
-      right: "20px",
-      display: "flex",
-      flexDirection: "column",
-      gap: "6px",
-      pointerEvents: "none",
-      zIndex: "10000",
-      fontFamily: "Arial, sans-serif",
-    });
-    document.body.appendChild(this.container);
+    this.container.className = "ut-killfeed";
+    this.hud.mount(this.container);
 
     this.entries = [];
 
@@ -36,20 +33,18 @@ AFRAME.registerComponent("kill-notification", {
 
   addEntry(victimName) {
     const entry = document.createElement("div");
-    Object.assign(entry.style, {
-      background: "rgba(0, 0, 0, 0.7)",
-      color: "#ff6b6b",
-      padding: "6px 14px",
-      borderRadius: "4px",
-      fontSize: "14px",
-      fontWeight: "bold",
-      borderLeft: "3px solid #ff6b6b",
-      opacity: "0",
-      transform: "translateX(30px)",
-      transition: "opacity 0.3s ease-out, transform 0.3s ease-out",
-      whiteSpace: "nowrap",
-    });
-    entry.textContent = `You killed ${victimName}`;
+    entry.className = "ut-killfeed__entry";
+
+    const verb = document.createElement("span");
+    verb.className = "ut-killfeed__verb";
+    verb.textContent = "YOU KILLED";
+
+    const name = document.createElement("span");
+    name.className = "ut-killfeed__name";
+    name.textContent = victimName;
+
+    entry.appendChild(verb);
+    entry.appendChild(name);
 
     // Insert at top of container
     this.container.prepend(entry);
@@ -57,8 +52,7 @@ AFRAME.registerComponent("kill-notification", {
 
     // Slide in
     requestAnimationFrame(() => {
-      entry.style.opacity = "1";
-      entry.style.transform = "translateX(0)";
+      entry.classList.add("is-in");
     });
 
     // Trim excess entries
@@ -69,8 +63,7 @@ AFRAME.registerComponent("kill-notification", {
 
     // Fade out and remove after duration
     setTimeout(() => {
-      entry.style.transition = "opacity 0.5s ease-out";
-      entry.style.opacity = "0";
+      entry.classList.remove("is-in");
       setTimeout(() => {
         if (entry.parentNode) entry.remove();
         const idx = this.entries.indexOf(entry);
@@ -84,5 +77,9 @@ AFRAME.registerComponent("kill-notification", {
     this.entries = [];
     if (this.container && this.container.parentNode) this.container.remove();
     this.el.sceneEl.removeEventListener("local-kill", this._onLocalKill);
+    if (this.hud) {
+      this.hud.release();
+      this.hud = null;
+    }
   },
 });

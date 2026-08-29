@@ -15,111 +15,61 @@ AFRAME.registerComponent("name-changer", {
     // Create overlay
     this.overlay = document.createElement("div");
     this.overlay.id = "name-changer-overlay";
-    this.overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 2000;
-      font-family: 'Courier New', monospace;
-    `;
+    this.overlay.className = "ut-modal";
 
     // Create dialog
+    // Same chamfered plate as the scoreboard and the meters, so the dialog
+    // belongs to the HUD rather than looking like a browser prompt dropped on
+    // top of it. Outer box is the outline, inner box is the face.
     this.dialog = document.createElement("div");
-    this.dialog.style.cssText = `
-      background: rgba(20, 20, 20, 0.95);
-      border: 2px solid #ffcc00;
-      border-radius: 8px;
-      padding: 20px;
-      min-width: 300px;
-      text-align: center;
-      color: white;
-    `;
+    this.dialog.className = "ut-modal__dialog";
+    const dialogInner = document.createElement("div");
+    dialogInner.className = "ut-modal__inner";
+    const dialogBody = document.createElement("div");
+    dialogBody.className = "ut-modal__body";
+    dialogInner.appendChild(dialogBody);
 
     // Create title
     const title = document.createElement("div");
+    title.className = "ut-modal__title";
     title.textContent = "Change Player Name";
-    title.style.cssText = `
-      font-size: 18px;
-      font-weight: bold;
-      color: #ffcc00;
-      margin-bottom: 15px;
-    `;
 
     // Create input
     this.input = document.createElement("input");
     this.input.type = "text";
     this.input.placeholder = "Enter your name...";
     this.input.maxLength = 20;
-    this.input.style.cssText = `
-      width: 100%;
-      padding: 10px;
-      font-size: 16px;
-      font-family: 'Courier New', monospace;
-      background: rgba(0, 0, 0, 0.7);
-      border: 1px solid #666;
-      border-radius: 4px;
-      color: white;
-      text-align: center;
-      margin-bottom: 15px;
-    `;
+    this.input.className = "ut-modal__input";
 
     // Create buttons container
     const buttonsContainer = document.createElement("div");
-    buttonsContainer.style.cssText = `
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-    `;
+    buttonsContainer.className = "ut-modal__buttons";
 
     // Create save button
     this.saveButton = document.createElement("button");
     this.saveButton.textContent = "Save";
-    this.saveButton.style.cssText = `
-      padding: 8px 16px;
-      background: #ffcc00;
-      color: black;
-      border: none;
-      border-radius: 4px;
-      font-family: 'Courier New', monospace;
-      font-weight: bold;
-      cursor: pointer;
-    `;
+    this.saveButton.className = "ut-btn ut-btn--primary";
 
     // Create cancel button
     this.cancelButton = document.createElement("button");
     this.cancelButton.textContent = "Cancel";
-    this.cancelButton.style.cssText = `
-      padding: 8px 16px;
-      background: #666;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      font-family: 'Courier New', monospace;
-      cursor: pointer;
-    `;
+    this.cancelButton.className = "ut-btn";
 
     // Create instructions
     const instructions = document.createElement("div");
-    instructions.textContent = `Press ${this.data.key} to open this dialog`;
-    instructions.style.cssText = `
-      font-size: 12px;
-      color: #999;
-      margin-top: 10px;
-    `;
+    instructions.className = "ut-modal__hint";
+    // `key` is a KeyboardEvent.code ("KeyN"); the player presses N.
+    const keyLabel = this.data.key.replace(/^(Key|Digit)/, "");
+    instructions.textContent = `Press ${keyLabel} to open this dialog`;
 
     // Assemble dialog
     buttonsContainer.appendChild(this.saveButton);
     buttonsContainer.appendChild(this.cancelButton);
-    this.dialog.appendChild(title);
-    this.dialog.appendChild(this.input);
-    this.dialog.appendChild(buttonsContainer);
-    this.dialog.appendChild(instructions);
+    dialogBody.appendChild(title);
+    dialogBody.appendChild(this.input);
+    dialogBody.appendChild(buttonsContainer);
+    dialogBody.appendChild(instructions);
+    this.dialog.appendChild(dialogInner);
     this.overlay.appendChild(this.dialog);
     document.body.appendChild(this.overlay);
 
@@ -144,7 +94,7 @@ AFRAME.registerComponent("name-changer", {
 
   show() {
     this.isVisible = true;
-    this.overlay.style.display = "flex";
+    this.overlay.classList.add("is-open");
     this.input.value = window.getPlayerName ? window.getPlayerName() : "";
     this.input.focus();
     this.input.select();
@@ -152,7 +102,7 @@ AFRAME.registerComponent("name-changer", {
 
   hide() {
     this.isVisible = false;
-    this.overlay.style.display = "none";
+    this.overlay.classList.remove("is-open");
   },
 
   toggle() {

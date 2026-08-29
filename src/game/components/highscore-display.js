@@ -1,4 +1,10 @@
-// highscore-display.js — Minimal networked highscore display
+// highscore-display.js — networked scoreboard (TAB) + the frag counter plate
+//
+// Chrome comes from the shared HUD module and styles.css; this component owns the
+// player table and the TAB toggle. Event contracts (player-join / player-leave /
+// player-kill / highscore-update / name-change) are unchanged.
+import { getHud } from "./hud/hud-root.js";
+
 AFRAME.registerComponent("highscore-display", {
   schema: {
     enabled: { type: "boolean", default: true },
@@ -10,6 +16,8 @@ AFRAME.registerComponent("highscore-display", {
     this.players = new Map(); // id -> {name, kills, isLocal}
     this.updateTimer = 0;
 
+    this.hud = getHud();
+
     // Create UI elements
     this.createUI();
 
@@ -17,13 +25,13 @@ AFRAME.registerComponent("highscore-display", {
     this._onKeyDown = (e) => {
       if (e.code === "Tab") {
         e.preventDefault();
-        if (this.container) this.container.style.display = "block";
+        if (this.container) this.container.classList.add("is-open");
       }
     };
     this._onKeyUp = (e) => {
       if (e.code === "Tab") {
         e.preventDefault();
-        if (this.container) this.container.style.display = "none";
+        if (this.container) this.container.classList.remove("is-open");
       }
     };
     window.addEventListener("keydown", this._onKeyDown, { passive: false });
@@ -39,63 +47,38 @@ AFRAME.registerComponent("highscore-display", {
   },
 
   createUI() {
-    // Create container div
+    // Flat translucent panel with a rule top and bottom — the UT99 scoreboard
+    // shape, not a bevelled box. Hidden until TAB is held; `.is-open` drives
+    // display and nothing here writes styles.
     this.container = document.createElement("div");
     this.container.id = "highscore-container";
-    this.container.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      background: rgba(0, 0, 0, 0.8);
-      border: 2px solid #ffcc00;
-      border-radius: 8px;
-      padding: 10px;
-      color: white;
-      font-family: 'Courier New', monospace;
-      font-size: 14px;
-      min-width: 200px;
-      z-index: 1000;
-      backdrop-filter: blur(5px);
-      display: none;
-    `;
+    this.container.className = "ut-scoreboard";
 
-    // Create title
+    // Two nested boxes: the outer is the plate's 2px outline, the inner is its
+    // face. Same construction as every other panel on the HUD.
+    const inner = document.createElement("div");
+    inner.className = "ut-scoreboard__inner";
+    const body = document.createElement("div");
+    body.className = "ut-scoreboard__body";
+    inner.appendChild(body);
+
     this.title = document.createElement("div");
-    this.title.textContent = "SCOREBOARD";
-    this.title.style.cssText = `
-      font-weight: bold;
-      color: #ffcc00;
-      margin-bottom: 8px;
-      text-align: center;
-      font-size: 16px;
-    `;
+    this.title.className = "ut-scoreboard__title";
+    this.title.textContent = "Facing Worlds";
 
-    // Create players list
+    const head = document.createElement("div");
+    head.className = "ut-scoreboard__head";
+    head.innerHTML = "<span>PLAYER</span><span>FRAGS</span>";
+
     this.playersList = document.createElement("div");
     this.playersList.id = "players-list";
-    this.playersList.style.cssText = `
-      max-height: 300px;
-      overflow-y: auto;
-    `;
+    this.playersList.className = "ut-scoreboard__list";
 
-    this.container.appendChild(this.title);
-    this.container.appendChild(this.playersList);
-    document.body.appendChild(this.container);
-
-    // TAB hint (always visible, bottom-left area)
-    this.tabHint = document.createElement("div");
-    Object.assign(this.tabHint.style, {
-      position: "fixed",
-      top: "20px",
-      left: "20px",
-      color: "rgba(255, 255, 255, 0.4)",
-      fontSize: "12px",
-      fontFamily: "'Courier New', monospace",
-      pointerEvents: "none",
-      zIndex: "999",
-    });
-    this.tabHint.textContent = "TAB: Scoreboard";
-    document.body.appendChild(this.tabHint);
+    body.appendChild(this.title);
+    body.appendChild(head);
+    body.appendChild(this.playersList);
+    this.container.appendChild(inner);
+    this.hud.mount(this.container);
 
     // Initial empty state
     this.updateDisplay();
@@ -157,10 +140,14 @@ AFRAME.registerComponent("highscore-display", {
     // Clear current list
     this.playersList.innerHTML = "";
 
+    // Keep the corner frag plate in step with the table it summarises
+    const local = Array.from(this.players.values()).find((p) => p.isLocal);
+    if (this.hud) this.hud.setFrags(local ? local.kills : 0);
+
     if (this.players.size === 0) {
       const emptyMsg = document.createElement("div");
-      emptyMsg.textContent = "No players connected";
-      emptyMsg.style.cssText = "color: #666; text-align: center; font-style: italic;";
+      emptyMsg.className = "ut-scoreboard__empty";
+      emptyMsg.textContent = "NO PLAYERS CONNECTED";
       this.playersList.appendChild(emptyMsg);
       return;
     }
@@ -172,48 +159,21 @@ AFRAME.registerComponent("highscore-display", {
 
     sortedPlayers.forEach((player, index) => {
       const playerDiv = document.createElement("div");
-      playerDiv.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 4px 8px;
-        margin: 2px 0;
-        background: ${player.isLocal ? "rgba(255, 204, 0, 0.2)" : "rgba(255, 255, 255, 0.1)"};
-        border-radius: 4px;
-        border-left: 3px solid ${player.isLocal ? "#ffcc00" : "#666"};
-      `;
+      playerDiv.className = player.isLocal ? "ut-row is-local" : "ut-row";
+
+      const rankSpan = document.createElement("span");
+      rankSpan.className = "ut-row__rank";
+      rankSpan.textContent = String(index + 1);
 
       const nameSpan = document.createElement("span");
-      nameSpan.textContent = player.isLocal ? `> ${player.name}` : player.name;
-      nameSpan.style.cssText = `
-        color: ${player.isLocal ? "#ffcc00" : "white"};
-        font-weight: ${player.isLocal ? "bold" : "normal"};
-      `;
+      nameSpan.className = "ut-row__name";
+      nameSpan.textContent = player.name;
 
       const killsSpan = document.createElement("span");
+      killsSpan.className = "ut-row__frags";
       killsSpan.textContent = `${player.kills}`;
-      killsSpan.style.cssText = `
-        color: #ffcc00;
-        font-weight: bold;
-        min-width: 30px;
-        text-align: right;
-        position: relative;
-      `;
 
-      // Add persistent score indicator
-      if (player.isLocal && player.kills > 0) {
-        const persistentIndicator = document.createElement("span");
-        persistentIndicator.textContent = "★";
-        persistentIndicator.style.cssText = `
-          position: absolute;
-          top: -8px;
-          right: -8px;
-          font-size: 8px;
-          color: #ffcc00;
-        `;
-        killsSpan.appendChild(persistentIndicator);
-      }
-
+      playerDiv.appendChild(rankSpan);
       playerDiv.appendChild(nameSpan);
       playerDiv.appendChild(killsSpan);
       this.playersList.appendChild(playerDiv);
@@ -228,8 +188,9 @@ AFRAME.registerComponent("highscore-display", {
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
-    if (this.tabHint && this.tabHint.parentNode) {
-      this.tabHint.remove();
+    if (this.hud) {
+      this.hud.release();
+      this.hud = null;
     }
   },
 });

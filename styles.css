@@ -1,3 +1,33 @@
+/* ============================================================================
+   Facing Worlds — global chrome + HUD
+   ----------------------------------------------------------------------------
+   The HUD is authored here rather than inline in JS. Everything under the `ut-`
+   prefix is built by src/game/components/hud/hud-root.js, which only ever writes
+   text, `data-*` and `is-*` classes — the entire look lives in this file.
+
+   Visual target: the UT2003/2004 status bar, checked against a full-size retail
+   screenshot rather than recalled (see the header of hud-root.js for exactly
+   which images and what they show). The chassis of that HUD is:
+
+     * chamfered dark plates with a bright metal outline, one at each bottom
+       corner — health left, ammo right;
+     * a round recessed disc on the outboard end of each plate carrying the
+       glyph, half-sunk into the plate's silhouette;
+     * LARGE white squared numerals inside the plates, with a hue glow behind
+       them. The number is the dominant element on the screen;
+     * a weapon bar of small slots along the bottom centre, the held slot lit;
+     * small chips in the top corners.
+
+   Kept from UT99 because neither later HUD has anything as good: the PAPER DOLL,
+   a glowing team-colour figure of the armoured soldier, standing beside the
+   health plate and carrying the same damage band as the numeral.
+
+   Everything is tinted one hue at a time (gold when there are no teams;
+   html[data-team] swaps the bar to red or blue). No UT art or fonts are used or
+   shipped: the doll and every glyph are hand-authored inline SVG, and the type
+   is a generic squared grotesque with a full system fallback stack.
+   ========================================================================== */
+
 /* Prevent text selection and blue overlay */
 html,
 body {
@@ -7,12 +37,7 @@ body {
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
   -webkit-user-drag: none;
-  -khtml-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
 }
 
 /* Prevent selection on all elements */
@@ -24,7 +49,6 @@ body {
   -webkit-touch-callout: none !important;
   -webkit-tap-highlight-color: transparent !important;
   -webkit-user-drag: none !important;
-  -khtml-user-select: none !important;
 }
 
 /* Remove focus outlines and blue highlights */
@@ -33,7 +57,6 @@ body {
   -webkit-tap-highlight-color: transparent !important;
 }
 
-/* Remove blue highlight on all interactive elements */
 button,
 div,
 span,
@@ -53,52 +76,1345 @@ a {
   user-select: text !important;
 }
 
-/* Credits Display Styles */
+/* ============================================================================
+   Design tokens
+   ========================================================================== */
+
+:root {
+  /* Google Fonts is injected by hud-root.js. Both stacks degrade to condensed
+     system faces, so the HUD still reads correctly offline. */
+  --ut-font-ui: "Saira Condensed", "Arial Narrow", "Roboto Condensed",
+    "DIN Condensed", "Haettenschweiler", Impact, sans-serif;
+  --ut-font-num: "Saira", "Saira Condensed", "Arial Narrow", "DIN Condensed",
+    "Haettenschweiler", Impact, sans-serif;
+
+  /* --- accent hue -----------------------------------------------------------
+     One hue at a time. Gold is the neutral default, which is what a player with
+     no team gets. */
+  --ut-hue: #ffc046;
+  --ut-hue-deep: #ff8a12;
+  --ut-glow: rgba(255, 168, 40, 0.85);
+  --ut-glow-weak: rgba(255, 168, 40, 0.32);
+  --ut-fill: rgba(255, 150, 20, 0.28);
+
+  /* --- plate chassis --------------------------------------------------------
+     Cold steel, deliberately not the accent hue: in the reference the plates are
+     near-neutral and only the glyphs, the glow and the active weapon slot carry
+     colour. That is what keeps a big white numeral readable over bright sand. */
+  --ut-plate-top: rgba(46, 62, 92, 0.82);
+  --ut-plate-bot: rgba(7, 11, 21, 0.9);
+  --ut-edge-top: rgba(186, 210, 250, 0.72);
+  --ut-edge-bot: rgba(58, 78, 118, 0.6);
+
+  --ut-warn: #ffa023;
+  --ut-warn-glow: rgba(255, 150, 25, 0.9);
+  --ut-crit: #ff4436;
+  --ut-crit-glow: rgba(255, 56, 44, 0.95);
+
+  --ut-ink: rgba(255, 255, 255, 0.44);
+}
+
+/* Set data-team="red" / "blue" on <html> and the whole bar recolours: plates,
+   numerals, doll, weapon bar, scoreboard. No JS in this repo sets it yet —
+   there are no teams on the server — so the neutral gold above is what ships. */
+html[data-team="red"] {
+  --ut-hue: #ff6b56;
+  --ut-hue-deep: #e02414;
+  --ut-glow: rgba(255, 66, 46, 0.85);
+  --ut-glow-weak: rgba(255, 66, 46, 0.32);
+  --ut-fill: rgba(220, 34, 20, 0.32);
+  --ut-plate-top: rgba(96, 42, 40, 0.82);
+  --ut-edge-top: rgba(255, 176, 162, 0.7);
+  --ut-edge-bot: rgba(126, 52, 44, 0.6);
+}
+
+html[data-team="blue"] {
+  --ut-hue: #7cb6ff;
+  --ut-hue-deep: #2b6ff0;
+  --ut-glow: rgba(70, 140, 255, 0.85);
+  --ut-glow-weak: rgba(70, 140, 255, 0.32);
+  --ut-fill: rgba(30, 70, 220, 0.32);
+}
+
+/* ============================================================================
+   HUD layer
+   ========================================================================== */
+
+.ut-hud {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+  font-family: var(--ut-font-ui);
+  transition: opacity 200ms ease-out;
+}
+
+.ut-hud * {
+  box-sizing: border-box;
+}
+
+/* While dead the bar stays on screen but steps back, so the death card is the
+   only thing with contrast. */
+.ut-hud.is-dead .ut-bar,
+.ut-hud.is-dead .ut-chip--frags {
+  opacity: 0.3;
+  transition: opacity 160ms ease-out;
+}
+
+/* A-Frame stamps html.a-fullscreen on the document and its own stylesheet then
+   hides every body child that is not the canvas — which takes the entire HUD,
+   crosshair and credits with it. Put the overlay back: going fullscreen is the
+   one moment you most want the bar on screen. Verified by watching the HUD
+   vanish the moment that class appeared. */
+html.a-fullscreen body > .ut-hud,
+html.a-fullscreen body > .ut-crosshair,
+html.a-fullscreen body > .ut-hitmarker,
+html.a-fullscreen body > .ut-announce,
+html.a-fullscreen body > .ut-killflash,
+html.a-fullscreen body > #credits-container,
+html.a-fullscreen body > #net-status {
+  display: block !important;
+}
+
+html.a-fullscreen body > .ut-modal {
+  display: flex !important;
+}
+
+/* ---- the chamfered plate ---------------------------------------------------
+   The outline is the OUTER element's background showing through a 2px padding
+   ring. Both boxes are cut with the same polygon, so the diagonal keeps its
+   stroke — a clipped `border` would leave the corner open. Every plate on
+   screen (meters, chips, weapon slots, scoreboard, dialog) is this one object.
+   -------------------------------------------------------------------------- */
+
+.ut-panel {
+  --cut: 11px;
+  --clip: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  position: relative;
+  padding: 2px;
+  clip-path: var(--clip);
+  background: linear-gradient(160deg, var(--ut-edge-top), var(--ut-edge-bot));
+}
+
+.ut-panel__in {
+  position: relative;
+  height: 100%;
+  clip-path: var(--clip);
+  background: linear-gradient(
+    170deg,
+    var(--ut-plate-top) 0%,
+    rgba(14, 21, 38, 0.88) 52%,
+    var(--ut-plate-bot) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -18px 24px -18px rgba(0, 0, 0, 0.9);
+}
+
+/* Mirror the chamfer on the right-hand side of the screen so the two bays lean
+   toward each other instead of both leaning the same way. */
+.ut-bay--right .ut-panel,
+.ut-hint {
+  --clip: polygon(
+    0 0,
+    calc(100% - var(--cut)) 0,
+    100% var(--cut),
+    100% 100%,
+    var(--cut) 100%,
+    0 calc(100% - var(--cut))
+  );
+}
+
+/* ---- numerals --------------------------------------------------------------
+   Tabular figures plus a reserved min-width: the plate never resizes as the
+   value gains or loses a digit.
+   -------------------------------------------------------------------------- */
+
+.ut-num {
+  font-family: var(--ut-font-num);
+  font-weight: 700;
+  font-size: var(--ut-num-size, 34px);
+  line-height: 0.94;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: 0.005em;
+  min-width: calc(var(--ut-num-slots, 3) * 0.6em);
+  text-align: right;
+  text-shadow: 0 0 10px var(--ut-glow), 0 0 30px var(--ut-glow),
+    0 2px 3px rgba(0, 0, 0, 0.9);
+}
+
+.ut-num.is-text {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ---- glyph disc ------------------------------------------------------------
+   The round recessed cap on the outboard end of a meter.
+   -------------------------------------------------------------------------- */
+
+.ut-disc {
+  flex: 0 0 auto;
+  width: var(--ut-disc-size, 46px);
+  height: var(--ut-disc-size, 46px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle at 34% 26%,
+    rgba(104, 132, 184, 0.7) 0%,
+    rgba(24, 34, 56, 0.92) 58%,
+    rgba(5, 8, 16, 0.95) 100%
+  );
+  box-shadow: 0 0 0 2px var(--ut-edge-top), inset 0 2px 5px rgba(255, 255, 255, 0.14),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.7), 0 0 16px var(--ut-glow-weak);
+}
+
+.ut-disc__glyph {
+  width: 54%;
+  height: 54%;
+  color: var(--ut-hue);
+  filter: drop-shadow(0 0 6px var(--ut-glow));
+}
+
+.ut-disc__glyph svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
+
+/* ============================================================================
+   Bottom bar
+   ========================================================================== */
+
+.ut-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 20px 16px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ut-bay {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.ut-bay--right {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+/* ---- meters (armour, health, ammo) ---------------------------------------- */
+
+.ut-meter {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ut-panel--meter {
+  --cut: 12px;
+}
+
+.ut-panel--meter .ut-panel__in {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px 15px 5px;
+}
+
+.ut-meter--health,
+.ut-meter--ammo {
+  --ut-num-size: 46px;
+  --ut-disc-size: 48px;
+}
+
+.ut-meter--armor {
+  --ut-num-size: 24px;
+  --ut-disc-size: 28px;
+}
+
+.ut-meter--armor .ut-panel {
+  --cut: 8px;
+}
+
+.ut-meter--armor .ut-panel__in {
+  padding: 2px 11px 3px;
+}
+
+/* Health and ammo bands. `data-level` is written by hud-root.js. */
+.ut-meter--health[data-level="warn"] {
+  --ut-glow: var(--ut-warn-glow);
+  --ut-hue: var(--ut-warn);
+}
+
+.ut-meter--health[data-level="crit"],
+.ut-meter--ammo[data-level="crit"] {
+  --ut-glow: var(--ut-crit-glow);
+  --ut-hue: var(--ut-crit);
+}
+
+.ut-meter--health[data-level="crit"] .ut-num {
+  animation: ut-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes ut-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+/* No armour on the server yet. A real, dimmed 0 is honest; a number that never
+   moves would not be. */
+.ut-meter--armor[data-level="empty"] {
+  opacity: 0.4;
+}
+
+/* ---- paper doll ------------------------------------------------------------
+   The one element carried over from UT99, and the most distinctive thing on the
+   screen. Body panels sit at half strength; the visor, chest plate and belt are
+   full strength, which is what makes it read as a figure rather than a blob.
+   -------------------------------------------------------------------------- */
+
+.ut-doll {
+  flex: 0 0 auto;
+  width: 66px;
+  color: var(--ut-hue);
+  /* A tight glow only. The first pass at this used an 8px + 22px bloom and the
+     figure turned into one gold blob — the bloom filled the gaps between the
+     limbs faster than the limbs themselves read. */
+  filter: drop-shadow(0 0 4px var(--ut-glow)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+  transition: color 200ms ease-out;
+}
+
+.ut-doll svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Outlined, not filled. The reference doll is a bright edge around a darker
+   interior, which is what separates a helmet from a pauldron from an arm at
+   60-odd pixels tall; a flat fill at any opacity does not. */
+.ut-doll__body path {
+  fill: currentColor;
+  fill-opacity: 0.24;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  paint-order: fill stroke;
+}
+
+.ut-doll__lit path {
+  fill: currentColor;
+  fill-opacity: 0.8;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.ut-doll[data-level="warn"] {
+  color: var(--ut-warn);
+}
+
+.ut-doll[data-level="crit"] {
+  color: var(--ut-crit);
+}
+
+.ut-doll.is-hit {
+  animation: ut-doll-hit 200ms steps(2, end) 1;
+}
+
+@keyframes ut-doll-hit {
+  0% {
+    color: #fff;
+    transform: translateX(-2px);
+  }
+  100% {
+    color: var(--ut-crit);
+    transform: none;
+  }
+}
+
+/* ---- weapon name ---------------------------------------------------------- */
+
+.ut-weaponname {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ut-hue);
+  padding-right: 4px;
+  text-shadow: 0 0 10px var(--ut-glow), 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+/* ---- weapon bar ------------------------------------------------------------
+   Only the Enforcer exists in this build. The other slots render EMPTY rather
+   than being stocked with weapons the player does not have — the bar reports
+   what you are carrying, it does not decorate.
+   -------------------------------------------------------------------------- */
+
+.ut-weapons {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+}
+
+.ut-wslot {
+  --cut: 6px;
+  width: 44px;
+  height: 32px;
+  opacity: 0.34;
+  transition: opacity 140ms ease-out;
+}
+
+.ut-wslot.is-owned {
+  opacity: 1;
+}
+
+.ut-wslot .ut-panel__in {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ut-wslot__key {
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.ut-wslot__icon {
+  width: 26px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ut-wslot__icon svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  fill: currentColor;
+}
+
+/* The held slot. In the reference this is the one hot-coloured element on the
+   bar; here it takes the team hue so it recolours with everything else. */
+.ut-wslot.is-active {
+  background: linear-gradient(160deg, var(--ut-hue), var(--ut-hue-deep));
+}
+
+.ut-wslot.is-active .ut-panel__in {
+  background: linear-gradient(
+    170deg,
+    var(--ut-fill) 0%,
+    rgba(22, 16, 10, 0.86) 60%,
+    rgba(8, 6, 4, 0.92) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 0 16px var(--ut-glow-weak);
+}
+
+.ut-wslot.is-active .ut-wslot__icon {
+  color: #fff;
+  filter: drop-shadow(0 0 6px var(--ut-glow));
+}
+
+.ut-wslot.is-fired .ut-panel__in {
+  animation: ut-slot-fire 160ms ease-out 1;
+}
+
+@keyframes ut-slot-fire {
+  0% {
+    box-shadow: inset 0 0 0 40px rgba(255, 255, 255, 0.32);
+  }
+  100% {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      inset 0 0 16px var(--ut-glow-weak);
+  }
+}
+
+/* ============================================================================
+   Corner chips
+   ========================================================================== */
+
+.ut-chip {
+  position: absolute;
+  --cut: 9px;
+  --ut-num-size: 25px;
+}
+
+.ut-chip .ut-panel__in {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 13px 5px 10px;
+}
+
+.ut-chip--frags {
+  top: 14px;
+  left: 16px;
+}
+
+.ut-chip__glyph {
+  width: 17px;
+  height: 17px;
+  color: var(--ut-hue);
+  filter: drop-shadow(0 0 5px var(--ut-glow));
+}
+
+.ut-chip__glyph svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
+
+.ut-chip__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  color: var(--ut-ink);
+  padding-top: 3px;
+}
+
+/* Key hint, top right. Flat rather than plated — it is instruction, not state. */
+.ut-hint {
+  position: absolute;
+  top: 15px;
+  right: 16px;
+  --cut: 7px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px 4px 5px;
+  clip-path: var(--clip);
+  background: rgba(6, 9, 16, 0.55);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--ut-ink);
+}
+
+.ut-hint kbd {
+  font: inherit;
+  padding: 2px 6px 1px;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  letter-spacing: 0.14em;
+}
+
+/* ============================================================================
+   Damage vignette + death card
+   ========================================================================== */
+
+.ut-vignette {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 0, 0, 0) 42%,
+    rgba(190, 12, 6, 0.5) 82%,
+    rgba(120, 0, 0, 0.78) 100%
+  );
+  transition: opacity 320ms ease-out;
+}
+
+.ut-vignette.is-on {
+  opacity: 1;
+  transition: opacity 40ms ease-out;
+}
+
+.ut-death {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.94);
+  width: min(420px, 76vw);
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  /* A soft dark ground under the card. Without it the two red rules and the
+     RESPAWNING caption disappear whenever you die facing the lit side of the
+     asteroid, which is most of the time. */
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0.66) 0%,
+    rgba(0, 0, 0, 0.42) 55%,
+    rgba(0, 0, 0, 0) 78%
+  );
+  padding: 34px 40px;
+  transition: opacity 200ms ease-out, transform 200ms ease-out,
+    visibility 0s linear 200ms;
+}
+
+.ut-death.is-on {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -50%) scale(1);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.ut-death__rule {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--ut-crit) 22%,
+    var(--ut-crit) 78%,
+    transparent
+  );
+  box-shadow: 0 0 14px var(--ut-crit-glow);
+}
+
+.ut-death__title {
+  font-size: clamp(34px, 6vw, 62px);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff;
+  padding: 10px 0 2px;
+  text-shadow: 0 0 18px var(--ut-crit-glow), 0 0 52px var(--ut-crit-glow),
+    0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+.ut-death__sub {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.42em;
+  color: rgba(255, 255, 255, 0.5);
+  padding-bottom: 12px;
+}
+
+/* ============================================================================
+   Crosshair + hitmarker (first-person-weapon.js)
+   ----------------------------------------------------------------------------
+   Four thin ticks around an empty centre with a single centre pip. The gap is
+   driven from JS (weapon bloom); the pip is this file's ::after, so no JS change
+   was needed to add it.
+   ========================================================================== */
+
+.ut-crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: 950;
+  pointer-events: none;
+  opacity: 0.85;
+  color: #fff;
+}
+
+.ut-crosshair i {
+  position: absolute;
+  display: block;
+  background: currentColor;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75), 0 0 5px var(--ut-glow-weak);
+}
+
+.ut-crosshair i.ut-crosshair--h {
+  width: 11px;
+  height: 2px;
+}
+
+.ut-crosshair i.ut-crosshair--v {
+  width: 2px;
+  height: 11px;
+}
+
+.ut-crosshair::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 2px;
+  transform: translate(-50%, -50%);
+  background: var(--ut-hue);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), 0 0 6px var(--ut-glow);
+}
+
+.ut-hitmarker {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: 951;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.ut-hitmarker i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 3px;
+  background: #fff;
+  box-shadow: 0 0 8px var(--ut-glow), 0 0 2px rgba(0, 0, 0, 0.9);
+}
+
+.ut-hitmarker i:first-child {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.ut-hitmarker i:last-child {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* ---- kill flash ------------------------------------------------------------
+   Fired on every frag by first-person-weapon.js. A rim pulse in the accent hue,
+   not a full-screen wash: the centre of the screen stays clear so it never
+   covers what you are aiming at.
+   -------------------------------------------------------------------------- */
+
+.ut-killflash {
+  position: fixed;
+  inset: 0;
+  z-index: 940;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0) 46%,
+    var(--ut-glow-weak) 84%,
+    var(--ut-glow) 100%
+  );
+}
+
+.ut-killflash.is-on {
+  animation: ut-killflash 400ms ease-out 1;
+}
+
+@keyframes ut-killflash {
+  0% {
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ============================================================================
+   Multi-kill / spree announcements (first-person-weapon.js)
+   ----------------------------------------------------------------------------
+   Announcements arrive already at full size and shrink into place; they do not
+   fade in. White type over a hard hue glow, with a hue rule under it so the
+   line has the weight of the rest of the bar.
+   ========================================================================== */
+
+.ut-announce {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 960;
+  pointer-events: none;
+  opacity: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-family: var(--ut-font-ui);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.ut-announce--multikill {
+  top: 19%;
+  font-size: clamp(32px, 5.6vw, 70px);
+  letter-spacing: 0.12em;
+  padding-bottom: 8px;
+  text-shadow: 0 0 16px var(--ut-glow), 0 0 48px var(--ut-glow),
+    0 2px 5px rgba(0, 0, 0, 0.9);
+}
+
+.ut-announce--multikill::after {
+  content: "";
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--ut-hue), transparent);
+  box-shadow: 0 0 12px var(--ut-glow);
+}
+
+.ut-announce--spree {
+  top: 30%;
+  font-size: clamp(20px, 3.2vw, 38px);
+  letter-spacing: 0.24em;
+  color: var(--ut-hue);
+  text-shadow: 0 0 14px var(--ut-glow), 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+.ut-announce.is-punch {
+  animation: ut-punch 1500ms ease-out forwards;
+}
+
+@keyframes ut-punch {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1.6);
+  }
+  9% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* ============================================================================
+   Message rail (kill-notification.js)
+   ----------------------------------------------------------------------------
+   Stacks under the frag chip in the top-left, as plain glowing text — no plates.
+   The bottom corners belong to the bar and the top-right to the key hint.
+   ========================================================================== */
+
+.ut-killfeed {
+  position: absolute;
+  top: 60px;
+  left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: min(420px, 44vw);
+}
+
+.ut-killfeed__entry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 220ms ease-out, transform 220ms ease-out;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+.ut-killfeed__entry.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+.ut-killfeed__verb {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ut-killfeed__name {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ut-hue);
+  text-shadow: 0 0 12px var(--ut-glow), 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+/* ============================================================================
+   Scoreboard (highscore-display.js) — held on TAB
+   ========================================================================== */
+
+.ut-scoreboard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(640px, 88vw);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 90ms ease-out, visibility 0s linear 90ms;
+}
+
+.ut-scoreboard.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 90ms ease-out;
+}
+
+/* The scoreboard is the same plate as the meters, one size up. */
+.ut-scoreboard__inner {
+  --cut: 22px;
+  --clip: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  padding: 2px;
+  clip-path: var(--clip);
+  background: linear-gradient(160deg, var(--ut-edge-top), var(--ut-edge-bot));
+}
+
+.ut-scoreboard__body {
+  clip-path: var(--clip);
+  padding: 16px 22px 20px;
+  background: linear-gradient(
+    170deg,
+    rgba(20, 28, 46, 0.94) 0%,
+    rgba(6, 9, 17, 0.96) 100%
+  );
+}
+
+.ut-scoreboard__title {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 0 14px var(--ut-glow), 0 0 40px var(--ut-glow);
+  padding-bottom: 12px;
+}
+
+.ut-scoreboard__head {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px 4px;
+  background: var(--ut-fill);
+  border-top: 1px solid var(--ut-hue);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.ut-scoreboard__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ut-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 8px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.ut-row.is-local {
+  background: linear-gradient(90deg, var(--ut-fill), rgba(255, 255, 255, 0.02));
+  box-shadow: inset 2px 0 0 var(--ut-hue);
+}
+
+.ut-row__rank {
+  width: 22px;
+  flex: 0 0 22px;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ut-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.ut-row.is-local .ut-row__name {
+  color: #fff;
+  text-shadow: 0 0 10px var(--ut-glow);
+}
+
+.ut-row__frags {
+  font-family: var(--ut-font-num);
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--ut-hue);
+  text-shadow: 0 0 10px var(--ut-glow);
+  font-variant-numeric: tabular-nums;
+}
+
+.ut-scoreboard__empty {
+  padding: 22px 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.26em;
+  color: rgba(255, 255, 255, 0.32);
+}
+
+/* ============================================================================
+   Network status chip (built by src/game/network/network.js)
+   ----------------------------------------------------------------------------
+   That file is outside this partition and pins itself top-right with inline
+   styles — which is now the key hint's corner. Move it to the top centre and
+   flatten it. Overriding here rather than editing network.js keeps this round
+   inside its partition.
+   ========================================================================== */
+
+#net-status {
+  top: 10px !important;
+  right: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%);
+  font-family: var(--ut-font-ui) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3em !important;
+  border-radius: 0 !important;
+  border-width: 0 0 1px 0 !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  padding: 5px 16px 4px !important;
+}
+
+/* ============================================================================
+   Name changer (name-changer.js)
+   ========================================================================== */
+
+.ut-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 140ms ease-out, visibility 0s linear 140ms;
+}
+
+.ut-modal.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 140ms ease-out;
+}
+
+.ut-modal__dialog {
+  width: min(400px, 88vw);
+}
+
+.ut-modal__inner {
+  --cut: 18px;
+  --clip: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  padding: 2px;
+  clip-path: var(--clip);
+  background: linear-gradient(160deg, var(--ut-edge-top), var(--ut-edge-bot));
+}
+
+.ut-modal__body {
+  clip-path: var(--clip);
+  padding: 20px 22px 22px;
+  background: linear-gradient(
+    170deg,
+    rgba(20, 28, 46, 0.96) 0%,
+    rgba(6, 9, 17, 0.97) 100%
+  );
+}
+
+.ut-modal__title {
+  font-family: var(--ut-font-ui);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 0 12px var(--ut-glow);
+  margin-bottom: 14px;
+}
+
+.ut-modal__input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--ut-edge-top);
+  border-radius: 0;
+  color: #fff;
+  font-family: var(--ut-font-ui);
+  font-size: 17px;
+  letter-spacing: 0.06em;
+}
+
+.ut-modal__buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ut-btn {
+  flex: 1 1 0;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: var(--ut-font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.ut-btn--primary {
+  background: var(--ut-fill);
+  border-color: var(--ut-hue);
+  color: #fff;
+}
+
+.ut-modal__hint {
+  margin-top: 10px;
+  text-align: center;
+  font-family: var(--ut-font-ui);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ============================================================================
+   Credits
+   ----------------------------------------------------------------------------
+   Bottom-centre caption, lifted to sit ABOVE the weapon bar rather than behind
+   it. Quiet enough to read as a caption on the bar, not as HUD state.
+   ========================================================================== */
+
 #credits-container {
   position: fixed;
-  bottom: 20px;
-  left: 20px;
-  max-width: 50%;
-  color: rgba(255, 255, 255, 1);
-  font-family: "Courier New", monospace;
-  font-size: 12px;
-  line-height: 1.4;
+  bottom: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 42vw);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: var(--ut-font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
   z-index: 1000;
+  /* The block sits over the middle of the viewport, so it must not eat the
+     look-controls drag. Only the links themselves take the pointer. */
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+#credits-container a {
   pointer-events: auto;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 .credit-line {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .credit-instructions {
-  font-style: italic;
-  margin-bottom: 8px;
+  font-style: normal;
+  margin-bottom: 7px;
+  /* These are the only controls the player is ever told about, and at 0.3 they
+     were unreadable over the lit side of the asteroid. */
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* index.html carries a desktop line and a touch line; exactly one of them is the
+   truth on any given device, so show only that one. The touch line describes the
+   aframe-extras touch-controls path, which is the same query that lifts the ammo
+   bay clear of the FIRE button further down. */
+.credit-instructions--touch {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .credit-instructions--desktop {
+    display: none;
+  }
+
+  .credit-instructions--touch {
+    display: block;
+  }
 }
 
 .credit-highlight {
-  color: rgba(255, 255, 255, 1);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .credit-link {
-  margin-top: 8px;
-  font-size: 11px;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .credit-link a {
-  color: inherit;
+  color: rgba(99, 205, 255, 0.75);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(99, 205, 255, 0.3);
 }
 
 .credit-link a:hover {
-  color: inherit;
+  color: #63cdff;
 }
 
 .credit-author {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .credit-author:hover {
   color: #ffffff;
   border-bottom-color: #ffffff;
+}
+
+/* ============================================================================
+   Narrow / short viewports
+   ========================================================================== */
+
+@media (max-width: 980px) {
+  .ut-bar {
+    padding: 0 14px 12px;
+  }
+
+  .ut-meter--health,
+  .ut-meter--ammo {
+    --ut-num-size: 36px;
+    --ut-disc-size: 38px;
+  }
+
+  .ut-meter--armor {
+    --ut-num-size: 19px;
+    --ut-disc-size: 23px;
+  }
+
+  .ut-doll {
+    width: 46px;
+  }
+
+  .ut-weaponname {
+    font-size: 11px;
+    letter-spacing: 0.24em;
+  }
+
+  .ut-wslot {
+    width: 36px;
+    height: 26px;
+  }
+
+  .ut-wslot__icon {
+    width: 21px;
+  }
+
+  .ut-chip {
+    --ut-num-size: 21px;
+  }
+
+  .ut-killfeed {
+    top: 54px;
+    left: 14px;
+    max-width: 58vw;
+  }
+
+  .ut-killfeed__name {
+    font-size: 15px;
+  }
+
+  #credits-container {
+    width: min(340px, 76vw);
+    bottom: 56px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 620px) {
+  /* On a phone the doll and the weapon bar are the first things to go — health
+     and ammo are the two readouts you actually act on. The armour meter stays:
+     it is small, and it is the only thing that will report a pickup. */
+  .ut-doll,
+  .ut-weapons,
+  .ut-hint {
+    display: none;
+  }
+
+  .ut-meter--health,
+  .ut-meter--ammo {
+    --ut-num-size: 30px;
+    --ut-disc-size: 32px;
+  }
+
+  /* Credits move out from under the centre and stack over the health bay, so
+     they cannot land on the ammo block once it lifts for the fire button. */
+  #credits-container {
+    left: 12px;
+    right: auto;
+    transform: none;
+    text-align: left;
+    width: min(240px, 62vw);
+    bottom: 108px;
+  }
+}
+
+/* first-person-weapon.js parks an 80px round FIRE button at bottom:20 right:20 on
+   touch devices, exactly where the ammo bay sits. Lift the bay clear of it
+   rather than fight for the corner. */
+@media (hover: none) and (pointer: coarse) {
+  .ut-bay--right {
+    margin-bottom: 100px;
+  }
+}
+
+@media (max-height: 560px) {
+  .ut-meter--health,
+  .ut-meter--ammo {
+    --ut-num-size: 28px;
+    --ut-disc-size: 30px;
+  }
+
+  .ut-doll {
+    width: 40px;
+  }
+
+  #credits-container {
+    display: none;
+  }
 }
