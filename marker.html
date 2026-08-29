@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Facing Worlds — AR Marker</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <style>
+      :root { color-scheme: dark; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        height: 100%;
+        background: #101012;
+        color: #e8e8ea;
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        overflow: hidden;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      /* The marker sits on white. Image trackers key off the printed artwork, and a
+         bright neutral surround gives the detector a clean edge to find it against. */
+      #stage {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #fff;
+        padding: 4vmin;
+      }
+      #marker {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        display: block;
+        /* No filters, no rounding, no shadow — anything that alters the artwork
+           degrades tracking. Keep the pixels exactly as authored. */
+      }
+
+      #chrome {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        background: linear-gradient(to top, rgba(16,16,18,.94), rgba(16,16,18,0));
+        transition: opacity .35s ease;
+      }
+      #chrome.hidden { opacity: 0; pointer-events: none; }
+
+      button, select {
+        font: inherit;
+        color: #e8e8ea;
+        background: rgba(255,255,255,.09);
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 7px;
+        padding: 7px 13px;
+        cursor: pointer;
+      }
+      button:hover, select:hover { background: rgba(255,255,255,.15); }
+      button:active { transform: translateY(1px); }
+
+      #hint {
+        margin-left: auto;
+        font-size: 12px;
+        color: #9a9aa2;
+        text-align: right;
+        max-width: 46ch;
+      }
+      #wake { font-size: 12px; color: #7ec87e; }
+      #wake[data-on="false"] { color: #9a9aa2; }
+
+      @media (max-width: 620px) {
+        #hint { margin-left: 0; width: 100%; text-align: left; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <img id="marker" src="assets/images/tracker.jpg" alt="AR tracker marker" />
+    </div>
+
+    <div id="chrome">
+      <select id="pick" aria-label="Which marker">
+        <option value="assets/images/tracker.jpg" selected>tracker (used by /ar)</option>
+        <option value="assets/images/tracker2.png">tracker2</option>
+        <option value="assets/images/tracker3.png">tracker3</option>
+        <option value="assets/images/tracker4.png">tracker4</option>
+      </select>
+      <button id="fs">Fullscreen</button>
+      <span id="wake" data-on="false">screen lock: off</span>
+      <span id="hint">
+        Turn brightness to max. Hold steady, fill most of the camera frame, avoid glare.
+        Tap anywhere to hide these controls.
+      </span>
+    </div>
+
+    <script>
+      const img = document.getElementById("marker");
+      const chrome = document.getElementById("chrome");
+      const wakeEl = document.getElementById("wake");
+
+      // Swap marker — the AR page's <ar-reference-image> currently points at tracker.jpg,
+      // so that is the default. The others are here for when the reference image changes.
+      document.getElementById("pick").addEventListener("change", (e) => {
+        img.src = e.target.value;
+      });
+
+      document.getElementById("fs").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        try {
+          if (document.fullscreenElement) await document.exitFullscreen();
+          else await document.documentElement.requestFullscreen();
+        } catch (_) {
+          /* iOS Safari refuses fullscreen on non-video elements; brightness+hide is enough */
+        }
+      });
+
+      // Hide the chrome so nothing but the marker is on screen while tracking
+      document.addEventListener("click", (e) => {
+        if (e.target.closest("#chrome")) return;
+        chrome.classList.toggle("hidden");
+      });
+
+      // Keep the display awake — a screen that sleeps mid-test looks like a tracking failure
+      let lock = null;
+      async function keepAwake() {
+        if (!("wakeLock" in navigator)) return;
+        try {
+          lock = await navigator.wakeLock.request("screen");
+          wakeEl.textContent = "screen lock: on";
+          wakeEl.dataset.on = "true";
+          lock.addEventListener("release", () => {
+            wakeEl.textContent = "screen lock: off";
+            wakeEl.dataset.on = "false";
+          });
+        } catch (_) {
+          /* denied or unsupported — harmless */
+        }
+      }
+      keepAwake();
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && !lock) keepAwake();
+      });
+    </script>
+  </body>
+</html>
