@@ -1,3 +1,8 @@
+// Shared components used by both the game and the AR page. index.html loads this file
+// directly (not the root game.js), so without this import "pixelated-texture" was never
+// registered even though #world uses it as an attribute.
+import "../../shared/components/index.js";
+
 // Import utility modules first
 import "../utils/three-helpers.js";
 import "../utils/dom-helpers.js";
@@ -31,11 +36,23 @@ import "../components/highscore-display.js";
 import "../components/kill-notification.js";
 import "../components/name-changer.js";
 // import "../components/follow-player.js"; // Using A-Frame's built-in look-at instead
-// import "../components/touch-controls.js"; // Using inline script instead
+
+// UT99 ground movement + jump. Registers "ut-controls" (a velocity provider that
+// movement-controls adopts) and "ut-jump". Both are attached to the rig below, once the
+// scene has loaded, so their ticks land behind movement-controls' own.
+// Touch movement is owned by aframe-extras' own touch-controls, which ut-controls reads;
+// the old src/game/components/screen-touch-controls.js was never imported by anything and
+// moved the rig straight through the navmesh, so it has been deleted rather than wired up.
+import "../components/movement/ut-movement.js";
 
 // Import setup components
 import "../components/gltf-viewer-settings.js";
 import "../components/console-suppression.js";
+import "../components/environment-map.js";
+import "../components/quality-tier.js";
+// Post-processing. bloom.js pulls the three addons in dynamically and exports a promise,
+// so a failed resolution degrades to "no bloom" instead of breaking the module graph.
+import "../components/lighting/bloom.js";
 
 // Import network and spawn modules
 import startNetwork from "../network/network.js";
@@ -51,8 +68,28 @@ document.addEventListener("DOMContentLoaded", () => {
     performanceMonitor.startMonitoring();
 
     const scene = document.querySelector("a-scene");
+
+    // Swap the rig onto the UT99 movement model. This is done here rather than in
+    // index.html because "ut" has to sit first in movement-controls' controls list to be
+    // adopted ahead of keyboard-controls, and because attaching ut-jump after the scene
+    // has loaded is what puts its tick after movement-controls writes the navmesh-clamped
+    // position it needs to offset.
+    const applyMovement = () => {
+      const rig = document.querySelector("#rig");
+      if (!rig) {
+        console.warn("[main] No #rig found; UT99 movement not applied.");
+        return;
+      }
+      rig.setAttribute("movement-controls", {
+        speed: GAME_CONFIG.PLAYER.MOVEMENT_SPEED,
+        controls: ["ut", "gamepad", "trackpad", "keyboard", "touch"],
+      });
+      rig.setAttribute("ut-jump", "");
+    };
+
     const spawn = () => {
       try {
+        applyMovement();
         // place player rig onto the navmesh center
         placePlayerOnNavmesh();
         // start networking after scene + soldier exist

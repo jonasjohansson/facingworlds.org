@@ -1,8 +1,17 @@
 // character.js — Animation-only follower for a navmesh-driven rig.
 // Put movement-controls + navmesh-constraint on the parent rig.
 // The character entity stays at (0,0,0) under the rig and only animates & faces motion.
+import { GAME_CONFIG } from "../config/game-config.js";
 import { createVector3, createQuaternion, createClock } from "../utils/three-helpers.js";
 import { setupAnimationMixer, blendAnimations, normalizeWeights, updateTimeScale } from "../utils/animation-helpers.js";
+
+// Blend references derived from the rig's actual top speed rather than repeated as
+// literals. The comments used to claim these matched GAME_CONFIG.MOVEMENT while the
+// numbers were hardcoded, so raising GROUND_SPEED would have silently left the run blend
+// pinned on again.
+const RUN_SPEED = GAME_CONFIG.MOVEMENT.GROUND_SPEED;
+const WALK_SPEED = RUN_SPEED * 0.5;
+const RUN_THRESHOLD = RUN_SPEED * 0.53; // where the run blend takes over
 
 AFRAME.registerComponent("character", {
   schema: {
@@ -11,15 +20,19 @@ AFRAME.registerComponent("character", {
     walkIdx: { type: "int", default: 3 },
     runIdx: { type: "int", default: 1 },
 
-    // Reference speeds (used for cadence + run threshold)
-    walkSpeed: { type: "number", default: 1.6 }, // m/s
-    runSpeed: { type: "number", default: 3.2 }, // m/s
+    // Reference speeds (used for cadence + run threshold). Read from GAME_CONFIG.MOVEMENT
+    // above; the old 1.6 / 3.2 pair was written for a much slower rig and left the run
+    // blend pinned at 1.0 with the cadence clamped out.
+    walkSpeed: { type: "number", default: WALK_SPEED }, // m/s
+    runSpeed: { type: "number", default: RUN_SPEED }, // m/s
 
-    // Animation cadence tuning
-    walkCycleMps: { type: "number", default: 1.6 },
-    runCycleMps: { type: "number", default: 3.2 },
+    // Animation cadence tuning. runCycleMps is deliberately below runSpeed: the run clip
+    // is not authored for a 9.4 m/s stride, so at full pace it plays about 1.55x to keep
+    // the feet roughly with the ground instead of skating.
+    walkCycleMps: { type: "number", default: 3.2 },
+    runCycleMps: { type: "number", default: 6.0 },
     minTimeScale: { type: "number", default: 0.6 },
-    maxTimeScale: { type: "number", default: 1.8 },
+    maxTimeScale: { type: "number", default: 1.7 },
 
     // Facing trim (rarely needed)
     yawOffsetDeg: { type: "number", default: 0 },
@@ -30,9 +43,10 @@ AFRAME.registerComponent("character", {
     // Speed smoothing (per-second)
     smoothSpeedLerp: { type: "number", default: 8.0 },
 
-    // Thresholds
-    moveThreshold: { type: "number", default: 0.05 }, // start walking above this
-    runThreshold: { type: "number", default: 2.4 }, // switch to run above this
+    // Thresholds. At arena pace 0.05 m/s is inside the noise floor of a single frame's
+    // position delta, so the walk blend used to flicker on while standing still.
+    moveThreshold: { type: "number", default: 0.2 }, // start walking above this
+    runThreshold: { type: "number", default: RUN_THRESHOLD }, // switch to run above this
   },
 
   _updateCadence() {
@@ -83,17 +97,10 @@ AFRAME.registerComponent("character", {
     this.isMoving = false;
     this.isRunning = false;
 
-    // Listen for movement events from the built-in movement-controls component
-    if (this.rig) {
-      this.rig.addEventListener("movement", (event) => {
-        // Use movement-controls data as primary source
-        this.isMoving = event.detail.moving;
-        this.rawSpeed = event.detail.velocity.length();
-        this.isRunning = this.rawSpeed > this.data.runThreshold;
-
-      });
-
-    }
+    // NOTE: there used to be a listener for a "movement" event here. movement-controls
+    // emits "moved", so it never fired once. tick() derives speed from the rig's world
+    // position anyway, which stays correct when input stops, so the listener is gone
+    // rather than renamed.
 
     // Setup once model is ready
     this.el.addEventListener("model-loaded", (e) => {
@@ -148,15 +155,21 @@ AFRAME.registerComponent("character", {
     if (!isFinite(dt) || dt <= 0) return;
     dt = Math.min(dt, 1 / 20); // cap 50ms
 
-    // Keep character glued to rig origin
-    this.el.object3D.position.set(0, 0, 0);
+    // Keep character glued to the rig's origin horizontally. The Y is deliberately left
+    // alone: ut-jump raises the rig's children to fake the hop (the rig itself has to stay
+    // on the navmesh, see ut-movement.js), and pinning y here every frame would flatten it.
+    this.el.object3D.position.x = 0;
+    this.el.object3D.position.z = 0;
 
     // Get current rig position for movement direction calculation
     this.rig.object3D.getWorldPosition(this.curr);
 
     // Calculate velocity (movement direction) for character facing
     this.velocity.subVectors(this.curr, this.prev);
-    const speed = this.velocity.length();
+
+    // Horizontal only. Walking a slope changes the rig's height, and folding that into the
+    // measured speed would nudge the walk/run blend on gradient rather than on pace.
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
 
     // Convert to meters per second (speed was calculated per frame)
     const speedMps = dt > 0 ? speed / dt : 0;
