@@ -7,7 +7,14 @@
     "start": "npx http-server . -p 8080 -c-1",
     "dev": "npx http-server . -p 8080 -c-1 --cors",
     "build": "echo 'No build step required for this project'",
-    "test": "echo 'No tests specified'"
+    "server": "node server/server.js",
+    "server:tls": "SSL_CERT=$HOME/.local-certs/facingworlds/cert.pem SSL_KEY=$HOME/.local-certs/facingworlds/key.pem node server/server.js",
+    "test": "node src/shared/net/interpolation.test.mjs",
+    "optimize:assets": "node scripts/optimize-assets.mjs",
+    "optimize:assets:webp": "node scripts/optimize-assets.mjs --codec=webp",
+    "optimize:assets:ktx2": "node scripts/optimize-assets.mjs --codec=ktx2",
+    "optimize:assets:dry": "node scripts/optimize-assets.mjs --dry-run",
+    "inspect:assets": "gltf-transform inspect"
   },
   "keywords": [
     "aframe",
@@ -20,10 +27,11 @@
   "author": "UnrealFest Team",
   "license": "MIT",
   "devDependencies": {
+    "@gltf-transform/cli": "^4.4.2",
     "http-server": "^14.1.1"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0"
   },
   "repository": {
     "type": "git",
