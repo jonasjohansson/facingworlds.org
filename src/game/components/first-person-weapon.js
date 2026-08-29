@@ -1,5 +1,10 @@
 // first-person-weapon.js — First-person weapon view and shooting
+// The Enforcer is hitscan: every shot is a single instant trace from the camera against
+// world geometry and player capsules, with the tracer drawn from the muzzle to whatever
+// the trace hit. Nothing travels.
 import { GAME_CONFIG } from "../config/game-config.js";
+import { hitscan } from "./hitscan.js";
+import { spawnTracer, spawnImpact, getFlashTexture } from "./impact-effects.js";
 
 // Shared audio pool for weapon sounds
 const WEAPON_POOL_SIZE = 4;
@@ -38,7 +43,9 @@ AFRAME.registerComponent("first-person-weapon", {
     weaponPosition: { type: "vec3", default: { x: 0.3, y: -0.2, z: -0.5 } },
     weaponRotation: { type: "vec3", default: { x: 0, y: 0, z: 0 } },
     muzzleOffset: { type: "vec3", default: { x: 0.8, y: 0.1, z: 0 } }, // Position relative to weapon where bullets spawn
-    fireRate: { type: "number", default: 4 }, // Bullets per second
+    fireRate: { type: "number", default: GAME_CONFIG.WEAPON.FIRE_RATE }, // Shots per second
+    maxRange: { type: "number", default: GAME_CONFIG.WEAPON.MAX_RANGE }, // Hitscan range in metres
+    spread: { type: "number", default: GAME_CONFIG.WEAPON.SPREAD }, // Cone half-angle tangent
     lastFireTime: { type: "number", default: 0 },
     // Hit feedback
     hitFlashColor: { type: "string", default: "#ff0000" }, // Red flash on hit
@@ -58,74 +65,69 @@ AFRAME.registerComponent("first-person-weapon", {
     this.lastKillTime = 0;
     this.spreeCount = 0;
 
-    // Create reusable flash overlay (for kill flash)
+    // ---- hitscan scratch vectors (reused, no per-shot allocation) ----
+    this._rayOrigin = new THREE.Vector3();
+    this._rayDir = new THREE.Vector3();
+    this._right = new THREE.Vector3();
+    this._up = new THREE.Vector3();
+    this._muzzleLocal = new THREE.Vector3();
+
+    // ---- recoil / feel state ----
+    // Camera kick is applied straight to look-controls' pitch/yaw objects, because
+    // look-controls rewrites the camera rotation every frame and would eat anything
+    // written to the entity's rotation. A fraction of each kick is recovered.
+    this.recoilPitchDebt = 0;
+    this.recoilYawDebt = 0;
+    this.weaponKick = 0; // 1 right after a shot, decays to 0
+    this.crosshairBloom = 0;
+    this.weaponRestRotation = null;
+    this.muzzleFlash = null;
+    this.muzzleLight = null;
+    this.muzzleFlashLife = 0;
+
+    // Local avatar is excluded from traces so you cannot shoot yourself point blank
+    this.localAvatarEl = null;
+
+    // Kill flash. This used to be a flat 30%-opacity GREEN wash over the whole
+    // screen on every frag, which read as a bug rather than a reward. It is now
+    // a short accent-hue rim pulse (.ut-killflash in styles.css) that leaves the
+    // middle of the screen — where you are aiming — completely clear.
     this.flashOverlay = document.createElement("div");
-    Object.assign(this.flashOverlay.style, {
-      position: "fixed",
-      top: "0",
-      left: "0",
-      width: "100%",
-      height: "100%",
-      pointerEvents: "none",
-      zIndex: "9999",
-      opacity: "0",
-      transition: "opacity 150ms ease-out",
-    });
+    this.flashOverlay.className = "ut-killflash";
     document.body.appendChild(this.flashOverlay);
 
-    // Create crosshair
+    // Crosshair — centre pip plus four ticks that bloom outward on every shot.
+    // Sizes, colours and the dark 1px outline that keeps it legible against the
+    // skybox all live in styles.css (.ut-crosshair); only the bloom offset is
+    // written from here, because it is animated per frame.
     this.crosshair = document.createElement("div");
-    Object.assign(this.crosshair.style, {
-      position: "fixed",
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      width: "4px",
-      height: "4px",
-      borderRadius: "50%",
-      background: "rgba(255,255,255,0.7)",
-      pointerEvents: "none",
-      zIndex: "9998",
-    });
+    this.crosshair.className = "ut-crosshair";
+    this.crosshairTicks = [];
+    // dx / dy are the unit directions the tick travels when the crosshair blooms
+    const tickDirs = [
+      { dx: -1, dy: 0, axis: "h" },
+      { dx: 1, dy: 0, axis: "h" },
+      { dx: 0, dy: -1, axis: "v" },
+      { dx: 0, dy: 1, axis: "v" },
+    ];
+    for (let i = 0; i < tickDirs.length; i++) {
+      const d = tickDirs[i];
+      const tick = document.createElement("i");
+      tick.className = `ut-crosshair--${d.axis}`;
+      tick._dx = d.dx;
+      tick._dy = d.dy;
+      this.crosshair.appendChild(tick);
+      this.crosshairTicks.push(tick);
+    }
     document.body.appendChild(this.crosshair);
+    this.updateCrosshair();
 
-    // Create hitmarker element (white X, hidden by default)
+    // Hitmarker — a chunky X with a gold bloom, hidden by default. The two bars are
+    // rotated by .ut-hitmarker i:first-child / :last-child in styles.css.
     this.hitmarker = document.createElement("div");
-    Object.assign(this.hitmarker.style, {
-      position: "fixed",
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      width: "20px",
-      height: "20px",
-      pointerEvents: "none",
-      zIndex: "9999",
-      opacity: "0",
-      transition: "opacity 150ms ease-out",
-    });
-    // Draw an X using two rotated bars
-    const bar1 = document.createElement("div");
-    Object.assign(bar1.style, {
-      position: "absolute",
-      top: "50%",
-      left: "50%",
-      width: "14px",
-      height: "2px",
-      background: "white",
-      transform: "translate(-50%, -50%) rotate(45deg)",
-    });
-    const bar2 = document.createElement("div");
-    Object.assign(bar2.style, {
-      position: "absolute",
-      top: "50%",
-      left: "50%",
-      width: "14px",
-      height: "2px",
-      background: "white",
-      transform: "translate(-50%, -50%) rotate(-45deg)",
-    });
-    this.hitmarker.appendChild(bar1);
-    this.hitmarker.appendChild(bar2);
+    this.hitmarker.className = "ut-hitmarker";
+    this.hitmarker.appendChild(document.createElement("i"));
+    this.hitmarker.appendChild(document.createElement("i"));
     document.body.appendChild(this.hitmarker);
 
     // Wait for camera to be ready
@@ -139,8 +141,13 @@ AFRAME.registerComponent("first-person-weapon", {
         this.isFiring = true;
         e.preventDefault();
       } else if (e.code === "KeyC") {
-        this.swapCamera();
-        e.preventDefault();
+        // There is no camera-swap implementation in this component (or any other), and
+        // the old unconditional this.swapCamera() threw a TypeError on every press.
+        // Kept as a guarded hook so wiring one up later is a one-line change.
+        if (typeof this.swapCamera === "function") {
+          this.swapCamera();
+          e.preventDefault();
+        }
       }
     };
     this._onKeyUp = (e) => {
@@ -156,46 +163,16 @@ AFRAME.registerComponent("first-person-weapon", {
     // Create touch fire button for mobile devices
     this.createTouchFireButton();
 
-    // Multi-kill announcement element (center screen)
+    // Multi-kill announcement element (center screen). Same behaviour as before —
+    // only the typography moved to styles.css (.ut-announce), where it now matches
+    // the corner plates: heavy condensed caps, saturated glow, and a slam-in.
     this.announceEl = document.createElement("div");
-    Object.assign(this.announceEl.style, {
-      position: "fixed",
-      top: "30%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      color: "#ffcc00",
-      fontSize: "42px",
-      fontWeight: "bold",
-      fontFamily: "Arial, sans-serif",
-      textShadow: "0 0 20px rgba(255, 204, 0, 0.8), 0 0 40px rgba(255, 204, 0, 0.4)",
-      pointerEvents: "none",
-      zIndex: "10001",
-      opacity: "0",
-      transition: "opacity 0.5s ease-out",
-      textAlign: "center",
-      letterSpacing: "3px",
-    });
+    this.announceEl.className = "ut-announce ut-announce--multikill";
     document.body.appendChild(this.announceEl);
 
     // Spree announcement element (below multi-kill)
     this.spreeEl = document.createElement("div");
-    Object.assign(this.spreeEl.style, {
-      position: "fixed",
-      top: "37%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      color: "#ff4444",
-      fontSize: "32px",
-      fontWeight: "bold",
-      fontFamily: "Arial, sans-serif",
-      textShadow: "0 0 20px rgba(255, 68, 68, 0.8), 0 0 40px rgba(255, 68, 68, 0.4)",
-      pointerEvents: "none",
-      zIndex: "10001",
-      opacity: "0",
-      transition: "opacity 0.5s ease-out",
-      textAlign: "center",
-      letterSpacing: "3px",
-    });
+    this.spreeEl.className = "ut-announce ut-announce--spree";
     document.body.appendChild(this.spreeEl);
 
     // Listen for hit events
@@ -207,7 +184,14 @@ AFRAME.registerComponent("first-person-weapon", {
     this.el.sceneEl.addEventListener("local-death", this._onLocalDeath);
   },
 
-  tick(time) {
+  tick(time, dtMs) {
+    // Clamp dt so a tab-switch stall doesn't snap the recoil back in one frame
+    const dt = Math.min(dtMs || 16, 100) / 1000;
+
+    this.recoverRecoil(dt);
+    this.decayMuzzleFlash(dt);
+    this.decayCrosshairBloom(dt);
+
     if (!this.isFiring) return;
 
     const now = time / 1000;
@@ -233,6 +217,8 @@ AFRAME.registerComponent("first-person-weapon", {
     // Wait for model to load
     this.weapon.addEventListener("model-loaded", () => {
       this.setupMuzzlePosition();
+      this.captureWeaponRest();
+      this.setupMuzzleFlash();
       console.log("[first-person-weapon] Enforcer weapon loaded and ready");
     });
 
@@ -259,7 +245,12 @@ AFRAME.registerComponent("first-person-weapon", {
     if (muzzle && muzzle.object3D) {
       // Get world position of the muzzle entity
       muzzle.object3D.getWorldPosition(this.muzzlePosition);
-      console.log("[first-person-weapon] Muzzle position from entity:", this.muzzlePosition);
+      // fireBullet() re-reads this every shot, so log it once — a per-shot log both spams
+      // the console and prints the same reused, mutated vector for every entry.
+      if (!this._loggedMuzzle) {
+        this._loggedMuzzle = true;
+        console.log("[first-person-weapon] Muzzle position from entity:", this.muzzlePosition.toArray());
+      }
     } else {
       // Fallback to camera position + offset
       if (this.el.object3D) {
@@ -268,7 +259,10 @@ AFRAME.registerComponent("first-person-weapon", {
         this.muzzlePosition.copy(this.data.muzzleOffset);
         this.muzzlePosition.applyQuaternion(this.el.object3D.quaternion);
         this.muzzlePosition.add(cameraWorldPos);
-        console.log("[first-person-weapon] Muzzle position fallback:", this.muzzlePosition);
+        if (!this._loggedMuzzleFallback) {
+          this._loggedMuzzleFallback = true;
+          console.log("[first-person-weapon] Muzzle position fallback:", this.muzzlePosition.toArray());
+        }
       }
     }
   },
@@ -289,53 +283,254 @@ AFRAME.registerComponent("first-person-weapon", {
   fireBullet() {
     if (!this.weapon || !this.weapon.object3D) return;
 
-    // Update muzzle position
+    const scene = this.el.sceneEl;
+
+    // Update muzzle position (world space) — the tracer starts here
     this.setupMuzzlePosition();
 
-    // Get camera direction (this.el is the camera)
-    const cameraDirection = new THREE.Vector3();
-    this.el.object3D.getWorldDirection(cameraDirection);
-    // Reverse direction since getWorldDirection gives opposite of what we want
-    cameraDirection.negate();
+    // The trace itself starts at the eye so it agrees with the crosshair; only the
+    // visible tracer starts at the muzzle.
+    this.el.object3D.getWorldPosition(this._rayOrigin);
 
-    // Create bullet entity for single-player mode
-    const bullet = document.createElement("a-entity");
-    bullet.setAttribute("bullet", {
-      vx: cameraDirection.x * GAME_CONFIG.BULLET.SPEED,
-      vy: cameraDirection.y * GAME_CONFIG.BULLET.SPEED,
-      vz: cameraDirection.z * GAME_CONFIG.BULLET.SPEED,
-      radius: GAME_CONFIG.BULLET.RADIUS,
-      ownerId: "local-player",
-      reportHits: true,
+    // Get camera direction (this.el is the camera).
+    // getWorldDirection gives +Z, the camera looks down -Z, so negate.
+    const dir = this._rayDir;
+    this.el.object3D.getWorldDirection(dir);
+    dir.negate();
+    this.applySpread(dir);
+
+    // Single instant trace: nearest of world geometry and player capsules wins, so
+    // shots stop at walls instead of passing through them.
+    const result = hitscan(scene, this._rayOrigin, dir, {
+      maxDistance: this.data.maxRange,
+      excludeEl: this.getLocalAvatar(),
     });
 
-    bullet.setAttribute("position", {
-      x: this.muzzlePosition.x,
-      y: this.muzzlePosition.y,
-      z: this.muzzlePosition.z,
-    });
+    // Tracer runs muzzle -> impact (or muzzle -> range limit on a miss)
+    spawnTracer(scene, this.muzzlePosition, result.point);
 
-    // Note: Visual geometry is created by the bullet component itself
+    if (result.type === "player") {
+      spawnImpact(scene, result.point, result.normal, true);
+      // Server decides the damage; keep the payload shape other listeners expect.
+      scene.emit("local-hit", { victimId: result.playerId });
+    } else if (result.type === "world") {
+      spawnImpact(scene, result.point, result.normal, false);
+    }
 
-    this.el.sceneEl.appendChild(bullet);
-
-    // Also emit to network layer for multiplayer compatibility
-    this.el.sceneEl.emit("local-fire", {
+    // Emit to the network layer — unchanged contract (origin, dir).
+    // This is the only shot spawn path now; the old local bullet entity was a duplicate.
+    scene.emit("local-fire", {
       origin: {
         x: this.muzzlePosition.x,
         y: this.muzzlePosition.y,
         z: this.muzzlePosition.z,
       },
       dir: {
-        x: cameraDirection.x,
-        y: cameraDirection.y,
-        z: cameraDirection.z,
+        x: dir.x,
+        y: dir.y,
+        z: dir.z,
       },
     });
 
-    // Play weapon sound
-    this.playWeaponSound();
+    // Background music ducks on this; it used to come from the bullet component
+    scene.emit("bullet-fired");
 
+    // Feel
+    this.fireMuzzleFlash();
+    this.applyRecoil();
+    this.crosshairBloom = GAME_CONFIG.WEAPON.CROSSHAIR_BLOOM;
+    this.playWeaponSound();
+  },
+
+  // Nudge the shot inside a small cone. Random per shot, applied before the trace so the
+  // tracer and the networked direction match exactly what was hit.
+  applySpread(dir) {
+    const spread = this.data.spread;
+    if (spread <= 0) return;
+
+    // Build a basis around the shot direction
+    this._right.set(0, 1, 0).cross(dir);
+    if (this._right.lengthSq() < 1e-6) this._right.set(1, 0, 0);
+    this._right.normalize();
+    this._up.copy(dir).cross(this._right).normalize();
+
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.sqrt(Math.random()) * spread;
+    dir.addScaledVector(this._right, Math.cos(angle) * radius);
+    dir.addScaledVector(this._up, Math.sin(angle) * radius);
+    dir.normalize();
+  },
+
+  getLocalAvatar() {
+    if (this.localAvatarEl && this.localAvatarEl.isConnected) return this.localAvatarEl;
+    this.localAvatarEl = this.el.sceneEl.querySelector("#soldier");
+    return this.localAvatarEl;
+  },
+
+  // ---- muzzle flash ----
+  setupMuzzleFlash() {
+    if (this.muzzleFlash || !this.el.object3D) return;
+    const W = GAME_CONFIG.WEAPON;
+
+    // Parented to the camera rig rather than the weapon so the (0.025) weapon scale
+    // doesn't have to be divided back out.
+    const mat = new THREE.MeshBasicMaterial({
+      map: getFlashTexture(),
+      color: 0xffdd88,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      fog: false,
+    });
+    const geo = new THREE.PlaneGeometry(1, 1);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.visible = false;
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 10;
+    this.el.object3D.add(mesh);
+    this.muzzleFlash = mesh;
+    this.muzzleFlashMat = mat;
+    this.muzzleFlashGeo = geo;
+
+    // Created up front so the light-count shader recompile happens now, not on the
+    // first shot.
+    this.muzzleLight = new THREE.PointLight(0xffcc77, 0, W.MUZZLE_LIGHT_RANGE, 2);
+    this.muzzleLight.castShadow = false;
+    this.el.object3D.add(this.muzzleLight);
+  },
+
+  fireMuzzleFlash() {
+    if (!this.muzzleFlash) this.setupMuzzleFlash();
+    if (!this.muzzleFlash) return;
+    const W = GAME_CONFIG.WEAPON;
+
+    // Muzzle world position -> camera-local, so the flash sits on the barrel tip
+    this._muzzleLocal.copy(this.muzzlePosition);
+    this.el.object3D.worldToLocal(this._muzzleLocal);
+
+    this.muzzleFlash.position.copy(this._muzzleLocal);
+    this.muzzleFlash.rotation.set(0, 0, Math.random() * Math.PI * 2);
+    this.muzzleFlash.scale.setScalar(W.MUZZLE_FLASH_SIZE * (0.85 + Math.random() * 0.4));
+    this.muzzleFlash.visible = true;
+    this.muzzleFlashMat.opacity = 1;
+
+    if (this.muzzleLight) {
+      this.muzzleLight.position.copy(this._muzzleLocal);
+      this.muzzleLight.intensity = W.MUZZLE_LIGHT_INTENSITY;
+    }
+
+    this.muzzleFlashLife = W.MUZZLE_FLASH_LIFE;
+  },
+
+  decayMuzzleFlash(dt) {
+    if (this.muzzleFlashLife <= 0) return;
+    const W = GAME_CONFIG.WEAPON;
+    this.muzzleFlashLife -= dt;
+
+    if (this.muzzleFlashLife <= 0) {
+      this.muzzleFlashLife = 0;
+      if (this.muzzleFlash) {
+        this.muzzleFlash.visible = false;
+        this.muzzleFlashMat.opacity = 0;
+      }
+      if (this.muzzleLight) this.muzzleLight.intensity = 0;
+      return;
+    }
+
+    const k = this.muzzleFlashLife / W.MUZZLE_FLASH_LIFE;
+    if (this.muzzleFlashMat) this.muzzleFlashMat.opacity = k;
+    if (this.muzzleLight) this.muzzleLight.intensity = W.MUZZLE_LIGHT_INTENSITY * k;
+  },
+
+  // ---- recoil ----
+  captureWeaponRest() {
+    if (!this.weapon || !this.weapon.object3D || this.weaponRestRotation) return;
+    const r = this.weapon.object3D.rotation;
+    // weapon-sway owns the weapon's position; recoil only touches rotation, so the two
+    // compose instead of overwriting each other.
+    this.weaponRestRotation = { x: r.x, y: r.y, z: r.z };
+  },
+
+  applyRecoil() {
+    const W = GAME_CONFIG.WEAPON;
+
+    // Weapon model snaps up, then eases back
+    this.weaponKick = 1;
+    this._kickRoll = (Math.random() - 0.5) * 2 * W.KICK_ROLL;
+
+    // Camera kick straight into look-controls' pitch/yaw objects
+    const look = this.el.components["look-controls"];
+    if (!look || !look.pitchObject) return;
+
+    const pitchKick = W.RECOIL_PITCH * (0.8 + Math.random() * 0.4);
+    look.pitchObject.rotation.x = Math.min(Math.PI / 2, look.pitchObject.rotation.x + pitchKick);
+    this.recoilPitchDebt += pitchKick * W.RECOIL_RECOVER_FRACTION;
+
+    if (look.yawObject) {
+      const yawKick = (Math.random() - 0.5) * 2 * W.RECOIL_YAW;
+      look.yawObject.rotation.y += yawKick;
+      this.recoilYawDebt += yawKick * W.RECOIL_RECOVER_FRACTION;
+    }
+  },
+
+  recoverRecoil(dt) {
+    const W = GAME_CONFIG.WEAPON;
+
+    // Weapon model back to rest
+    if (this.weaponKick > 0) {
+      this.weaponKick = Math.max(0, this.weaponKick - dt / W.KICK_RECOVER);
+      if (this.weapon && this.weapon.object3D && this.weaponRestRotation) {
+        const rest = this.weaponRestRotation;
+        const k = this.weaponKick;
+        const rot = this.weapon.object3D.rotation;
+        rot.x = rest.x - W.KICK_PITCH * k;
+        rot.y = rest.y;
+        rot.z = rest.z + (this._kickRoll || 0) * k;
+      }
+    }
+
+    // Camera back toward where it was aimed
+    const look = this.el.components["look-controls"];
+    if (!look || !look.pitchObject) {
+      this.recoilPitchDebt = 0;
+      this.recoilYawDebt = 0;
+      return;
+    }
+
+    const step = W.RECOIL_RECOVER_SPEED * dt;
+    if (this.recoilPitchDebt > 0) {
+      const d = Math.min(this.recoilPitchDebt, step);
+      look.pitchObject.rotation.x -= d;
+      this.recoilPitchDebt -= d;
+    }
+    if (this.recoilYawDebt !== 0 && look.yawObject) {
+      const d = Math.sign(this.recoilYawDebt) * Math.min(Math.abs(this.recoilYawDebt), step);
+      look.yawObject.rotation.y -= d;
+      this.recoilYawDebt -= d;
+    }
+  },
+
+  // ---- crosshair ----
+  decayCrosshairBloom(dt) {
+    if (this.crosshairBloom <= 0) return;
+    this.crosshairBloom = Math.max(0, this.crosshairBloom - dt * GAME_CONFIG.WEAPON.CROSSHAIR_BLOOM_DECAY);
+    this.updateCrosshair();
+  },
+
+  updateCrosshair() {
+    if (!this.crosshairTicks) return;
+    // Ticks are longer than they used to be, so the resting gap moved out with them
+    const gap = 8 + this.crosshairBloom * 10;
+    for (let i = 0; i < this.crosshairTicks.length; i++) {
+      const t = this.crosshairTicks[i];
+      t.style.transform = `translate(-50%, -50%) translate(${t._dx * gap}px, ${t._dy * gap}px)`;
+    }
+    if (this.crosshair) {
+      this.crosshair.style.opacity = (0.75 + this.crosshairBloom * 0.25).toFixed(3);
+    }
   },
 
   playWeaponSound() {
@@ -396,6 +591,8 @@ AFRAME.registerComponent("first-person-weapon", {
 
     this.el.appendChild(this.weapon);
     this.setupMuzzlePosition();
+    this.captureWeaponRest();
+    this.setupMuzzleFlash();
     console.log("[first-person-weapon] Weapon created successfully");
   },
 
@@ -403,6 +600,8 @@ AFRAME.registerComponent("first-person-weapon", {
     if (this.weapon) {
       this.el.removeChild(this.weapon);
       this.weapon = null;
+      this.weaponRestRotation = null;
+      this.weaponKick = 0;
     }
   },
 
@@ -548,8 +747,8 @@ AFRAME.registerComponent("first-person-weapon", {
     // Play multikill sound based on streak
     this.playMultikillSound(this.killStreak);
 
-    // Flash screen for kill (green)
-    this.flashScreen("#00ff00", 150);
+    // Rim pulse for the kill
+    this.killFlash();
   },
 
   showAnnouncement(el, text) {
@@ -558,24 +757,27 @@ AFRAME.registerComponent("first-person-weapon", {
     el.textContent = text;
     el.style.transition = "none";
     el.style.opacity = "1";
+    // Restart the slam-in keyframes; UT announcements arrive, they do not fade in
+    el.classList.remove("is-punch");
     void el.offsetWidth;
+    el.classList.add("is-punch");
     el.style.transition = "opacity 0.5s ease-out";
     el._hideTimer = setTimeout(() => {
       el.style.opacity = "0";
     }, 2000);
   },
 
-  flashScreen(color, duration) {
+  killFlash() {
     if (!this.flashOverlay) return;
-    clearTimeout(this._flashTimer);
-    this.flashOverlay.style.backgroundColor = color;
-    this.flashOverlay.style.transition = "none";
-    this.flashOverlay.style.opacity = "0.3";
+    // Restart the keyframes rather than toggling opacity by hand, so the pulse
+    // is one declaration in styles.css and re-triggers cleanly on a fast streak.
+    this.flashOverlay.classList.remove("is-on");
     void this.flashOverlay.offsetWidth;
-    this.flashOverlay.style.transition = `opacity ${duration}ms ease-out`;
+    this.flashOverlay.classList.add("is-on");
+    clearTimeout(this._flashTimer);
     this._flashTimer = setTimeout(() => {
-      this.flashOverlay.style.opacity = "0";
-    }, 50);
+      this.flashOverlay.classList.remove("is-on");
+    }, 420);
   },
 
   playMultikillSound(streak) {
@@ -588,6 +790,23 @@ AFRAME.registerComponent("first-person-weapon", {
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("keyup", this._onKeyUp);
     this.removeWeapon();
+
+    // Dispose muzzle flash GPU resources
+    if (this.muzzleFlash && this.muzzleFlash.parent) this.muzzleFlash.parent.remove(this.muzzleFlash);
+    if (this.muzzleFlashGeo) this.muzzleFlashGeo.dispose();
+    if (this.muzzleFlashMat) this.muzzleFlashMat.dispose();
+    if (this.muzzleLight && this.muzzleLight.parent) this.muzzleLight.parent.remove(this.muzzleLight);
+    this.muzzleFlash = this.muzzleFlashGeo = this.muzzleFlashMat = this.muzzleLight = null;
+
+    // NOTE: the tracer / spark / decal pools are module-global in impact-effects.js and
+    // are shared with bullet.js, which draws every REMOTE player's shot. Disposing them
+    // here would tear down another consumer's GPU resources (and re-pay the pre-warm
+    // cost on the next remote shot). They live as long as the scene does, which is the
+    // correct lifetime, so this component no longer disposes them.
+
+    // Clear any leftover timers
+    clearTimeout(this._hitmarkerTimer);
+    clearTimeout(this._flashTimer);
 
     // Remove touch fire button
     const fireButton = document.getElementById("touch-fire-button");

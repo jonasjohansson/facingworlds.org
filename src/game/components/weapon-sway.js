@@ -1,4 +1,6 @@
 // weapon-sway.js — Adds natural weapon movement based on player movement
+import { GAME_CONFIG } from "../config/game-config.js";
+
 AFRAME.registerComponent("weapon-sway", {
   schema: {
     enabled: { type: "boolean", default: true },
@@ -11,6 +13,11 @@ AFRAME.registerComponent("weapon-sway", {
     // Movement multipliers
     walkMultiplier: { type: "number", default: 1.0 }, // Multiplier for walking
     runMultiplier: { type: "number", default: 1.5 }, // Multiplier for running
+    // Speed the walk/run multipliers are measured against, m/s. Read from the rig's own
+    // top speed so it tracks GAME_CONFIG.MOVEMENT.GROUND_SPEED instead of duplicating it;
+    // the thresholds used to be absolute (0.1 / 0.3 m/s), which meant any movement at all
+    // counted as a full sprint.
+    referenceSpeed: { type: "number", default: GAME_CONFIG.MOVEMENT.GROUND_SPEED },
     // Smoothing
     smoothing: { type: "number", default: 0.1 }, // How smooth the movement is (lower = smoother)
   },
@@ -39,20 +46,26 @@ AFRAME.registerComponent("weapon-sway", {
     const rigPos = this.rig.object3D.position;
     this.lastPosition = { x: rigPos.x, y: rigPos.y, z: rigPos.z };
 
-    // Store original position
-    const pos = this.el.getAttribute("position");
-    if (pos) {
-      this.originalPosition = { x: pos.x, y: pos.y, z: pos.z };
-    }
+    // Rest position is captured on the first tick rather than here: first-person-weapon
+    // also writes the weapon's position during setup, and reading it at init could catch
+    // the pre-setup value.
+    this.hasRestPosition = false;
+  },
+
+  captureRestPosition() {
+    const pos = this.el.object3D.position;
+    this.originalPosition = { x: pos.x, y: pos.y, z: pos.z };
+    this.hasRestPosition = true;
   },
 
   tick(time, deltaTime) {
     if (!this.data.enabled || !this.rig || !this.soldier) return;
 
-    // Throttle updates for performance (every 2 frames)
-    this.frameCount = (this.frameCount || 0) + 1;
-    if (this.frameCount % 2 !== 0) return;
+    if (!this.hasRestPosition) this.captureRestPosition();
 
+    // This used to run only on every other frame. That both stepped the weapon at 30 Hz,
+    // which is visible at arena pace, and halved the sway clock, because the accumulator
+    // below sat behind the early return — swaySpeed: 6.0 was really oscillating at 3.0.
     this.time += deltaTime / 1000; // Convert to seconds
 
     // Get movement data from character component
@@ -68,7 +81,11 @@ AFRAME.registerComponent("weapon-sway", {
       this.velocity.z = currentPos.z - this.lastPosition.z;
       this.movementSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
       this.isMoving = this.movementSpeed > 0.0001;
-      this.lastPosition = { x: currentPos.x, y: currentPos.y, z: currentPos.z };
+      // Mutated in place: this runs every frame, and a fresh object literal here was a
+      // per-frame allocation on the fallback path.
+      this.lastPosition.x = currentPos.x;
+      this.lastPosition.y = currentPos.y;
+      this.lastPosition.z = currentPos.z;
     }
 
     // Calculate sway and bob based on movement
@@ -120,14 +137,13 @@ AFRAME.registerComponent("weapon-sway", {
   },
 
   getSpeedMultiplier() {
-    // Determine if player is running or walking based on movement speed
-    // This is a simple heuristic - you might want to adjust these values
-    const walkThreshold = 0.1;
-    const runThreshold = 0.3;
+    // Fractions of the rig's top speed rather than absolute m/s, so the weapon reads the
+    // same whatever GAME_CONFIG.MOVEMENT.GROUND_SPEED is set to.
+    const normalized = this.movementSpeed / Math.max(this.data.referenceSpeed, 0.001);
 
-    if (this.movementSpeed < walkThreshold) {
+    if (normalized < 0.1) {
       return 0.5; // Very slow movement
-    } else if (this.movementSpeed < runThreshold) {
+    } else if (normalized < 0.55) {
       return this.data.walkMultiplier; // Walking
     } else {
       return this.data.runMultiplier; // Running
@@ -135,18 +151,21 @@ AFRAME.registerComponent("weapon-sway", {
   },
 
   applyMovement() {
-    // Apply sway and bob to weapon position
-    const newPosition = {
-      x: this.originalPosition.x + this.currentSway.x,
-      y: this.originalPosition.y + this.currentSway.y + this.currentBob,
-      z: this.originalPosition.z,
-    };
-
-    this.el.setAttribute("position", `${newPosition.x} ${newPosition.y} ${newPosition.z}`);
+    // Written straight to object3D: this runs every frame, and setAttribute would parse a
+    // freshly built string and push a component update each time. first-person-weapon only
+    // touches the weapon's rotation, so the position is ours alone.
+    this.el.object3D.position.set(
+      this.originalPosition.x + this.currentSway.x,
+      this.originalPosition.y + this.currentSway.y + this.currentBob,
+      this.originalPosition.z
+    );
   },
 
   remove() {
     // Reset to original position
-    this.el.setAttribute("position", `${this.originalPosition.x} ${this.originalPosition.y} ${this.originalPosition.z}`);
+    if (!this.hasRestPosition) return;
+    const { x, y, z } = this.originalPosition;
+    this.el.object3D.position.set(x, y, z);
+    this.el.setAttribute("position", `${x} ${y} ${z}`);
   },
 });

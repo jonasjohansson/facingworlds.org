@@ -59,6 +59,12 @@ AFRAME.registerComponent("invisible-to-player", {
           if (child.isMesh && child.material) {
             child.material.opacity = opacity;
             child.material.transparent = opacity < 1;
+            // Without this the hidden body is an invisible DEPTH-WRITING mesh wrapped
+            // around the camera: it draws in the transparent pass, stamps near depth
+            // over a large moving part of the screen, and every transparent thing
+            // sorted after it (stars, the atmosphere limb, the base coronas) gets
+            // depth-rejected. That is the intermittent "black region" artefact.
+            child.material.depthWrite = opacity >= 1;
           }
         });
       }
