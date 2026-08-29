@@ -584,25 +584,119 @@ export function startNetwork() {
   }
 
   // ---- persistent name and score management ----
+  //
+  // The name lives in localStorage so you keep it across visits, but
+  // localStorage is shared by every tab of this origin — so two tabs used to
+  // join as the same person, which is exactly how this gets tested locally
+  // (and made every figure in the AR view carry one name).
+  //
+  // A tab therefore CLAIMS the stored name. The first tab to ask gets it; any
+  // later tab gets a fresh one of its own. Claims are held per-tab in
+  // sessionStorage and recorded in localStorage with a timestamp, so a tab that
+  // is closed or crashes releases its claim rather than burning the name
+  // forever.
+  const NAME_KEY = "facingworlds_player_name";
+  const CLAIMS_KEY = "facingworlds_name_claims";
+  const CLAIM_TTL = 60000; // ms; refreshed while the tab is alive
+  const TAB_KEY = "facingworlds_tab_id";
+
+  function tabId() {
+    let id = sessionStorage.getItem(TAB_KEY);
+    if (!id) {
+      id = Math.random().toString(36).slice(2, 8);
+      sessionStorage.setItem(TAB_KEY, id);
+    }
+    return id;
+  }
+
+  function readClaims() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(CLAIMS_KEY) || "{}");
+      const now = Date.now();
+      const live = {};
+      // Drop claims from tabs that went away without releasing.
+      for (const [name, c] of Object.entries(raw)) {
+        if (c && now - c.t < CLAIM_TTL) live[name] = c;
+      }
+      return live;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function writeClaims(claims) {
+    try {
+      localStorage.setItem(CLAIMS_KEY, JSON.stringify(claims));
+    } catch (_) {
+      /* private window — names just stop being sticky */
+    }
+  }
+
+  function claimName(name) {
+    const claims = readClaims();
+    const held = claims[name];
+    if (held && held.tab !== tabId()) return false;
+    claims[name] = { tab: tabId(), t: Date.now() };
+    writeClaims(claims);
+    return true;
+  }
+
   function getPersistentName() {
-    const stored = localStorage.getItem("facingworlds_player_name");
-    if (stored && stored.trim().length > 0) {
+    // Already named in THIS tab — that decision stands.
+    const mine = sessionStorage.getItem(NAME_KEY);
+    if (mine && mine.trim().length > 0) {
+      claimName(mine.trim());
+      return mine.trim();
+    }
+
+    // Otherwise take the durable name if no other live tab holds it.
+    const stored = localStorage.getItem(NAME_KEY);
+    if (stored && stored.trim().length > 0 && claimName(stored.trim())) {
+      sessionStorage.setItem(NAME_KEY, stored.trim());
       return stored.trim();
     }
 
-    // Generate new name and store it
-    const newName = genName();
-    localStorage.setItem("facingworlds_player_name", newName);
+    // Taken (or nothing stored) — this tab gets its own, avoiding names the
+    // other live tabs are already using.
+    const claims = readClaims();
+    let newName = genName();
+    for (let i = 0; i < 12 && claims[newName]; i += 1) newName = genName();
+    claimName(newName);
+    sessionStorage.setItem(NAME_KEY, newName);
+    // Only the first tab seeds the durable name, so reopening later gives you
+    // the name you actually played under rather than the last tab's.
+    if (!localStorage.getItem(NAME_KEY)) localStorage.setItem(NAME_KEY, newName);
     return newName;
   }
 
   function setPersistentName(name) {
     if (name && name.trim().length > 0) {
-      localStorage.setItem("facingworlds_player_name", name.trim());
+      const clean = name.trim();
+      sessionStorage.setItem(NAME_KEY, clean);
+      localStorage.setItem(NAME_KEY, clean);
+      claimName(clean);
       return true;
     }
     return false;
   }
+
+  // Keep this tab's claim warm, and drop it on the way out so the name is
+  // free for the next tab rather than held for CLAIM_TTL.
+  const claimTimer = setInterval(() => {
+    const mine = sessionStorage.getItem(NAME_KEY);
+    if (mine) claimName(mine);
+  }, CLAIM_TTL / 2);
+
+  window.addEventListener("pagehide", () => {
+    clearInterval(claimTimer);
+    const mine = sessionStorage.getItem(NAME_KEY);
+    if (!mine) return;
+    const claims = readClaims();
+    if (claims[mine] && claims[mine].tab === tabId()) {
+      delete claims[mine];
+      writeClaims(claims);
+    }
+  });
 
   function getPersistentScore() {
     const stored = localStorage.getItem("facingworlds_player_score");
