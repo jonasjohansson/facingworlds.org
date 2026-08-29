@@ -25,6 +25,21 @@
     <script src="./assets/libraries/aframe/aframe.min.js"></script>
     <script src="./assets/libraries/aframe-extras.min.js"></script>
 
+    <!--
+      The stock three.js addons vendored in assets/three-addons/ (post-processing passes)
+      import from the bare specifier "three". A-Frame already bundles three r164 as
+      window.THREE, and loading a second copy would give the passes different class
+      identities than the renderer, so "three" is mapped to a shim that re-exports
+      A-Frame's instance. No build step involved - this is a plain browser import map.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./src/game/components/lighting/three-aframe.js"
+        }
+      }
+    </script>
+
     <!-- Custom CSS -->
     <link
       rel="stylesheet"
@@ -45,39 +60,110 @@
       defer></script>
   </head>
   <body>
+    <!--
+      renderer: `antialias: auto` is already device-aware inside A-Frame (it resolves to
+      !isMobile), and `precision: high` replaces `precision: low` - lowp fragment shaders
+      were the source of the visible banding. Both are baked into the WebGL context at
+      creation time and cannot be changed later, so they live here rather than in
+      quality-tier. Tone mapping and exposure are owned by `gltf-viewer-settings`
+      (the old `toneMapping: ACESFilmicToneMapping` was not a value this schema accepts;
+      it silently resolved to undefined).
+
+      `physicallyCorrectLights: true` is NOT a no-op, despite what the three r155 migration
+      notes suggest. A-Frame 1.6.0's renderer system does:
+          data.physicallyCorrectLights || (renderer.useLegacyLights = !data.physicallyCorrectLights)
+      so leaving it at A-Frame's `false` default actively sets `renderer.useLegacyLights =
+      true`, which compiles LEGACY_LIGHTS into every shader and multiplies punctual and
+      hemisphere light intensity by PI. `scene.environment` is NOT scaled the same way, so
+      the IBL that `environment-map` exists to provide was being drowned by roughly a
+      factor of PI and the brightest surfaces clipped to white. Verified A/B in Chrome:
+      with it on, tower stonework and the Enforcer's albedo read properly instead of
+      washing out. If the map now looks too dark, raise the light intensities in the
+      entities below rather than turning this back off.
+    -->
     <a-scene
-      gltf-viewer-settings
+      gltf-viewer-settings="toneMapping: ACESFilmic; exposure: 1.0"
+      environment-map="src: assets/graphics/space_environment_2k.png; intensity: 1.0; background: false"
+      quality-tier
       console-suppression
+      shadow="type: pcfsoft; autoUpdate: true"
       loading-screen="enabled: false"
       xr-mode-ui="enabled: false"
-      renderer="colorManagement: true; physicallyCorrectLights: true; toneMapping: ACESFilmicToneMapping; antialias: false; precision: low">
-      <!-- Space Environment -->
-      <a-entity
-        space-environment="enabled:true; starCount:200; asteroidCount:0; asteroidSpeed:0.5; nebulaEnabled:false; backgroundColor:#000000"></a-entity>
+      renderer="colorManagement: true; physicallyCorrectLights: true; antialias: auto; precision: high; anisotropy: 8; sortTransparentObjects: true">
+      <!--
+        Space Environment - the CTF-Face skybox.
 
-      <!-- Earth Sphere (Distant Planet) -->
+        The signature of the original map is a slowly ROTATING star skybox (lifted from the
+        ending of Unreal) with galaxies and a moon in it, spinning to mirror the asteroid's
+        drift. Note which way round that is: the sky turns, the level does not. Both this
+        component and earth-sphere below pin their content to the camera and turn it about
+        one shared axis at one shared rate (SKY_ROTATION_DEG_PER_SEC in
+        space-environment.js), so the backdrop moves as a single piece with no parallax.
+
+        200 stars was a black screen with specks in it. 1400, with 45% of them pulled into a
+        galactic band, gives the sky something to read against as it drifts.
+      -->
       <a-entity
-        earth-sphere="enabled:true; distance:100; size:60; rotationSpeed:0.005; atmosphereColor:#4db2ff; atmosphereIntensity:0.8"></a-entity>
+        space-environment="enabled:true; starCount:1400; bandFraction:0.45; galaxyCount:4; moonEnabled:true; rotationSpeed:0.3; asteroidCount:0; nebulaEnabled:false; backgroundColor:#000006"></a-entity>
+
+      <!--
+        Earth Sphere (Distant Planet). `offset` is direction+distance from the camera, so
+        the apparent size is size/|offset| ~ 22 degrees of arc - the same on-screen framing
+        as the old distance:100/size:60, but pushed far enough out (506 units) that the map,
+        whose longest span is 111 units, can never intersect it.
+      -->
+      <a-entity
+        earth-sphere="enabled:true; offset:390 120 -300; size:190; rotationSpeed:0.005; atmosphereColor:#4db2ff; atmosphereIntensity:0.8; nightLightColor:#ffb45a; nightLightIntensity:2.6; sunDirection:70 95 -100"></a-entity>
+
+      <!--
+        UT99 coronas: additive glow billboards on the outside midsections of both bases,
+        with NO light source behind them - in UT99 a Corona actor is pure screen candy.
+        Default positions are measured off the loaded map, not guessed; see base-coronas in
+        space-environment.js.
+      -->
+      <a-entity base-coronas="enabled:true; size:5; blueColor:#4aa6ff; redColor:#ff4530"></a-entity>
 
       <!-- Background Music -->
       <a-entity background-music="enabled:true; volume:0.8; loop:true; autoplay:false; startOnFirstBullet:true"></a-entity>
+      <!--
+        Models come from assets-optimized/, the committed output of
+        `npm run optimize:assets` (scripts/optimize-assets.mjs). 35.27 MB -> 4.48 MB.
+        The originals under assets/3d/ are still in the repo, byte-identical, and are
+        the *inputs* to that script - they are no longer downloaded by the browser.
+
+        These are .glb regardless of the source extension (the map's .gltf pulled its
+        three sibling PNGs in), and they carry two glTF extensions:
+          EXT_texture_webp            - three r164's GLTFLoader registers this handler
+                                        unconditionally in its constructor. No wiring.
+          KHR_draco_mesh_compression  - A-Frame 1.6's gltf-model *system* defaults
+                                        dracoDecoderPath to the gstatic CDN and builds
+                                        a DRACOLoader from it, so this also needs no
+                                        wiring - but it does mean the models will not
+                                        decode if gstatic is unreachable. See the
+                                        "Draco decoder" note in README.md for the
+                                        offline fix (vendor the decoder, then set
+                                        gltf-model="dracoDecoderPath: ..." on a-scene).
+
+        Do NOT point these back at assets/ without also regenerating - the two trees
+        are not interchangeable at the URL level (.gltf vs .glb).
+      -->
       <a-assets>
         <a-asset-item
           id="world-gltf"
-          src="assets/3d/map/FacingWorlds_tex_5.gltf"></a-asset-item>
+          src="assets-optimized/3d/map/FacingWorlds_tex_5.glb"></a-asset-item>
         <a-asset-item
           id="navmesh-gltf"
-          src="assets/3d/navmesh.gltf"></a-asset-item>
+          src="assets-optimized/3d/navmesh.glb"></a-asset-item>
 
         <!-- Character Model -->
         <a-asset-item
           id="soldier-model"
-          src="assets/3d/Soldier.glb"></a-asset-item>
+          src="assets-optimized/3d/Soldier.glb"></a-asset-item>
 
         <!-- Weapon Assets -->
         <a-asset-item
           id="enforcer-weapon"
-          src="assets/3d/enforcer.glb"></a-asset-item>
+          src="assets-optimized/3d/enforcer.glb"></a-asset-item>
 
         <!-- Audio Assets (Performance Optimized) -->
         <audio
@@ -92,9 +178,16 @@
 
       <!-- fixed camera (no look-controls) -->
 
-      <!-- Ambient Light (Neutral Environment) -->
+      <!--
+        Sky/ground bounce. The reference calls out deliberate colour variation between
+        inside and outside on CTF-Face, and the cheapest way to buy that globally is a
+        hemisphere light with genuinely opposed hemispheres: warm sunlit sky above, cold
+        starlight-and-shadow below. It used to be warm-over-warm-brown, which is why every
+        surface in the map read as the same beige. (`decay` is not a hemisphere-light
+        property and was doing nothing - removed rather than left as a decoy.)
+      -->
       <a-entity
-        light="color: #ffe2c2; groundColor: #7c5c46; decay: 6.82; intensity: 0.5; type: hemisphere"
+        light="color: #ffd9ab; groundColor: #1d2a4a; intensity: 0.75; type: hemisphere"
         position="3.91645 6.02928 0"></a-entity>
 
       <!-- Additional Ambient Light (Light Yellow)
@@ -126,67 +219,166 @@
 
       <!-- Map Lights Group -->
       <a-entity id="map-lights">
-        <!-- Additional Ambient Light for Map Area -->
+        <!--
+          Flat fill. A 0.6 *white* ambient is the single biggest enemy of team colour
+          coding: it lifts every shadow to neutral grey and the red and blue lights below
+          then have nothing dark to be coloured against. Same job, cold and dimmer, so the
+          bases have somewhere to put their colour.
+        -->
         <a-entity
-          light="color: #ffffff; intensity: 0.6; type: ambient"
+          light="color: #33456e; intensity: 0.5; type: ambient"
           position="44.40337 3.60006 -0.55222"></a-entity>
 
-        <!-- Single Fill Light for Bottom Illumination (Performance Optimized) -->
+        <!--
+          Bridge fill. distance:25 only covered a 25-unit bubble around the origin, which
+          left most of the 111-unit tower-to-tower span outside it entirely; widened to
+          cover the bridge and lifted to compensate for physicallyCorrectLights.
+        -->
         <a-entity
-          light="type:point; intensity:4; color:#f2b000; castShadow:false; distance:25; decay:0.5"
+          light="type:point; intensity:9; color:#ffb04a; castShadow:false; distance:46; decay:0.6"
           position="0 8 0"></a-entity>
 
+        <!--
+          Key light. The only shadow caster in the scene: one directional light is a single
+          extra depth pass, whereas giving the point light at 0 8 0 castShadow would cost six
+          (a cube shadow map). It aims at the world origin (three points a DirectionalLight at
+          its untouched target, which sits at 0 0 0), so the ortho shadow frustum below is
+          sized to cover the whole tower-to-tower span of CTF-Face.
+          quality-tier turns castShadow off on the low tier.
+        -->
+        <a-entity
+          id="key-light"
+          light="type:directional; intensity:3.1; color:#ffe0b8; castShadow:true; shadowMapWidth:2048; shadowMapHeight:2048; shadowCameraLeft:-70; shadowCameraRight:70; shadowCameraTop:70; shadowCameraBottom:-70; shadowCameraNear:1; shadowCameraFar:400; shadowBias:-0.0007; shadowRadius:2"
+          position="70 95 -100"></a-entity>
+
+        <!--
+          Team lighting. Two rules from the CTF-Face reference drive the numbers here:
+          the bases are unmistakably colour-coded, and there is deliberate colour variation
+          between inside and outside. So each base gets a PALE, warm-shifted team tint at
+          floor level (the "inside" - lamplit, closer to white, so you can still read the
+          room) and a HARD, saturated team colour on the tower above it (the "outside" -
+          this is the colour you identify from the far tower).
+
+          #c8dcf4 and #f4c8c8 were, respectively, 4% and 8% away from plain white; at
+          intensity 2 neither base was legibly coloured from more than a few metres. The
+          light COUNT is unchanged - eight per base was already the perf budget - only the
+          colours, intensities and reach are.
+
+          Intensities are up roughly 3x across the board. That is not arbitrary: these were
+          hand-tuned under useLegacyLights, and physicallyCorrectLights:true (see the
+          renderer note above) divides every punctual light by PI. Raising them here is the
+          fix; turning that flag back off would re-break the environment map.
+
+          Three numbers here are NOT symmetric between the bases, and the asymmetry is
+          deliberate - all three were set by looking at the running game, not by arithmetic:
+
+          1. BLUE IS ~1.4x RED. Blue exterior runs at 48 against red's 34. The map's stone is
+             beige: high red channel, low blue channel. A blue light multiplied by a low-blue
+             albedo lands dim, a red light multiplied by a high-red albedo lands hot, so
+             matched intensities give a vividly red base facing a barely-tinted one. The blue
+             is also cyan-shifted (#4aa8ff, was #2f86ff) so some of it rides the green channel,
+             which the stone actually reflects.
+
+             THERE IS A CEILING ON THIS, and it was overshot: at 105 (and it was 105, while
+             this note still claimed 85) the blue tower's central ramp - the surface closest
+             to these two lights - clipped to a flat, textureless white haze that read as fog,
+             not stone, and was not even blue. A/B'd in Chrome from the bridge at x 28 and from
+             the map centre, stepping 0 / 32 / 45 / 48 / 60 / 105: the wash appears well before
+             the blue stops improving. 48 is the last value where the ramp still holds its
+             stone texture while the flanks, buttresses, crown band and underpass all read as
+             blue territory from the far tower. Do not push this back up without re-shooting
+             the ramp: more intensity here buys white, not blue.
+
+          2. THE CROWN LIGHTS ARE THE DIM ONES. 22-28 with decay 0.9 sat a couple of units off
+             the merlons at the top of each tower and clipped them to flat white-hot bars with
+             no texture left in them - the single most obviously-wrong thing in the frame.
+             9-12 with decay 1.4 keeps the crown lit and hot on the inner faces while the
+             stonework stays readable.
+
+          3. THE INTERIOR SPOTS ARE 6x UP (5 -> 30). At 5 the tower interiors were near black
+             - the red base especially - and the exterior point lights, which cast no shadows
+             and so leak straight through the walls, were the only thing lighting them. That
+             inverted the intended inside/outside contrast: saturated where it should be pale.
+             At 30 each interior gets a visible pale lamp pool over the team wash, which is the
+             colour variation the CTF-Face reference calls for.
+        -->
         <!-- Blue Lights Group -->
         <a-entity id="blue-lights">
-          <!-- Blue Spot Light -->
+          <!-- Blue base interior: pale, cool-white, readable -->
           <a-entity
-            light="angle: 70; color: #c8dcf4; decay: 0.4; intensity: 2; penumbra: 0.1; type: spot; shadowCameraFov: 0"
+            light="angle: 70; color: #8fc0ff; decay: 0.9; intensity: 30; penumbra: 0.6; type: spot"
             position="-39.02148 5.75842 0.46228"
             rotation="-90 0 0"></a-entity>
 
-          <!-- Blue Point Lights (Left Side) - Performance Optimized -->
+          <!--
+            Blue tower exterior: saturated, and with enough `distance` to actually reach the
+            stonework.
+
+            HEIGHT IS THE LOAD-BEARING NUMBER HERE, not intensity. These sat at y 14.6 while
+            the red pair sit at y 10.7, and that one asymmetry was most of why the two bases
+            did not read as equals: from the centre of the bridge the red tower was red from
+            its crown down to and across its platform, while the blue tower was beige with a
+            couple of blue smudges on it. At 14.6 the cone cleared the blue base's platform
+            entirely and only washed the tower's midriff.
+
+            That platform is the best tinting surface either base owns - it is PALE GREY rock,
+            where the red side's is already tan. A blue light on grey stays blue; the same
+            light on the beige stonework above is fought by the albedo's low blue channel
+            (the reason the blue lights outrun the red ones 48-to-34 in the first place). So
+            dropping them to 11.6 aims the strongest blue at the one surface that will
+            actually carry it, and `distance` 40 with decay 1.1 still throws far enough up the
+            tower to keep the midsection the lights used to own. Verified from a camera at the
+            centre of the map, equidistant (45u) from both towers.
+          -->
           <a-entity
-            light="type:point; intensity:8; color:#4A90E2; castShadow:false; distance:8; decay:1.0"
-            position="-24.3 14.6 -4"></a-entity>
+            light="type:point; intensity:48; color:#4aa8ff; castShadow:false; distance:40; decay:1.1"
+            position="-24.3 11.6 -4"></a-entity>
           <a-entity
-            light="type:point; intensity:8; color:#4A90E2; castShadow:false; distance:8; decay:1.0"
-            position="-24.3 14.6 4"></a-entity>
+            light="type:point; intensity:48; color:#4aa8ff; castShadow:false; distance:40; decay:1.1"
+            position="-24.3 11.6 4"></a-entity>
           <a-entity
-            light="type:point; intensity:6; color:#0008ff; castShadow:false; distance:10; decay:0.8"
+            light="type:point; intensity:12; color:#2f6cff; castShadow:false; distance:30; decay:1.4"
             position="-32.3 32.9 -2.57"></a-entity>
           <a-entity
-            light="type:point; intensity:6; color:#0008ff; castShadow:false; distance:10; decay:0.8"
+            light="type:point; intensity:12; color:#2f6cff; castShadow:false; distance:30; decay:1.4"
             position="-32.3 32.9 2.05"></a-entity>
         </a-entity>
 
         <!-- Red Lights Group -->
         <a-entity id="red-lights">
-          <!-- Red Spot Light -->
+          <!-- Red base interior: pale, warm-white, readable -->
           <a-entity
-            light="angle: 70; color: #f4c8c8; decay: 0.4; intensity: 2; penumbra: 0.1; type: spot; shadowCameraFov: 0"
+            light="angle: 70; color: #ffb59b; decay: 0.9; intensity: 30; penumbra: 0.6; type: spot"
             position="41.97017 5.75842 -5.09718"
             rotation="-90 0 0"></a-entity>
 
-          <!-- Red Point Lights (Right Side) - Performance Optimized -->
+          <!-- Red tower exterior -->
           <a-entity
-            light="type:point; intensity:8; color:#E24A4A; castShadow:false; distance:8; decay:1.0"
+            light="type:point; intensity:34; color:#ff3a22; castShadow:false; distance:28; decay:1.1"
             position="34.4 10.7 -10.4"></a-entity>
           <a-entity
-            light="type:point; intensity:8; color:#E24A4A; castShadow:false; distance:8; decay:1.0"
+            light="type:point; intensity:34; color:#ff3a22; castShadow:false; distance:28; decay:1.1"
             position="34.4 10.7 -0.6"></a-entity>
           <a-entity
-            light="type:point; intensity:6; color:#E24A4A; castShadow:false; distance:10; decay:0.8"
+            light="type:point; intensity:9; color:#ff1400; castShadow:false; distance:26; decay:1.4"
             position="41.6 32.6 -7.30393"></a-entity>
           <a-entity
-            light="type:point; intensity:6; color:#E24A4A; castShadow:false; distance:10; decay:0.8"
+            light="type:point; intensity:9; color:#ff1400; castShadow:false; distance:26; decay:1.4"
             position="41.6 32.6 -2.85067"></a-entity>
         </a-entity>
       </a-entity>
 
       <!-- World + NavMesh (Performance Optimized) -->
+      <!--
+        `shadow` is what actually enables renderer.shadowMap - A-Frame's shadow *component*
+        calls system.setShadowMapEnabled(true); light="castShadow: true" alone does nothing.
+        Remote avatars already carry their own shadow component (network.js), but without a
+        receiver in the scene they had nothing to land on.
+      -->
       <a-entity
         id="world"
         gltf-model="#world-gltf"
+        shadow="cast: true; receive: true"
         gltf-animation-pointer="enabled:true; autoPlay:true; speed:1.0"
         -advanced-material-animation="enabled:false; animationType:opacity; speed:1.0; intensity:1.0; minValue:0.5; maxValue:0.5; emissiveGlow:false"
         pixelated-texture
@@ -208,7 +400,7 @@
       <!-- Player Rig (moves and rotates) -->
       <a-entity
         id="rig"
-        movement-controls="constrainToNavMesh: true; speed: 0.4; fly: false"
+        movement-controls="constrainToNavMesh: true; speed: 0.563; fly: false"
         rotate-yaw
         position="0 0 0">
         <!-- Soldier Body (follows rig movement, fixed rotation) -->
@@ -231,9 +423,18 @@
           position="0 1.4 0"
           first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0">
           <!-- Weapon (child of camera, follows look direction) -->
+          <!--
+            Resolved through the #enforcer-weapon asset item rather than by raw URL,
+            so this entity and the preloader cannot drift onto different paths. It is
+            also the form first-person-weapon.js's `weaponModel` default assumes.
+            NOTE: this is not a download saving. A-Frame sets THREE.Cache.enabled and
+            <a-asset-item> caches by exact URL string, so the previous raw-URL form
+            was already served from cache - measured as one network request either
+            way. The win is consistency, not bytes.
+          -->
           <a-entity
             id="player-weapon"
-            gltf-model="assets/3d/enforcer.glb"
+            gltf-model="#enforcer-weapon"
             scale="0.025 0.025 0.025"
             position="0.2 -0.3 -0.5"
             weapon-sway="enabled: true; swayIntensity: 0.001; swaySpeed: 6.0; bobIntensity: 0.0; bobSpeed: 0.0; walkMultiplier: 1.0; runMultiplier: 1.5; smoothing: 0.2">
@@ -241,8 +442,6 @@
             <a-entity
               id="weapon-muzzle"
               position="0 1 -1"
-              geometry="primitive: sphere; radius: 0.01"
-              material="opacity: 0.8; transparent: true; color: red"
               visible="false">
             </a-entity>
           </a-entity>
@@ -254,7 +453,14 @@
 
       <!-- Credits Display -->
       <div id="credits-container">
-        <div class="credit-line credit-instructions">
+        <!-- Only one of these is ever true. The touch line describes the aframe-extras
+             touch-controls path (1 finger forward / 2 fingers back); desktop runs
+             keyboard-controls + ut-jump, which that sentence says nothing about, so it
+             used to be the only instruction a mouse-and-keyboard player ever got. -->
+        <div class="credit-line credit-instructions credit-instructions--desktop">
+          WASD move &middot; mouse look &middot; Space jump &middot; X fire &middot; Tab scores
+        </div>
+        <div class="credit-line credit-instructions credit-instructions--touch">
           1 finger tap to move forward, 2 fingers to move backward, move finger or camera to look around, fire to… fire. Game on!
         </div>
         <div class="credit-line">
@@ -273,7 +479,7 @@
       </div>
 
       <!-- Kill Notification -->
-      <a-entity kill-notification="enabled: true; duration: 3000; fadeInDuration: 500; fadeOutDuration: 1000"></a-entity>
+      <a-entity kill-notification="enabled: true; maxEntries: 4; displayDuration: 4000"></a-entity>
     </a-scene>
   </body>
 </html>
