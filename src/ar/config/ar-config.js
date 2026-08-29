@@ -169,6 +169,23 @@ export const AR_CONFIG = {
     walkSpeed: 2.2,
     runSpeed: 6.5,
     clips: { idle: "Idle", walk: "Walk", run: "Run" },
+    // Muzzle flash. A spectator is told WHO fired and when, but
+    // never where the shot landed — hit resolution is a separate message
+    // against a victim. So a tracer would have to be re-traced against
+    // the map on the phone, and would be a few millimetres of smear at
+    // table scale anyway. A bright pip at the shooter reads better and
+    // costs nothing: you see who is shooting, which is what makes a
+    // match legible from outside it.
+    flash: {
+      // Radius in game units, before `scale`.
+      size: 0.42,
+      color: "#ffd9a0",
+      // Seconds to fade out over. Short enough to read as a shot rather
+      // than a glow, long enough to survive a 10 Hz pose feed.
+      fadeMs: 110,
+      // Height above the figure's feet, in game units before `scale`.
+      height: 1.5,
+    },
     scale: 4,
     // Body capsule, in game units before `scale`.
     radius: 0.34,

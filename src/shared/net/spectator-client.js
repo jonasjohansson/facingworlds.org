@@ -34,6 +34,7 @@ function toPose(m) {
  * @param {object} handlers  all optional:
  *   onHello(players), onJoin(player), onLeave(id), onPose(id, pose, serverTimeMs),
  *   onName(id, name), onSpawn(player), onRespawn(player), onDeath(id),
+ *   onFire(id, serverTimeMs),
  *   onStatus(state) with state one of "connecting" | "online" | "offline".
  * @returns {{ close: () => void, buffer: SnapshotBuffer }}
  */
@@ -156,8 +157,15 @@ export function connectSpectator(url, handlers = {}) {
         case "death":
           emit("onDeath", m.id, m.by);
           break;
+        case "fire":
+          // Who shot, and when. NOT where it landed: the server broadcasts the
+          // shot, and hit resolution is a separate message against a victim, so
+          // a spectator cannot know where a shot ended without re-tracing it.
+          // Enough for a muzzle flash, which is what reads at table scale.
+          emit("onFire", m.id, m.t);
+          break;
         default:
-          // hit / fire / player-kill / highscore-update are not part of the spectator
+          // hit / player-kill / highscore-update are not part of the spectator
           // contract — a spectator renders motion, it does not simulate combat.
           break;
       }

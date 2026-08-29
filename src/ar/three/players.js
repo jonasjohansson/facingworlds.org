@@ -74,6 +74,30 @@ export class SpectatorTable {
     this.palette = cfg.colors.map((hex) => new THREE.Color(hex));
     this.nextColor = 0;
 
+    // Muzzle flash. A camera-facing quad, additive and
+    // unlit, so it reads as a light source rather than a lit surface. One
+    // geometry and one material shared by every figure — the flash is
+    // the same colour for everyone, so nothing here is per-player.
+    //
+    // A spectator is told who shot, never where it landed: hit
+    // resolution is a separate message against a victim, so a tracer would
+    // have to be re-traced against the map on the phone. At a few
+    // millimetres long a tracer is a smear anyway; a bright pip at the
+    // shooter is what reads at this scale.
+    // A Sprite, so it faces the camera on its own — a quad would need
+    // its orientation rewritten every frame, and seen edge-on it
+    // vanishes. Shared by every figure: the flash is on or off, never
+    // part-way, so nothing here is per-player and one material does.
+    this.flashMaterial = new THREE.SpriteMaterial({
+      color: new THREE.Color(cfg.flash.color),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      // Additive over the camera feed and the map, and never an
+      // occluder: a flash is light, not a thing.
+      depthWrite: false,
+      toneMapped: false,
+    });
+
     // The skinned model. Loaded once, cloned per player. Loading is
     // best-effort and off the critical path: figures appear as capsules the
     // moment a player joins and are upgraded in place when the model lands,
@@ -256,6 +280,10 @@ export class SpectatorTable {
             this._setLabel(entry, name);
           }
         },
+        onFire: (id) => {
+          const entry = this.players.get(id);
+          if (entry) entry.flashUntil = AR_CONFIG.avatar.flash.fadeMs;
+        },
         onDeath: (id) => {
           const entry = this.players.get(id);
           if (entry) {
@@ -344,6 +372,15 @@ export class SpectatorTable {
         if (Math.abs(entry.tilt.position.y) < 0.001) {
           entry.tilt.position.y = 0;
         }
+      }
+
+      // Muzzle flash: a bright pip for a few frames after a shot, then
+      // out. A Sprite, so it faces the camera on its own — a quad would
+      // need re-orienting here every frame, and seen edge-on it
+      // vanishes.
+      if (entry.flashUntil > 0) {
+        entry.flashUntil -= deltaMs;
+        entry.flash.visible = entry.flashUntil > 0;
       }
 
       if (!entry.placed) {
@@ -459,10 +496,20 @@ export class SpectatorTable {
     const capsuleNose = new THREE.Mesh(this.noseGeometry, material);
     capsuleNose.castShadow = true;
 
+    // Muzzle flash. Shared geometry and material, so it is one extra
+    // object per player and hidden almost always. It goes on `tilt`,
+    // inside the figure's scale, so its size and height are in game
+    // units like everything else on the figure.
+    const flash = new THREE.Sprite(this.flashMaterial);
+    flash.scale.setScalar(AR_CONFIG.avatar.flash.size);
+    flash.position.y = AR_CONFIG.avatar.flash.height;
+    flash.visible = false;
+
     // tilt exists so death can lay a figure down without disturbing its yaw.
     const tilt = new THREE.Group();
     tilt.add(capsuleBody);
     tilt.add(capsuleNose);
+    tilt.add(flash);
 
     const figure = new THREE.Group();
     figure.scale.setScalar(cfg.scale);
@@ -493,6 +540,9 @@ export class SpectatorTable {
       capsuleBody,
       capsuleNose,
       skinned: null,
+      flash,
+      // Counts down from AR_CONFIG.avatar.flash.fadeMs; 0 means not firing.
+      flashUntil: 0,
     };
 
     this._upgradeToModel(entry);
@@ -632,6 +682,7 @@ export class SpectatorTable {
     this._clearPlayers();
     this.bodyGeometry.dispose();
     this.noseGeometry.dispose();
+    this.flashMaterial.dispose();
 
     // The source model's own geometries and textures, disposed once here
     // rather than per player.
