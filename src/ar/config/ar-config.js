@@ -44,9 +44,11 @@ export const AR_CONFIG = {
 
   // The Facing Worlds map floating above the print
   model: {
-    // Footprint width in marker units. The print is ~2 units wide, so 2.2 makes
-    // the towers read as standing on the sticker rather than swallowing it.
-    size: 2.2,
+    // Footprint width in marker units. The print is ~2 units wide. 2.2 kept the
+    // towers inside the sticker's own footprint, which reads as small and
+    // timid on a table; letting the rock overhang the print reads as an object
+    // sitting there. The tracker only has to stay in frame, not stay uncovered.
+    size: 3.2,
     // Gap between the print and the underside of the model.
     hover: 0.16,
     // NOTE: there is deliberately no idle rotation any more. encantar gives a full
@@ -117,7 +119,11 @@ export const AR_CONFIG = {
 
   // Music. Starts on marker detection, not on model load.
   audio: {
-    src: "../assets/audio/110-van_den_bos--foregone_destruction-i-gameplay-audio.mp3",
+    // The clean music track, NOT the "-gameplay-audio" mix. That mix has
+    // recorded gunfire and announcements baked into it, so on a table with
+    // nobody playing it sounds like a match is happening somewhere. It is also
+    // 12.7 MB against 6.0 MB, on the one page that runs on a phone.
+    src: "../assets/audio/110-van_den_bos--foregone_destruction-i.mp3",
     volume: 0.35,
     // Fade in/out duration in ms when the marker is found / lost.
     fade: 700,
