@@ -2765,3 +2765,84 @@ html[data-team="red"] .ut-flags {
   mask-position: calc(-128 * var(--ut-s)) 0;
 }
 .ut-hud--atlas .ut-doll__hits { z-index: 1; }
+
+/* --- held slot: W.StatusIcon (UseAutoM, 128x64) at SolidHUDColor STY_Normal —
+   the one opaque tile — then the HUDWeapons (128,64,128,64) highlight over it
+   in GoldColor, translucent. The slot number and ammo bar stay as they are. */
+.ut-hud--atlas {
+  --ut-auto: url("assets/ut99/BotPack.Icons.UseAutoM.png");
+  --ut-ihome: url("assets/ut99/BotPack.Icons.I_Home.png");
+  --ut-icapt: url("assets/ut99/BotPack.Icons.I_Capt.png");
+  --ut-idown: url("assets/ut99/BotPack.Icons.I_Down.png");
+}
+.ut-hud--atlas .ut-wslot.is-active {
+  background: none;
+  box-shadow: none;
+}
+.ut-hud--atlas .ut-wslot.is-active .ut-wslot__icon,
+.ut-hud--atlas .ut-wslot.is-active .ut-wslot__bracket { display: none; }
+.ut-hud--atlas .ut-wslot.is-active::before,
+.ut-hud--atlas .ut-wslot.is-active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  pointer-events: none;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-mode: luminance;
+  mask-mode: luminance;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+.ut-hud--atlas .ut-wslot.is-active::before {
+  background: rgb(var(--ut-solid-rgb, 0, 0, 254));
+  -webkit-mask-image: var(--ut-auto);
+  mask-image: var(--ut-auto);
+  mix-blend-mode: normal;
+  z-index: 0;
+}
+.ut-hud--atlas .ut-wslot.is-active::after {
+  top: 0;
+  left: 0;
+  background: #ffff00;
+  -webkit-mask-image: var(--ut-wpn);
+  mask-image: var(--ut-wpn);
+  -webkit-mask-size: calc(409.6 * var(--ut-s)) calc(409.6 * var(--ut-s));
+  mask-size: calc(409.6 * var(--ut-s)) calc(409.6 * var(--ut-s));
+  -webkit-mask-position: calc(-128 * 1.6 * var(--ut-s)) calc(-64 * 1.6 * var(--ut-s));
+  mask-position: calc(-128 * 1.6 * var(--ut-s)) calc(-64 * 1.6 * var(--ut-s));
+  mix-blend-mode: screen;
+  z-index: 2;
+}
+.ut-hud--atlas .ut-wslot.is-active .ut-wslot__key,
+.ut-hud--atlas .ut-wslot.is-active .ut-wslot__ammo { z-index: 3; }
+
+/* --- CTF flag state: I_Home / I_Capt / I_Down (32x32) at TeamColor,
+   DrawIcon(Scale * 2) = 64 S, which is the 5vw box .ut-flag already is. */
+.ut-hud--atlas .ut-flag > svg { display: none; }
+.ut-hud--atlas .ut-flag::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgb(var(--ut-flag-rgb, 255, 255, 255));
+  -webkit-mask-image: var(--ut-ihome);
+  mask-image: var(--ut-ihome);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-mode: luminance;
+  mask-mode: luminance;
+  mix-blend-mode: screen;
+}
+.ut-hud--atlas .ut-flagrow[data-flag="carried"] .ut-flag::before {
+  -webkit-mask-image: var(--ut-icapt);
+  mask-image: var(--ut-icapt);
+}
+.ut-hud--atlas .ut-flagrow[data-flag="dropped"] .ut-flag::before {
+  -webkit-mask-image: var(--ut-idown);
+  mask-image: var(--ut-idown);
+}
