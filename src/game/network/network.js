@@ -40,6 +40,10 @@ export function startNetwork() {
 
     // Wire scene events AFTER we have a scene
     scene.addEventListener("local-fire", onLocalFire);
+    // The pickup system asks; the server answers. A refusal is simply silence.
+    scene.addEventListener("request-pickup", (e) => {
+      if (e.detail && e.detail.id) send({ type: "takePickup", id: e.detail.id });
+    });
     scene.addEventListener("local-hit", onLocalHit);
     scene.addEventListener("change-name", onNameChange);
     scene.addEventListener("local-kill", onLocalKill);
@@ -191,6 +195,11 @@ export function startNetwork() {
           (m.players || []).forEach((p) => {
             if (p.id !== myId) spawnRemote(p);
           });
+
+          // The server owns the pickup set. This fires on reconnect too, which is
+          // why the system replaces its items wholesale rather than merging: after
+          // a drop the ids are the same but availability may not be.
+          scene.emit("pickups-init", { pickups: m.pickups || [] });
           break;
         }
         case "join":
@@ -295,6 +304,29 @@ export function startNetwork() {
               if (rig) setPose(rig, p);
             }
           }
+          break;
+        }
+
+        case "pickup-taken": {
+          scene.emit("pickup-taken", { id: m.id, by: m.by, respawnInMs: m.respawnInMs });
+          if (m.by === myId) {
+            // Only the server can grant this. The weapon component listens and
+            // switches to two guns; it never decides on its own.
+            scene.emit("local-loadout", { dual: true });
+          }
+          break;
+        }
+
+        case "pickup-respawn": {
+          scene.emit("pickup-respawn", { id: m.id });
+          break;
+        }
+
+        case "loadout": {
+          // Broadcast for every player, so remote avatars (and the AR spectator
+          // table) can show who is dual-wielding.
+          scene.emit("player-loadout", { id: m.id, dual: !!m.dual });
+          if (m.id === myId) scene.emit("local-loadout", { dual: !!m.dual });
           break;
         }
 

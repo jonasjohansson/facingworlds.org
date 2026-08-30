@@ -28,6 +28,7 @@ import "../components/background-music.js";
 import "../components/space-environment.js";
 import "../components/earth-sphere.js";
 import "../components/first-person-weapon.js";
+import "../components/weapon-pickup.js";
 import "../components/weapon-sway.js";
 import "../components/invisible-to-player.js";
 import "../components/remote-avatar.js";

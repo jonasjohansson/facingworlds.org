@@ -18,6 +18,17 @@ const POSE_SLACK = 6; // units of tolerance on top of speed*dt (lag spikes)
 const POSE_REJECT_LIMIT = 5; // after this many rejects in a row we resync to the client
 const WORLD_LIMIT = 500; // absolute coordinate clamp (map spans ~±45)
 const HIT_DAMAGE = 20; // fixed server-side damage per hit
+
+// ---- pickups ----
+// UT99's Enforcer progression: pick up a second one and you dual-wield. Same
+// weapon, twice the guns. Ownership MUST live here — if the client decided, two
+// players standing on the same pedestal would both walk away with it.
+const PICKUP_RESPAWN = 20000; // ms before a taken pickup returns
+const PICKUP_RADIUS = 3.0; // units; how close a player must be to claim one
+// Generous against PICKUP_RADIUS on purpose: the claim is checked against the
+// server's copy of the player position, which lags the client's by up to a pose
+// interval, and a player running at 9.4 m/s covers ~0.9 units in that time.
+const PICKUP_CLAIM_SLACK = 2.5;
 const MAX_HIT_RANGE = 300; // no sightline on Face is anywhere near this long
 const HIT_ORDER_GRACE = 150; // ms a hit may arrive AHEAD of the fire that paid for it
 const SHOT_LIFETIME = 2500; // ms a fired shot stays eligible to produce a hit
@@ -35,6 +46,42 @@ const lastPoseUpdate = new Map(); // id -> timestamp
 const sessions = new Map(); // sessionKey -> {kills,name,expires} — score resume across reconnects
 const claimedSessions = new Map(); // sessionKey -> live player id currently owning that key
 const spectators = new Map(); // ws -> spectator id (observers, never part of the game)
+
+// Weapon pickups. Positions are game-world coordinates and were measured against
+// the navmesh, not guessed — see PICKUP_SITES in src/game/config/game-config.js
+// for the client-side mirror that renders them.
+//
+// The pedestal sits mid-bridge on purpose. UT's whole pickup grammar is that the
+// good item is in the dangerous place: on Face the bridge is the one spot both
+// towers can see, so taking it costs you cover.
+const pickups = new Map(); // id -> {id, type, x, y, z, availableAt}
+
+function definePickup(id, type, x, y, z) {
+  pickups.set(id, { id, type, x, y, z, availableAt: 0 });
+}
+// Measured, not guessed: the navmesh centre is (4.78, -2.31) and a downward ray
+// there hits the walkable floor at y=6.17. The item floats 0.8 above that, the
+// way a UT pickup hovers. Probes at (0,0), (10,0) and (-10,0) miss the navmesh
+// entirely — the walkable surface across the middle really is just the bridge.
+definePickup("enforcer-bridge", "dual-enforcer", 4.78, 6.97, -2.31);
+
+function pickupIsAvailable(p, now) {
+  return p.availableAt <= now;
+}
+
+function publicPickup(p, now) {
+  return {
+    id: p.id,
+    type: p.type,
+    x: q2(p.x),
+    y: q2(p.y),
+    z: q2(p.z),
+    available: pickupIsAvailable(p, now),
+    // Seconds until it returns, so a late joiner can render the timer rather
+    // than a pedestal that pops into existence for no visible reason.
+    respawnInMs: pickupIsAvailable(p, now) ? 0 : p.availableAt - now,
+  };
+}
 
 // Optional TLS. A phone on the LAN opens the site over https:// (self-signed mkcert),
 // and a secure page may not open a plain ws:// socket to a LAN IP — browsers block it as
@@ -80,6 +127,7 @@ function publicPlayer(p) {
     kills: p.kills || 0,
     speed: q2(p.speed || 0),
     animation: p.animation || { idle: 1, walk: 0, run: 0 },
+    dual: !!p.dual,
   };
 }
 
@@ -161,6 +209,7 @@ wss.on("connection", (ws, req) => {
       yourId: sid,
       spectator: true,
       players: [...players.values()].map(publicPlayer),
+      pickups: [...pickups.values()].map((p) => publicPickup(p, Date.now())),
     });
     // Seed the scoreboard for this socket only — the players must learn nothing.
     send(ws, { type: "highscore-update", players: highscoreList() });
@@ -216,7 +265,12 @@ wss.on("connection", (ws, req) => {
   randomSpawn(p);
   players.set(id, p);
 
-  send(ws, { type: "hello", yourId: id, players: [...players.values()].map(publicPlayer) });
+  send(ws, {
+    type: "hello",
+    yourId: id,
+    players: [...players.values()].map(publicPlayer),
+    pickups: [...pickups.values()].map((p) => publicPickup(p, Date.now())),
+  });
   broadcastExcept(ws, { type: "join", player: publicPlayer(p) });
   broadcastHighscore(); // Send initial highscore
 
@@ -408,6 +462,38 @@ wss.on("connection", (ws, req) => {
         break;
       }
 
+      case "takePickup": {
+        const now = Date.now();
+        const p = pickups.get(String(m.id || ""));
+        if (!p || !pickupIsAvailable(p, now)) break;
+        if (me.hp <= 0) break; // a corpse does not shop
+
+        // Distance is checked against the SERVER's copy of the position. A client
+        // could otherwise claim a pickup from across the map by asserting it was
+        // standing on it.
+        const dx = me.x - p.x;
+        const dy = me.y - p.y;
+        const dz = me.z - p.z;
+        const reach = PICKUP_RADIUS + PICKUP_CLAIM_SLACK;
+        if (dx * dx + dy * dy + dz * dz > reach * reach) break;
+
+        // Already dual-wielding: leave the pickup standing for someone who wants it.
+        if (p.type === "dual-enforcer" && me.dual) break;
+
+        p.availableAt = now + PICKUP_RESPAWN;
+        if (p.type === "dual-enforcer") me.dual = true;
+
+        broadcast({
+          type: "pickup-taken",
+          id: p.id,
+          by: me.id,
+          respawnInMs: PICKUP_RESPAWN,
+        });
+        broadcast({ type: "loadout", id: me.id, dual: !!me.dual });
+        console.log(`[server] ${me.name} took ${p.type} (${p.id})`);
+        break;
+      }
+
       case "clientHit": {
         const now = Date.now();
         if (!canHit(me, m.victimId)) break;
@@ -456,6 +542,21 @@ wss.on("connection", (ws, req) => {
 });
 
 // ---- heartbeat: reap sockets that stopped answering, sweep expired sessions ----
+// Pickup respawn sweep. One timer for every pedestal rather than a setTimeout per
+// claim: a timer per claim would have to be cancelled on shutdown and could fire
+// against a pickup that was redefined underneath it. A 500ms sweep is well inside
+// the resolution anyone can perceive on a 20s respawn.
+const pickupSweep = setInterval(() => {
+  const now = Date.now();
+  for (const p of pickups.values()) {
+    // availableAt of 0 means "has always been available" — nothing to announce.
+    if (p.availableAt === 0 || p.availableAt > now) continue;
+    p.availableAt = 0;
+    broadcast({ type: "pickup-respawn", id: p.id });
+  }
+}, 500);
+pickupSweep.unref && pickupSweep.unref();
+
 const heartbeat = setInterval(() => {
   for (const ws of wss.clients) {
     if (ws.isAlive === false) {
@@ -514,6 +615,9 @@ function applyHit(shooter, victim) {
     const v = players.get(victim.id);
     if (!v) return;
     v.hp = PLAYER_HP;
+    // The second Enforcer does not survive you. Dying costs the pickup, which is
+    // what makes holding the bridge mean something.
+    v.dual = false;
     randomSpawn(v);
     v.animation = { idle: 1, walk: 0, run: 0 };
     v.speed = 0;

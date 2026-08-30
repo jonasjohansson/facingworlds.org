@@ -197,6 +197,19 @@ AFRAME.registerComponent("first-person-weapon", {
     this.spreeEl.className = "ut-announce ut-announce--spree";
     document.body.appendChild(this.spreeEl);
 
+    // ---- dual Enforcers ----
+    // UT99's second-Enforcer pickup: same gun twice, fired alternately, so the
+    // rate doubles while each shot is individually worse. The SERVER grants this
+    // (see server/server.js takePickup) and the network layer re-emits it; the
+    // weapon never decides on its own that it has two guns.
+    this.dual = false;
+    this.leftWeapon = null;
+    this.fireLeft = false; // which hand fires the next shot
+    this._onLoadout = (e) => this.setDual(!!(e.detail && e.detail.dual));
+    this.el.sceneEl.addEventListener("local-loadout", this._onLoadout);
+    // Dying costs you the second gun, so the weapon has to hear about deaths too.
+    this.el.sceneEl.addEventListener("local-death", () => this.setDual(false));
+
     // Listen for hit events
     this.el.sceneEl.addEventListener("local-hit", this.onLocalHit.bind(this));
     this.el.sceneEl.addEventListener("local-kill", this.onLocalKill.bind(this));
@@ -217,7 +230,8 @@ AFRAME.registerComponent("first-person-weapon", {
     if (!this.isFiring) return;
 
     const now = time / 1000;
-    const minInterval = 1 / Math.max(1, this.data.fireRate);
+    const rate = this.dual ? GAME_CONFIG.WEAPON.DUAL_FIRE_RATE : this.data.fireRate;
+    const minInterval = 1 / Math.max(1, rate);
     if (now - this.lastFireTime < minInterval) return;
 
     this.lastFireTime = now;
@@ -302,6 +316,41 @@ AFRAME.registerComponent("first-person-weapon", {
     }
   },
 
+  /**
+   * Grant or remove the second Enforcer.
+   *
+   * Only ever called from a server message (pickup-taken / loadout / death).
+   * The second gun is the SAME model mirrored to the other side of the screen,
+   * which is the whole appeal of this pickup: a real UT mechanic with no new art.
+   */
+  setDual(dual) {
+    if (dual === this.dual) return;
+    this.dual = dual;
+
+    if (dual) {
+      if (!this.leftWeapon && this.weapon) {
+        const left = document.createElement("a-entity");
+        left.setAttribute("gltf-model", this.data.weaponModel);
+        // Mirror of the right-hand gun. Copy the live position/scale rather than
+        // the schema defaults, because weapon-sway owns position and index.html
+        // sets its own scale — reading the schema would put it in the wrong place.
+        const p = this.weapon.object3D.position;
+        const sc = this.weapon.object3D.scale;
+        left.setAttribute("position", `${-GAME_CONFIG.WEAPON.DUAL_OFFSET_X} ${p.y} ${p.z}`);
+        left.setAttribute("scale", `${sc.x} ${sc.y} ${sc.z}`);
+        // Mirrored on Y so it reads as a left hand rather than a clone.
+        left.setAttribute("rotation", "0 180 0");
+        this.el.appendChild(left);
+        this.leftWeapon = left;
+      }
+      if (this.leftWeapon) this.leftWeapon.setAttribute("visible", true);
+    } else if (this.leftWeapon) {
+      this.leftWeapon.setAttribute("visible", false);
+    }
+
+    this.el.sceneEl.emit("loadout-changed", { dual });
+  },
+
   fireBullet() {
     if (!this.weapon || !this.weapon.object3D) return;
 
@@ -313,6 +362,24 @@ AFRAME.registerComponent("first-person-weapon", {
     // The trace itself starts at the eye so it agrees with the crosshair; only the
     // visible tracer starts at the muzzle.
     this.el.object3D.getWorldPosition(this._rayOrigin);
+
+    // Alternate hands when dual-wielding, so shots visibly leave the left gun and
+    // the right gun in turn rather than always the right.
+    //
+    // The mirror is across the CAMERA'S right axis, not world X: the player can be
+    // facing any direction, and reflecting world X would send the left muzzle
+    // somewhere arbitrary as soon as they turned. The TRACE is untouched — it still
+    // runs from the eye down the crosshair — only where the tracer and flash appear
+    // moves, which is the part a player actually reads.
+    if (this.dual) {
+      this.fireLeft = !this.fireLeft;
+      if (this.fireLeft && this.leftWeapon) {
+        this._right.setFromMatrixColumn(this.el.object3D.matrixWorld, 0).normalize();
+        this._muzzleLocal.copy(this.muzzlePosition).sub(this._rayOrigin);
+        const along = this._muzzleLocal.dot(this._right);
+        this.muzzlePosition.addScaledVector(this._right, -2 * along);
+      }
+    }
 
     // Get camera direction (this.el is the camera).
     // getWorldDirection gives +Z, the camera looks down -Z, so negate.
@@ -367,7 +434,11 @@ AFRAME.registerComponent("first-person-weapon", {
   // Nudge the shot inside a small cone. Random per shot, applied before the trace so the
   // tracer and the networked direction match exactly what was hit.
   applySpread(dir) {
-    const spread = this.data.spread;
+    // Two guns fire twice as fast and half as well. Without this the pickup would
+    // be a pure upgrade, and a pure upgrade is not a choice.
+    const spread = this.dual
+      ? this.data.spread * GAME_CONFIG.WEAPON.DUAL_SPREAD_MULTIPLIER
+      : this.data.spread;
     if (spread <= 0) return;
 
     // Build a basis around the shot direction

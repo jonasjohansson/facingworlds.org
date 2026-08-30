@@ -85,8 +85,29 @@ export const GAME_CONFIG = {
   },
 
   // Enforcer — UT99 fires it instantly, roughly 4 shots/sec
+  // Weapon pickups. The server owns which pickups exist, where they are and who
+  // holds them (see server/server.js) — this is only how they LOOK. Positions
+  // arrive from the server, so nothing here needs to agree with it.
+  PICKUP: {
+    RADIUS: 3.0, // must match PICKUP_RADIUS server-side; the client only predicts
+    SPIN_SPEED: 1.1, // radians/sec
+    BOB_HEIGHT: 0.22, // units
+    BOB_SPEED: 2.0, // radians/sec
+    GLOW_COLOR: "#ffd07a",
+    GLOW_INTENSITY: 2.2,
+    GLOW_RANGE: 7,
+    // How often the client may ask for a pickup it is standing on. The server
+    // refuses anything it should, so this only stops us shouting at it.
+    CLAIM_INTERVAL: 400, // ms
+  },
+
   WEAPON: {
     FIRE_RATE: 4, // shots per second
+    // Dual Enforcers: UT99's second-Enforcer pickup. Same gun twice, fired
+    // alternately, so the rate doubles while each shot is individually worse.
+    DUAL_FIRE_RATE: 8,
+    DUAL_SPREAD_MULTIPLIER: 1.9, // accuracy is what you trade for the rate
+    DUAL_OFFSET_X: 0.42, // how far the second gun sits to the other side
     MAX_RANGE: 500, // metres a trace travels before it is called a miss
     SPREAD: 0.006, // tangent of the cone half-angle applied per shot
     // Camera kick, in radians. A fraction of each kick is recovered so the aim drifts up
