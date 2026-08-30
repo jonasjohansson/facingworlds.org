@@ -164,8 +164,7 @@ html[data-team="blue"] {
 
 /* While dead the bar stays on screen but steps back, so the death card is the
    only thing with contrast. */
-.ut-hud.is-dead .ut-bar,
-.ut-hud.is-dead .ut-chip--frags {
+.ut-hud.is-dead .ut-bar {
   opacity: 0.3;
   transition: opacity 160ms ease-out;
 }
@@ -179,7 +178,6 @@ html.a-fullscreen body > .ut-hud,
 html.a-fullscreen body > .ut-crosshair,
 html.a-fullscreen body > .ut-hitmarker,
 html.a-fullscreen body > .ut-announce,
-html.a-fullscreen body > .ut-killflash,
 html.a-fullscreen body > #credits-container,
 html.a-fullscreen body > #net-status {
   display: block !important;
@@ -394,75 +392,13 @@ html.a-fullscreen body > .ut-modal {
 
 /* No armour on the server yet. A real, dimmed 0 is honest; a number that never
    moves would not be. */
-.ut-meter--armor[data-level="empty"] {
-  opacity: 0.4;
-}
-
 /* ---- paper doll ------------------------------------------------------------
-   The one element carried over from UT99, and the most distinctive thing on the
-   screen. Body panels sit at half strength; the visor, chest plate and belt are
-   full strength, which is what makes it read as a figure rather than a blob.
+   Geometry, material and behaviour are all in the UT99 pass at the bottom of
+   this file: the doll is `Icons.Man` drawn at 128S x 256S on the top-right
+   corner. Nothing is left here — it used to be a glowing 66px figure in the
+   bottom-left bay that recoloured with health and blinked when hit, and
+   ChallengeHUD does none of those things.
    -------------------------------------------------------------------------- */
-
-.ut-doll {
-  flex: 0 0 auto;
-  width: 66px;
-  color: var(--ut-hue);
-  /* A tight glow only. The first pass at this used an 8px + 22px bloom and the
-     figure turned into one gold blob — the bloom filled the gaps between the
-     limbs faster than the limbs themselves read. */
-  filter: drop-shadow(0 0 4px var(--ut-glow)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
-  transition: color 200ms ease-out;
-}
-
-.ut-doll svg {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-/* Outlined, not filled. The reference doll is a bright edge around a darker
-   interior, which is what separates a helmet from a pauldron from an arm at
-   60-odd pixels tall; a flat fill at any opacity does not. */
-.ut-doll__body path {
-  fill: currentColor;
-  fill-opacity: 0.24;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linejoin: round;
-  paint-order: fill stroke;
-}
-
-.ut-doll__lit path {
-  fill: currentColor;
-  fill-opacity: 0.8;
-  stroke: currentColor;
-  stroke-width: 1;
-  stroke-linejoin: round;
-}
-
-.ut-doll[data-level="warn"] {
-  color: var(--ut-warn);
-}
-
-.ut-doll[data-level="crit"] {
-  color: var(--ut-crit);
-}
-
-.ut-doll.is-hit {
-  animation: ut-doll-hit 200ms steps(2, end) 1;
-}
-
-@keyframes ut-doll-hit {
-  0% {
-    color: #fff;
-    transform: translateX(-2px);
-  }
-  100% {
-    color: var(--ut-crit);
-    transform: none;
-  }
-}
 
 /* ---- weapon name ---------------------------------------------------------- */
 
@@ -474,141 +410,6 @@ html.a-fullscreen body > .ut-modal {
   color: var(--ut-hue);
   padding-right: 4px;
   text-shadow: 0 0 10px var(--ut-glow), 0 1px 3px rgba(0, 0, 0, 0.95);
-}
-
-/* ---- weapon bar ------------------------------------------------------------
-   Only the Enforcer exists in this build. The other slots render EMPTY rather
-   than being stocked with weapons the player does not have — the bar reports
-   what you are carrying, it does not decorate.
-   -------------------------------------------------------------------------- */
-
-.ut-weapons {
-  position: absolute;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 4px;
-}
-
-.ut-wslot {
-  --cut: 6px;
-  width: 44px;
-  height: 32px;
-  opacity: 0.34;
-  transition: opacity 140ms ease-out;
-}
-
-.ut-wslot.is-owned {
-  opacity: 1;
-}
-
-.ut-wslot .ut-panel__in {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ut-wslot__key {
-  position: absolute;
-  top: 1px;
-  left: 4px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.ut-wslot__icon {
-  width: 26px;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.ut-wslot__icon svg {
-  width: 100%;
-  height: auto;
-  display: block;
-  fill: currentColor;
-}
-
-/* The held slot. In the reference this is the one hot-coloured element on the
-   bar; here it takes the team hue so it recolours with everything else. */
-.ut-wslot.is-active {
-  background: linear-gradient(160deg, var(--ut-hue), var(--ut-hue-deep));
-}
-
-.ut-wslot.is-active .ut-panel__in {
-  background: linear-gradient(
-    170deg,
-    var(--ut-fill) 0%,
-    rgba(22, 16, 10, 0.86) 60%,
-    rgba(8, 6, 4, 0.92) 100%
-  );
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    inset 0 0 16px var(--ut-glow-weak);
-}
-
-.ut-wslot.is-active .ut-wslot__icon {
-  color: #fff;
-  filter: drop-shadow(0 0 6px var(--ut-glow));
-}
-
-.ut-wslot.is-fired .ut-panel__in {
-  animation: ut-slot-fire 160ms ease-out 1;
-}
-
-@keyframes ut-slot-fire {
-  0% {
-    box-shadow: inset 0 0 0 40px rgba(255, 255, 255, 0.32);
-  }
-  100% {
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24),
-      inset 0 0 16px var(--ut-glow-weak);
-  }
-}
-
-/* ============================================================================
-   Corner chips
-   ========================================================================== */
-
-.ut-chip {
-  position: absolute;
-  --cut: 9px;
-  --ut-num-size: 25px;
-}
-
-.ut-chip .ut-panel__in {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 4px 13px 5px 10px;
-}
-
-.ut-chip--frags {
-  top: 14px;
-  left: 16px;
-}
-
-.ut-chip__glyph {
-  width: 17px;
-  height: 17px;
-  color: var(--ut-hue);
-  filter: drop-shadow(0 0 5px var(--ut-glow));
-}
-
-.ut-chip__glyph svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  fill: currentColor;
-}
-
-.ut-chip__label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.26em;
-  color: var(--ut-ink);
-  padding-top: 3px;
 }
 
 /* Key hint, top right. Flat rather than plated — it is instruction, not state. */
@@ -646,12 +447,12 @@ html.a-fullscreen body > .ut-modal {
   position: absolute;
   inset: 0;
   opacity: 0;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(255, 0, 0, 0) 42%,
-    rgba(190, 12, 6, 0.5) 82%,
-    rgba(120, 0, 0, 0.78) 100%
-  );
+  /* ChallengeHUD draws NO screen wash — SetDamage only parks red minus tiles
+     on the doll (.ut-doll__hits), and those are the real feedback. What is
+     kept here is the ENGINE's ClientFlash, which is a flat additive fog over
+     the whole view, so this must be a flat low-alpha fill: an edge vignette is
+     something UT99 never draws. */
+  background: rgba(190, 12, 6, 0.16);
   transition: opacity 320ms ease-out;
 }
 
@@ -729,47 +530,40 @@ html.a-fullscreen body > .ut-modal {
    was needed to add it.
    ========================================================================== */
 
+/* Botpack.CHair1, the stock default (Engine.HUD Crosshair=0). Drawn at
+   15 * CrosshairColor = 15 * (0,16,0) = (0,240,0) GREEN, STY_Translucent, with
+   NO outline, NO glow and NO bloom — and it does not move when you fire. The
+   box is sized per frame by first-person-weapon.js to 64 * XScale px, XScale
+   being the integer max(1, int(0.1 + ClipX/640)), so the 64-unit art lands on
+   whole pixels the way the nearest-neighbour blit does. */
 .ut-crosshair {
   position: fixed;
   top: 50%;
   left: 50%;
-  width: 0;
-  height: 0;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
   z-index: 950;
   pointer-events: none;
-  opacity: 0.85;
-  color: #fff;
+  opacity: 1;
+  color: rgb(0, 240, 0);
 }
 
-.ut-crosshair i {
-  position: absolute;
+.ut-crosshair svg {
   display: block;
-  background: currentColor;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75), 0 0 5px var(--ut-glow-weak);
+  width: 100%;
+  height: 100%;
 }
 
-.ut-crosshair i.ut-crosshair--h {
-  width: 11px;
-  height: 2px;
+.ut-crosshair svg rect {
+  fill: currentColor;
 }
 
-.ut-crosshair i.ut-crosshair--v {
-  width: 2px;
-  height: 11px;
-}
-
-.ut-crosshair::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 2px;
-  height: 2px;
-  transform: translate(-50%, -50%);
-  background: var(--ut-hue);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), 0 0 6px var(--ut-glow);
-}
-
+/* NOT A SOURCE BEHAVIOUR — kept deliberately, and annotated the way the reload
+   blink and the TAB hint are. UT99 gives hit confirmation through the victim's
+   pain sound over a LAN-latency link; this build is a browser peer-to-peer game
+   where that sound may never arrive, so a 80 ms white X at the crosshair is the
+   cheapest honest substitute. Nothing in ChallengeHUD draws it. */
 .ut-hitmarker {
   position: fixed;
   top: 50%;
@@ -799,161 +593,302 @@ html.a-fullscreen body > .ut-modal {
   transform: translate(-50%, -50%) rotate(-45deg);
 }
 
-/* ---- kill flash ------------------------------------------------------------
-   Fired on every frag by first-person-weapon.js. A rim pulse in the accent hue,
-   not a full-screen wash: the centre of the screen stays clear so it never
-   covers what you are aiming at.
+/* ---- kill flash: REMOVED ---------------------------------------------------
+   DrawFragCount's only feedback on a frag is the 3 s gold sawtooth on the frag
+   box and its gold glow blob, both of which are implemented. ChallengeHUD has
+   no screen-edge pulse of any kind, so there is no .ut-killflash any more.
    -------------------------------------------------------------------------- */
 
-.ut-killflash {
-  position: fixed;
-  inset: 0;
-  z-index: 940;
-  pointer-events: none;
-  opacity: 0;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(255, 255, 255, 0) 46%,
-    var(--ut-glow-weak) 84%,
-    var(--ut-glow) 100%
-  );
-}
+/* ============================================================================
+   Message type (spec §1.10 / §1.11)
+   ----------------------------------------------------------------------------
+   UT99 has no condensed display face and no tracking anywhere in the message
+   path: MyFonts.GetSmallFont / GetBigFont / GetHugeFont return LadderFonts,
+   which are plain bitmap sans, and the size is chosen by ClipX alone.
 
-.ut-killflash.is-on {
-  animation: ut-killflash 400ms ease-out 1;
-}
+     small  (message rail)   SmallFont / UTLadder10 / 14 / 16
+     big    (LocalMessages)  16 / 18 / 20 / 22
+     huge   (MultiKill 2+)   16 / 20 / 22 / 30
 
-@keyframes ut-killflash {
-  0% {
-    opacity: 0;
+   YL is the line box the source advances by when it stacks messages, so it is
+   the same token the CTF banner offsets itself with.
+   ========================================================================== */
+:root {
+  --ut-msg-font: Arial, Helvetica, Tahoma, "DejaVu Sans", sans-serif;
+  --ut-font-small: 10px;
+  --ut-font-big: 16px;
+  --ut-font-huge: 16px;
+  --ut-yl-big: 19px;
+}
+@media (min-width: 640px) {
+  :root {
+    --ut-font-big: 18px;
+    --ut-font-huge: 20px;
+    --ut-yl-big: 22px;
   }
-  14% {
-    opacity: 0.85;
+}
+@media (min-width: 800px) {
+  :root {
+    --ut-font-small: 14px;
+    --ut-font-big: 20px;
+    --ut-font-huge: 22px;
+    --ut-yl-big: 24px;
   }
-  100% {
-    opacity: 0;
+}
+@media (min-width: 1024px) {
+  :root {
+    --ut-font-small: 16px;
+    --ut-font-big: 22px;
+    --ut-font-huge: 30px;
+    --ut-yl-big: 26px;
   }
 }
 
 /* ============================================================================
    Multi-kill / spree announcements (first-person-weapon.js)
    ----------------------------------------------------------------------------
-   Announcements arrive already at full size and shrink into place; they do not
-   fade in. White type over a hard hue glow, with a hue rule under it so the
-   line has the weight of the rest of the bar.
+   LocalMessages at YPos/768 * ClipY. MultiKillMessage sits one line BELOW the
+   0.2552 H line and is RED; KillingSpreeMessage is a CriticalEventLowPlus on
+   the 0.2552 H line itself in (0,128,255). bFadeMessage means the colour is
+   multiplied by remaining/Lifetime — a straight linear ramp to black over the
+   whole 3 s. Nothing arrives, nothing punches in, nothing glows.
    ========================================================================== */
 
 .ut-announce {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
   z-index: 960;
   pointer-events: none;
   opacity: 0;
   text-align: center;
   white-space: nowrap;
-  font-family: var(--ut-font-ui);
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #fff;
+  font-family: var(--ut-msg-font);
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  text-shadow: none;
+}
+
+.ut-announce[data-size="big"] {
+  font-size: var(--ut-font-big);
+  line-height: var(--ut-yl-big);
+}
+
+.ut-announce[data-size="huge"] {
+  font-size: var(--ut-font-huge);
+  line-height: calc(var(--ut-font-huge) * 1.18);
 }
 
 .ut-announce--multikill {
-  top: 19%;
-  font-size: clamp(32px, 5.6vw, 70px);
-  letter-spacing: 0.12em;
-  padding-bottom: 8px;
-  text-shadow: 0 0 16px var(--ut-glow), 0 0 48px var(--ut-glow),
-    0 2px 5px rgba(0, 0, 0, 0.9);
-}
-
-.ut-announce--multikill::after {
-  content: "";
-  position: absolute;
-  left: 6%;
-  right: 6%;
-  bottom: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--ut-hue), transparent);
-  box-shadow: 0 0 12px var(--ut-glow);
+  top: calc(25.52% + var(--ut-yl-big));
+  color: rgb(255, 0, 0);
 }
 
 .ut-announce--spree {
-  top: 30%;
-  font-size: clamp(20px, 3.2vw, 38px);
-  letter-spacing: 0.24em;
-  color: var(--ut-hue);
-  text-shadow: 0 0 14px var(--ut-glow), 0 2px 4px rgba(0, 0, 0, 0.9);
+  top: 25.52%;
+  color: rgb(0, 128, 255);
 }
 
-.ut-announce.is-punch {
-  animation: ut-punch 1500ms ease-out forwards;
+.ut-announce.is-on {
+  animation: ut-msg-fade 3s linear forwards;
 }
 
-@keyframes ut-punch {
-  0% {
-    opacity: 0;
-    transform: translateX(-50%) scale(1.6);
-  }
-  9% {
+/* DrawColor * remaining / Lifetime, and nothing else. */
+@keyframes ut-msg-fade {
+  from {
     opacity: 1;
-    transform: translateX(-50%) scale(1);
   }
-  72% {
-    opacity: 1;
-    transform: translateX(-50%) scale(1);
-  }
-  100% {
+  to {
     opacity: 0;
-    transform: translateX(-50%) scale(1);
   }
 }
 
 /* ============================================================================
-   Message rail (kill-notification.js)
+   Message rail (hud-root.js, fed by kill-notification.js)
    ----------------------------------------------------------------------------
-   Stacks under the frag chip in the top-left, as plain glowing text — no plates.
-   The bottom corners belong to the bar and the top-right to the key hint.
+   ChallengeHUD's four-line message area: SetPos(6, 2 + YL*line), clip width
+   768S - 10 (60 vw), 3 s LocalMessage lifetime, left aligned, no animation on
+   the lines themselves. Only the colour separates the kinds — DeathMessagePlus
+   (255,0,0), SayMessagePlus (0,255,0), StringMessagePlus white.
+
+   Behind them is DrawSpeechArea's backdrop: HUDColor * MessageFadeTime, i.e. a
+   very faint tinted strip about 77 S tall with a hairline lower edge, fading in
+   at +8/s (1/8 s) and out at -2/s (1/2 s).
    ========================================================================== */
 
-.ut-killfeed {
+.ut-msgs {
   position: absolute;
-  top: 60px;
-  left: 18px;
+  left: 6px;
+  top: 2px;
+  width: 60vw;
+  font-family: var(--ut-msg-font);
+  font-size: var(--ut-font-small);
+  line-height: 1.25;
+  font-weight: 400;
+  pointer-events: none;
+}
+
+.ut-msgs__back {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 6vw;
+  background: rgba(var(--ut-rgb, 0, 120, 239), 0.13);
+  /* Every HUD texture is STY_Translucent: dst = src + dst*(1-src). The strip
+     must LIFT the tower geometry behind it, never multiply it down, so it
+     screens like every other tile. The hairline lower edge is a screened 1px
+     strip (inset shadow) rather than a border, so the blended box keeps its
+     exact 6vw height. */
+  mix-blend-mode: screen;
+  box-shadow: inset 0 -1px 0 rgba(var(--ut-rgb, 0, 120, 239), 0.22);
+  opacity: 0;
+  transition: opacity 500ms linear;
+}
+
+.ut-msgs.is-on .ut-msgs__back {
+  opacity: 1;
+  transition: opacity 125ms linear;
+}
+
+.ut-msgs__list {
+  position: relative;
+}
+
+.ut-msgs__line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: normal;
+  text-transform: none;
+  text-shadow: none;
+}
+
+.ut-msgs__line--death {
+  color: rgb(255, 0, 0);
+}
+
+.ut-msgs__line--chat {
+  color: rgb(0, 255, 0);
+}
+
+.ut-msgs__line--pickup {
+  color: #fff;
+}
+
+/* ============================================================================
+   Centre message + match-end card (hud-root.js)
+   ----------------------------------------------------------------------------
+   The CriticalEventPlus line at 0.2552 H: (0,128,255) for kills, captures,
+   returns and sprees, red where the class overrides it, big font, same linear
+   3 s fade as the announcements.
+   ========================================================================== */
+
+.ut-center {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 25.52%;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: var(--ut-msg-font);
+  font-size: var(--ut-font-big);
+  line-height: var(--ut-yl-big);
+  opacity: 0;
+}
+
+.ut-center[data-tone="team"] {
+  color: rgb(0, 128, 255);
+}
+
+.ut-center[data-tone="red"] {
+  color: rgb(255, 0, 0);
+}
+
+.ut-center.is-on {
+  animation: ut-msg-fade 3s linear forwards;
+}
+
+/* The standing final score, two lines under the winner announcement. It holds
+   until the server's match-reset, which the 3 s message cannot. */
+.ut-matchend {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(25.52% + 2 * var(--ut-yl-big));
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: var(--ut-msg-font);
+  font-size: var(--ut-font-big);
+  line-height: var(--ut-yl-big);
+  color: #fff;
+  display: none;
+}
+
+.ut-hud.is-matchover .ut-matchend {
+  display: block;
+}
+
+/* ============================================================================
+   CTF carry banners (CTFMessage2, bottom centre)
+   ----------------------------------------------------------------------------
+   switch 0 "You have the flag, return to base!" is (255,255,0) at
+   H - 2*YL - 0.0833H; switch 1 "The enemy has your flag, recover it!" is
+   (255,0,0) at H - 3*YL - 0.0833H — one line ABOVE it. Lifetime is 1 s and
+   ChallengeCTFHUD.Timer re-sends the message every second while the condition
+   holds, with bFadeMessage: full brightness on the second, fading linearly to
+   black before the next one. Hence the 1 s looping ramp rather than a blink.
+
+   The container's bottom edge is 0.0833H + one YL up, which puts the lower
+   (yellow) line's TOP at exactly H - 0.0833H - 2*YL.
+   ========================================================================== */
+
+.ut-ctfmsg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(8.33vh + var(--ut-yl-big));
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  max-width: min(420px, 44vw);
+  align-items: center;
+  pointer-events: none;
+  font-family: var(--ut-msg-font);
+  font-size: var(--ut-font-big);
+  line-height: var(--ut-yl-big);
+  white-space: nowrap;
 }
 
-.ut-killfeed__entry {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+/* visibility, not display: the enemy line must keep its line box so the yellow
+   line stays on the bottom row whether or not the red one is showing. */
+.ut-ctfmsg__line {
+  visibility: hidden;
   opacity: 0;
-  transform: translateX(-10px);
-  transition: opacity 220ms ease-out, transform 220ms ease-out;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
 }
 
-.ut-killfeed__entry.is-in {
-  opacity: 1;
-  transform: none;
+.ut-ctfmsg__line.is-on {
+  visibility: visible;
+  animation: ut-ctf-pulse 1s linear infinite;
 }
 
-.ut-killfeed__verb {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  color: rgba(255, 255, 255, 0.5);
+.ut-ctfmsg__line--mine {
+  color: rgb(255, 255, 0);
 }
 
-.ut-killfeed__name {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--ut-hue);
-  text-shadow: 0 0 12px var(--ut-glow), 0 1px 3px rgba(0, 0, 0, 0.95);
+.ut-ctfmsg__line--enemy {
+  color: rgb(255, 0, 0);
+}
+
+@keyframes ut-ctf-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* ============================================================================
@@ -1358,16 +1293,6 @@ html.a-fullscreen body > .ut-modal {
     --ut-num-size: 21px;
   }
 
-  .ut-killfeed {
-    top: 54px;
-    left: 14px;
-    max-width: 58vw;
-  }
-
-  .ut-killfeed__name {
-    font-size: 15px;
-  }
-
   #credits-container {
     width: min(340px, 76vw);
     bottom: 56px;
@@ -1446,6 +1371,123 @@ html.a-fullscreen body > .ut-modal {
         colour on the HUD.
    ========================================================================== */
 
+/* --- the rendering model: one continuous unit ------------------------------
+   ChallengeHUD.HUDSetup, verbatim:
+
+     Scale     = HUDScale * ClipX / 1280      (HUDScale 1.0)
+     StatScale = Scale * StatusScale          (= Scale)
+     WeapScale = Scale * WeaponScale          (= 0.8 * Scale)
+
+   so every length on this HUD is `k * S` with S = ClipX / 1280. S is
+   CONTINUOUS — there is no integer HudScale ladder to step at 960 / 1600 /
+   2240 — and it depends on WIDTH only: vertical positions are `ClipY - k*S`,
+   i.e. bottom-anchored in vw, never vh. 1 S = 0.078125vw, so a 128 S tile is
+   10vw at every resolution: 192px at 1920 wide, 64px at 640. */
+:root {
+  --ut-s: 0.078125vw;
+  /* The old 640-space base unit, kept for the rules that still count in base
+     pixels. It is exactly 2 S, and now scales with the window continuously
+     instead of jumping a whole step at each breakpoint. */
+  --ut-u: calc(2 * var(--ut-s));
+}
+
+/* --- HUD colour ------------------------------------------------------------
+   Every HUD texture is GREYSCALE; DrawColor tints it and STY_Translucent
+   composites it as `dst = src + dst*(1 - src)` — a SCREEN blend, which is why
+   black texels are invisible and nothing on this HUD ever darkens the world.
+
+     DM / no team   HUDColor = FavoriteHUDColor(0,0,16) * 15.9  ->   0,  0,254
+     team 1 blue    0.9375 * TeamColor[1] = 0.9375*(0,128,255)  ->   0,120,239
+     team 0 red     0.9375 * TeamColor[0]                       -> 239,  0,  0
+
+   Blue team is NOT pure blue, it is azure; only the DM default is pure blue.
+   SolidHUDColor is the same TeamColor unscaled, and it is what the held weapon
+   icon and the team score digits use.
+
+   The alphas are the atlas luminances: fill 66/255 = .26, grid 84/255 = .33,
+   3-texel border 124/255 = .49, digits 127/255 = .50. Where one is painted
+   OVER another in CSS (the grid and the border sit on the fill) the token
+   carries the alpha that COMPOSITES to the luminance, a = (target - .26)/.74,
+   because in the original the texel simply holds that value instead of
+   layering on top of the fill. */
+.ut-hud {
+  --ut-rgb: 0, 0, 254; /* HUDColor */
+  --ut-solid-rgb: 0, 0, 255; /* SolidHUDColor / TeamColor */
+
+  --ut-fill: rgba(var(--ut-rgb), 0.26); /* lum 66 */
+  --ut-grid: rgba(var(--ut-rgb), 0.095); /* -> lum 84 over the fill */
+  --ut-border: rgba(var(--ut-rgb), 0.311); /* -> lum 124 over the fill */
+  --ut-fill-flat: var(--ut-fill);
+
+  /* Glyph faces, likewise pre-composited over the 0.26 fill. */
+  --ut-glyph: rgba(var(--ut-rgb), 0.595); /* lum .70 front face */
+  --ut-glyph-hi: rgba(var(--ut-rgb), 0.865); /* lum .90 lit face */
+  --ut-glyph-lo: rgba(var(--ut-rgb), 0.257); /* lum .45 shaded face */
+  --ut-glyph-edge: rgba(var(--ut-rgb), 0.932); /* lum .95 highlight */
+  --ut-glyph-rim: rgba(var(--ut-rgb), 0.324); /* lum .50 outline */
+
+  /* BigNumbers are drawn WhiteColor + translucent: a 50% white stroke with a
+     36% rim down its right and bottom edge. For a pure-white source, alpha
+     compositing and the screen blend give the same result, so the digits need
+     no blend mode of their own. */
+  --ut-seg-on: rgba(255, 255, 255, 0.5);
+  --ut-seg-rim: rgba(255, 255, 255, 0.36);
+  /* There ARE no unlit segments — the atlas is masked and index 0 is
+     transparent. The token stays defined only so the older rules that still
+     reference it resolve to "nothing drawn". */
+  --ut-seg-off: transparent;
+  --ut-seg-glow: transparent;
+
+  /* SetDamage marks the doll RedColor whenever the HUD colour is blue-ish
+     (G > 100 or B > 100), which covers DM and blue team. */
+  --ut-dash-rgb: 255, 0, 0;
+}
+
+html[data-team="blue"] .ut-hud {
+  --ut-rgb: 0, 120, 239;
+  --ut-solid-rgb: 0, 128, 255;
+}
+
+html[data-team="red"] .ut-hud {
+  --ut-rgb: 239, 0, 0;
+  --ut-solid-rgb: 255, 0, 0;
+  /* the else branch of SetDamage: (White - HUDColor) with R forced to 255 */
+  --ut-dash-rgb: 255, 255, 255;
+}
+
+/* --- the box: every status tile is this one material -----------------------
+   HudElements1's four 128x64 boxes (skull / cross / shield / bullets) and the
+   doll share one background: a flat fill, a 2-texel grid on a 17-texel pitch,
+   and a 3-texel border. Measured on the atlas:
+
+     fill    lum 66  (.26)
+     grid    lum 84  (.33)  2 texels, pitch 17, first line at x 12-13, y 14-15
+     border  lum 124 (.49)  3 texels, all round
+
+   No gradient, no bevel, no rounding, no glow. `mix-blend-mode: screen` is the
+   STY_Translucent composite; over the black sky it is identical to painting
+   the same alpha, and over anything bright it is the reason the HUD never
+   darkens what is behind it. */
+.ut-tile {
+  position: absolute;
+  mix-blend-mode: screen;
+  border-radius: 0;
+  background-color: var(--ut-fill);
+  background-image: repeating-linear-gradient(
+      to right,
+      transparent 0 calc(12 * var(--ut-s)),
+      var(--ut-grid) calc(12 * var(--ut-s)) calc(14 * var(--ut-s)),
+      transparent calc(14 * var(--ut-s)) calc(17 * var(--ut-s))
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 calc(14 * var(--ut-s)),
+      var(--ut-grid) calc(14 * var(--ut-s)) calc(16 * var(--ut-s)),
+      transparent calc(16 * var(--ut-s)) calc(17 * var(--ut-s))
+    );
+  box-shadow: inset 0 0 0 calc(3 * var(--ut-s)) var(--ut-border);
+}
+
 /* --- flat panels ---------------------------------------------------------- */
 .ut-panel,
 .ut-panel__in {
@@ -1461,88 +1503,301 @@ html.a-fullscreen body > .ut-modal {
   background: linear-gradient(var(--ut-plate-top), var(--ut-plate-bot)) !important;
 }
 
-/* --- seven-segment digits -------------------------------------------------- */
+/* --- BigNumbers (HudElements1 rows 0..63) ----------------------------------
+   Pixel dump of the 0 / 1 / 8 cells:
+
+     cell      25 x 64 texels
+     glyph     cols 0..21, rows 0..35 — at the TOP of the cell; rows 36..63 are
+               empty, so the ink stops 36S below the DrawBigNum origin
+     stroke    5 texels core + a 1-texel darker rim on the RIGHT and BOTTOM
+               (lum 127 core, 93 rim) = 6 texels of visible bar
+     verticals cols 0..4 (+rim 5) and 15..19 (+rim 20)
+     joints    every corner is broken by a 1-2 texel diagonal gap, and both
+               ends of every bar are 45-degree mitres
+     digit 1   cols 15..21 only — right-aligned in its cell
+
+   Nothing else is in the texture: the UNLIT SEGMENTS ARE NOT DRAWN. There are
+   no ghost bars and a blank leading cell draws nothing at all.
+
+   Kerning (DrawDigit / DrawBigNum, Step = 16 * UpScale):
+
+     CurX -= (d == 1 ? 0.625 : 0.25) * Step      -> margin-left -10S / -4S
+     DrawTile 25S wide                            (Canvas advances CurX by 25S)
+     CurX += 7 * UpScale                          -> margin-right +7S
+
+   so the pitch is 25 - 4 + 7 = 28 S, and a "1" pulls only itself 6 S left. */
 .ut-num {
   display: flex;
-  gap: 0.14em;
-  font-size: 26px; /* the em box every segment is sized from */
-  line-height: 1;
+  align-items: flex-start;
+  gap: 0;
+  font-size: 0;
+  line-height: 0;
+  text-shadow: none;
 }
 
 .ut-seg {
   position: relative;
-  width: 0.62em;
-  height: 1.06em;
+  flex: 0 0 auto;
+  width: calc(25 * var(--ut-s));
+  height: calc(64 * var(--ut-s));
+  margin-left: calc(-4 * var(--ut-s));
+  margin-right: calc(7 * var(--ut-s));
+}
+.ut-seg.is-one {
+  margin-left: calc(-10 * var(--ut-s));
 }
 
+/* A blank cell is not drawn and does not advance: DrawBigNum accounts for the
+   leading blanks by moving the field start, which .ut-num's padding does. */
+.ut-seg.is-blank {
+  display: none;
+}
+
+/* Unlit segments do not exist in the atlas. Only `.is-on` is painted. */
 .ut-seg i {
+  display: none;
   position: absolute;
-  background: var(--ut-seg-off);
-  transition: background 60ms linear;
+  background: none;
+  box-shadow: none;
 }
 .ut-seg i.is-on {
-  background: var(--ut-seg-on);
-  box-shadow: 0 0 6px var(--ut-seg-glow);
+  display: block;
 }
 
-/* Bars are drawn as rectangles with mitred ends, which is what a segment
-   display actually looks like — a hexagon, not a rounded pill. */
-.ut-seg__a,
-.ut-seg__d,
-.ut-seg__g {
-  left: 0.1em;
-  width: 0.42em;
-  height: 0.1em;
-  clip-path: polygon(0.06em 0, calc(100% - 0.06em) 0, 100% 50%, calc(100% - 0.06em) 100%, 0.06em 100%, 0 50%);
+/* Bars are 6 texels thick including the rim, mitred 3 texels (half the
+   thickness) at both ends, and pulled back 0.8 texels at every joint so the
+   corners keep the dark diagonal notch the atlas has. */
+/* The selectors carry `i` so they outrank the `.ut-seg i` reset above, which
+   is what switches the unlit segments off. */
+.ut-seg i.ut-seg__a,
+.ut-seg i.ut-seg__d,
+.ut-seg i.ut-seg__g {
+  left: calc(0.8 * var(--ut-s));
+  width: calc(19.4 * var(--ut-s));
+  height: calc(6 * var(--ut-s));
+  background: linear-gradient(
+    to bottom,
+    var(--ut-seg-on) 0 calc(5 * var(--ut-s)),
+    var(--ut-seg-rim) calc(5 * var(--ut-s)) 100%
+  );
+  clip-path: polygon(
+    0 50%,
+    calc(3 * var(--ut-s)) 0,
+    calc(100% - 3 * var(--ut-s)) 0,
+    100% 50%,
+    calc(100% - 3 * var(--ut-s)) 100%,
+    calc(3 * var(--ut-s)) 100%
+  );
 }
-.ut-seg__a { top: 0; }
-.ut-seg__g { top: 0.48em; }
-.ut-seg__d { bottom: 0; }
+.ut-seg i.ut-seg__a { top: 0; }
+.ut-seg i.ut-seg__g { top: calc(15 * var(--ut-s)); }
+.ut-seg i.ut-seg__d { top: calc(30 * var(--ut-s)); }
 
-.ut-seg__b,
-.ut-seg__c,
-.ut-seg__e,
-.ut-seg__f {
-  width: 0.1em;
-  height: 0.42em;
-  clip-path: polygon(0 0.06em, 50% 0, 100% 0.06em, 100% calc(100% - 0.06em), 50% 100%, 0 calc(100% - 0.06em));
+.ut-seg i.ut-seg__b,
+.ut-seg i.ut-seg__c,
+.ut-seg i.ut-seg__e,
+.ut-seg i.ut-seg__f {
+  width: calc(6 * var(--ut-s));
+  height: calc(13.4 * var(--ut-s));
+  background: linear-gradient(
+    to right,
+    var(--ut-seg-on) 0 calc(5 * var(--ut-s)),
+    var(--ut-seg-rim) calc(5 * var(--ut-s)) 100%
+  );
+  clip-path: polygon(
+    50% 0,
+    100% calc(3 * var(--ut-s)),
+    100% calc(100% - 3 * var(--ut-s)),
+    50% 100%,
+    0 calc(100% - 3 * var(--ut-s)),
+    0 calc(3 * var(--ut-s))
+  );
 }
-.ut-seg__f { left: 0; top: 0.06em; }
-.ut-seg__b { right: 0; top: 0.06em; }
-.ut-seg__e { left: 0; bottom: 0.06em; }
-.ut-seg__c { right: 0; bottom: 0.06em; }
-
-/* Damage states recolour the lit bars only; the ghosts stay cold. */
-.ut-meter--health[data-level="warn"] .ut-seg i.is-on { background: var(--ut-warn); box-shadow: 0 0 7px var(--ut-warn-glow); }
-.ut-meter--health[data-level="crit"] .ut-seg i.is-on,
-.ut-meter--ammo[data-level="crit"] .ut-seg i.is-on { background: var(--ut-crit); box-shadow: 0 0 8px var(--ut-crit-glow); }
+.ut-seg i.ut-seg__f { left: 0; top: calc(3.8 * var(--ut-s)); }
+.ut-seg i.ut-seg__b { left: calc(15 * var(--ut-s)); top: calc(3.8 * var(--ut-s)); }
+.ut-seg i.ut-seg__e { left: 0; top: calc(18.8 * var(--ut-s)); }
+.ut-seg i.ut-seg__c { left: calc(15 * var(--ut-s)); top: calc(18.8 * var(--ut-s)); }
 
 .ut-meter--ammo.is-reloading .ut-seg i.is-on { animation: ut-seg-blink 0.42s steps(1) infinite; }
 @keyframes ut-seg-blink { 50% { background: var(--ut-seg-off); box-shadow: none; } }
 
-/* --- top right: armour over health, doll beside ---------------------------- */
+/* --- top right: armour over health, doll on the corner ---------------------
+   ChallengeHUD.DrawStatus, in S:
+
+     doll   Icons.Man (0,0,128,256) at (W - 128S, 0), 128 x 256
+     shield HudElements1 (0,192,128,64) at (W - 128S - 140S, 0),  128 x 64
+     cross  HudElements1 (128,128,128,64) at the same X, Y = 64S, 128 x 64
+     digits DrawBigNum(value, X + 4S, Y + 16S)
+
+   So: two tiles stacked FLUSH — no gap, no divider, no shared frame; each
+   carries its own 3-texel border, so the seam reads as a double rule — and a
+   12 S gap between them and the doll. The glyph is part of the tile art and
+   lives in the tile's right 30%; the digits are a separate pass over it. */
 .ut-vitals-bay {
   position: absolute;
-  top: 14px;
-  right: 16px;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  top: 0;
+  right: 0;
+  width: calc(268 * var(--ut-s)); /* 20.9375vw: doll + gap + box */
+  height: calc(256 * var(--ut-s));
+  pointer-events: none;
 }
 
-.ut-vitals .ut-panel__in {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 6px 10px;
+.ut-vital {
+  position: absolute;
+  right: calc(140 * var(--ut-s)); /* 10.9375vw */
+  width: calc(128 * var(--ut-s)); /* 10vw */
+  height: calc(64 * var(--ut-s)); /* 5vw */
+  mix-blend-mode: screen;
+}
+.ut-vital--armor { top: 0; }
+.ut-vital--health { top: calc(64 * var(--ut-s)); }
+
+/* The tile art — box plus glyph — is its own layer because below 50 health it
+   ramps and the digits over it do not ramp with it. */
+.ut-vital__art {
+  inset: 0;
 }
 
-/* The divider between armour and health is a rule inside one panel, not two
-   separate panels stacked. */
-.ut-vitals .ut-meter + .ut-meter {
-  border-top: 1px solid var(--ut-edge-top);
-  margin-top: 5px;
-  padding-top: 5px;
+.ut-vital__glyph {
+  position: absolute;
+}
+.ut-vital__glyph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+/* Health cross: pixel-dumped from HudElements1 (128,128,128,64) at ink
+   threshold 140 — the ink runs cols 79..122 / rows 9..52 of the tile, i.e. a
+   44 x 44 isometric plus at (79S, 9S). The stem is cols 93..106 (14 texels)
+   running the full 44 rows; the band crosses the whole 44 and drops ~5 texels
+   from the left arm to the right one, which is the whole of its perspective. */
+.ut-vital--health .ut-vital__glyph {
+  left: calc(79 * var(--ut-s));
+  top: calc(9 * var(--ut-s));
+  width: calc(44 * var(--ut-s));
+  height: calc(44 * var(--ut-s));
+}
+/* Armour shield: atlas cols 84..123, rows 196..250 -> 40 x 55 at (84S, 4S). */
+.ut-vital--armor .ut-vital__glyph {
+  left: calc(84 * var(--ut-s));
+  top: calc(4 * var(--ut-s));
+  width: calc(40 * var(--ut-s));
+  height: calc(55 * var(--ut-s));
+}
+.ut-vital__glyph .ut-glyph-face { fill: var(--ut-glyph); stroke: none; }
+.ut-vital__glyph .ut-glyph-lit { fill: var(--ut-glyph-hi); stroke: none; }
+.ut-vital__glyph .ut-glyph-dark { fill: var(--ut-glyph-lo); stroke: none; }
+.ut-vital__glyph .ut-glyph-hi { fill: var(--ut-glyph-edge); stroke: none; }
+/* The shield's interior is the box fill showing through (atlas lum 66..110
+   against a 66 fill), so only its rim is painted. */
+.ut-vital__glyph .ut-glyph-rim {
+  fill: none;
+  stroke: var(--ut-glyph-rim);
+  stroke-width: 2;
+}
+
+/* Digits: origin (tile + 4S, tile + 16S), glyph 36S tall from there. */
+.ut-vital .ut-num {
+  position: absolute;
+  left: calc(4 * var(--ut-s));
+  top: calc(16 * var(--ut-s));
+}
+
+/* --- Health < 50 -----------------------------------------------------------
+   TutIconBlink is a 0 -> 0.5 s sawtooth. With H1 = 1.5*TutIconBlink and
+   H2 = 1 - H1:
+
+     cross tile = White*H2 + (HUDColor - White)*H1. The second term clamps to
+     black for every HUD colour, so the TILE turns WHITE and its brightness
+     ramps 100% -> 25% across each half second, then snaps back.
+     digits     = White*(H2^2 + H1^2): 100% -> 53% at t=0.25 -> 62.5% at t=0.5,
+     then snap. They dim and recover; they never switch off and never change
+     hue. Health >= 50 animates nothing, and 25 is not a threshold at all. */
+.ut-vital--health.is-low {
+  --ut-rgb: 255, 255, 255;
+  /* A custom property's value is substituted where it is DECLARED, so the
+     derived tokens above are already frozen to the HUD colour by the time they
+     inherit down here — re-pointing --ut-rgb alone changes nothing. Each
+     derived token has to be restated at the same alpha in white. */
+  --ut-fill: rgba(255, 255, 255, 0.26);
+  --ut-fill-flat: rgba(255, 255, 255, 0.26);
+  --ut-grid: rgba(255, 255, 255, 0.095);
+  --ut-border: rgba(255, 255, 255, 0.311);
+  --ut-glyph: rgba(255, 255, 255, 0.595);
+  --ut-glyph-hi: rgba(255, 255, 255, 0.865);
+  --ut-glyph-lo: rgba(255, 255, 255, 0.257);
+  --ut-glyph-edge: rgba(255, 255, 255, 0.932);
+  --ut-glyph-rim: rgba(255, 255, 255, 0.324);
+}
+.ut-vital--health.is-low .ut-vital__art {
+  animation: ut-low-tile 0.5s linear infinite;
+}
+@keyframes ut-low-tile {
+  from { opacity: 1; }
+  to { opacity: 0.25; }
+}
+.ut-vital--health.is-low .ut-num {
+  animation: ut-low-digits 0.5s linear infinite;
+}
+@keyframes ut-low-digits {
+  0% { opacity: 1; }
+  50% { opacity: 0.53; }
+  100% { opacity: 0.625; }
+}
+
+/* --- the paper doll (Icons.Man, 128 x 256) ---------------------------------
+   Fill lum 90 (.35) under a 4-texel-pitch wireframe grid at lum 138 (.54) and
+   a lum 255 outline. No glow, no health tint, no hit blink — the only thing
+   that ever changes on it is the chest plate brightening with armour and the
+   red damage markers. The grid's alpha is pre-composited over the fill the
+   same way the box grid is: (.54 - .35) / .65 = .292. */
+.ut-doll {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: calc(128 * var(--ut-s)); /* 10vw */
+  height: calc(256 * var(--ut-s)); /* 20vw */
+  mix-blend-mode: screen;
+  filter: none;
+  opacity: 1;
+}
+.ut-doll svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ut-doll__fill { fill: rgba(var(--ut-rgb), 0.35); }
+.ut-doll__grid { fill: url(#ut-doll-grid); }
+#ut-doll-grid path {
+  fill: none;
+  stroke: rgba(var(--ut-rgb), 0.292);
+  stroke-width: 1;
+}
+.ut-doll__edge {
+  fill: none;
+  stroke: rgba(var(--ut-rgb), 1);
+  stroke-width: 2;
+}
+.ut-doll__panel { fill: rgba(var(--ut-rgb), 1); }
+/* Chest overlay, drawn at HUDColor * Min(ChestAmount/100, 1). */
+.ut-doll__plate {
+  fill: rgba(var(--ut-rgb), 0.5);
+  opacity: var(--ut-chest, 0);
+}
+
+/* Damage markers: the HudElements1 minus tile at HitPos, sized
+   25*HitDamage x 64*HitDamage with HitDamage = Clamp(dmg*0.06, 2, 4), for one
+   second, up to four at a time. Red over a blue-ish HUD; there is no screen
+   vignette and no doll tint anywhere in ChallengeHUD. */
+.ut-doll__hits {
+  position: absolute;
+  inset: 0;
+}
+.ut-dash {
+  position: absolute;
+  background: rgba(var(--ut-dash-rgb), 1);
+  clip-path: polygon(0 50%, 20% 0, 80% 0, 100% 50%, 80% 100%, 20% 100%);
 }
 
 /* Number first, glyph to its right — the order in the original. */
@@ -1576,100 +1831,702 @@ html.a-fullscreen body > .ut-modal {
 .ut-disc__glyph svg { width: 26px; height: 26px; }
 .ut-disc__glyph svg * { fill: var(--ut-hue-deep); stroke: var(--ut-hue-deep); }
 
-/* The doll sits OUTSIDE the panel, to its right, standing on nothing. */
-.ut-doll {
-  position: static !important;
-  width: 62px;
-  height: 96px;
-}
+/* --- bottom edge: frag box | ten weapon slots | ammo box --------------------
+   ChallengeHUD.DrawFragCount / DrawAmmo / DrawWeapons, in the ONE unit the
+   source uses: S = ClipX / 1280, continuous, width-only, = 0.078125vw. There is
+   no strip and no integer HudScale ladder. Three separate islands sit on the
+   bottom edge and the world shows through between them:
 
-/* --- bottom strip ---------------------------------------------------------- */
+     frag tile   SetPos(0,            H - 63.5 S) 128 S x 64 S   -> 10vw x 5vw
+     slot i      SetPos(0.1W + (i-1)*0.08W, H - 50.8 S) 102.4 x 51.2 S -> 8 x 4vw
+     ammo tile   SetPos(W - 128 S,    H - 63.5 S) 128 S x 64 S   -> 10vw x 5vw
+
+   so the row reads [frag 0..10vw][slot1 10..18] ... [slot10 82..90][ammo 90..100]
+   and the two corner boxes stand 1vw taller than the slots and 0.4 S lower. Both
+   overhang the bottom edge by 0.5 S: the tile's own 3-texel border is cut off
+   there, which is why they look open at the bottom in the original.
+
+   MATERIAL. Every HUD texture is GREYSCALE and DrawColor tints it, composited
+   STY_Translucent (a screen blend). The alphas below are the measured texel
+   luminances of the real atlas divided by 255, which is that blend's close
+   approximation over a dark world:
+
+     HudElements1 128x64 box (skull / bullets / cross / shield tiles)
+       border 3 texels lum 124 = .486   fill lum 66 = .259
+       grid   2 texels lum  84 = .329   pitch 17 texels, offset x 12 / y 14
+     HUDWeapons 64x32 empty cell, drawn 2x and at 0.5 * HUDColor
+       interior is a vertical ramp lum 102 -> 21, border 1 texel lum 122 -> 41,
+       so the halved cell runs .20 at the top to .04 at the bottom: barely there
+     UseAutoM 128x64, the HELD slot, drawn STY_Normal (Opacity 15 > 8) = OPAQUE
+       border lum 122 = .478  number recess lum 96 = .376  fill lum 67 = .263
+       grid lum 83 = .325  weapon silhouette lum 1 = BLACK
+   -------------------------------------------------------------------------- */
 .ut-bar {
+  /* The two colours DrawWeapons actually uses. HUDColor is the opacity-scaled
+     tint every translucent tile gets; SolidHUDColor is the unscaled team colour
+     the OPAQUE held slot is drawn in. Defaults are the DM pair
+     (FavoriteHUDColor * 15.9 = 0,0,254); the team rules below replace both.
+     Lengths are in the shared `--ut-s` = S = ClipX / 1280 = 0.078125vw. */
+  --ut99-hue: 0, 0, 254; /* HUDColor */
+
+  /* SolidHUDColor pre-multiplied by each texel luminance, because the held slot
+     is opaque: there is no alpha to do it with. */
+  --ut99-sol-fill: #000043; /* 0,0,254 x .263 */
+  --ut99-sol-grid: #000053; /* x .325 */
+  --ut99-sol-panel: #000060; /* x .376 */
+  --ut99-sol-line: #000079; /* x .478 */
+
+  --ut99-gold: rgba(255, 255, 0, 0.584); /* GoldColor x the bracket's lum 149 */
+  --ut99-gold-num: #7f7f00; /* GoldColor x the digit's lum 127, OPAQUE */
+
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
+  height: 5vw; /* 64 S: the corner boxes set it, the slots are shorter */
+  display: block;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: 0;
+  pointer-events: none;
+}
+
+/* ChallengeTeamHUD.HUDSetup: HUDColor = Opacity * 0.0625 * TeamColor[team],
+   SolidHUDColor = TeamColor[team]. Blue is (0,128,255) AZURE, not pure blue. */
+html[data-team="red"] .ut-bar {
+  --ut99-hue: 239, 0, 0;
+  --ut99-sol-fill: #430000;
+  --ut99-sol-grid: #530000;
+  --ut99-sol-panel: #600000;
+  --ut99-sol-line: #7a0000;
+}
+html[data-team="blue"] .ut-bar {
+  --ut99-hue: 0, 120, 239;
+  --ut99-sol-fill: #002243;
+  --ut99-sol-grid: #002a53;
+  --ut99-sol-panel: #003060;
+  --ut99-sol-line: #003d7a;
+}
+
+/* The 128x64 tile the frag and ammo boxes share with the health and armour
+   boxes: flat fill, a 17-texel grid, a 3-texel border. No bevel, no gradient,
+   no rounding. The grid is two single-line gradients tiled at the pitch so the
+   phase stays exact at any width instead of breaking at the box edge. */
+.ut-box {
+  position: absolute;
+  background-color: rgba(var(--ut99-hue), 0.259);
+  background-image: linear-gradient(
+      to right,
+      rgba(var(--ut99-hue), 0.089) 0 calc(2 * var(--ut-s)),
+      transparent calc(2 * var(--ut-s))
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(var(--ut99-hue), 0.089) 0 calc(2 * var(--ut-s)),
+      transparent calc(2 * var(--ut-s))
+    );
+  background-size: calc(17 * var(--ut-s)) 100%, 100% calc(17 * var(--ut-s));
+  background-position: calc(12 * var(--ut-s)) 0, 0 calc(14 * var(--ut-s));
+  background-repeat: repeat, repeat;
+  /* 0.311, not 0.486: the border texel is lum 124 (.49) OUTRIGHT, and this
+     shadow is painted OVER the .259 fill, so the alpha that composites to .49
+     is (0.49 - 0.259) / 0.741 = 0.311 — the same number .ut-tile uses. */
+  box-shadow: inset 0 0 0 calc(3 * var(--ut-s)) rgba(var(--ut99-hue), 0.311);
+  border-radius: 0;
+  /* STY_Translucent is dst + dst*(1-src): a SCREEN blend. Nothing on this HUD
+     may darken the world, and these are the same four boxes as the cross and
+     shield tiles two inches away, which already screen. */
+  mix-blend-mode: screen;
+}
+
+/* --- the frag box (DrawFragCount) ------------------------------------------
+   Drawn in DM *and* CTF: bHideFrags is false by default and ChallengeCTFHUD
+   never overrides DrawFragCount. X is an uninitialised local int, i.e. 0. */
+.ut-frags {
+  left: 0;
+  bottom: calc(-0.5 * var(--ut-s));
+  width: 10vw; /* 128 S */
+  height: 5vw; /* 64 S */
+}
+
+/* HudElements1 (0,128,128,64): the skull sits on the LEFT of the tile, ink bbox
+   cols 8..39 rows 9..56, leaving cols 40..127 for the digits. */
+.ut-frags__skull {
+  position: absolute;
+  left: calc(8 * var(--ut-s));
+  top: calc(9 * var(--ut-s));
+  width: calc(32 * var(--ut-s));
+  height: calc(48 * var(--ut-s));
+}
+
+.ut-frags__skull svg,
+.ut-ammo-bay__bullets svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The atlas is grey and HUDColor tints it, so every tone in the glyph is one
+   hue at the texel's own luminance. */
+.ut-frags__skull .g-body,
+.ut-ammo-bay__bullets .g-body {
+  fill: rgba(var(--ut99-hue), 0.55);
+}
+.ut-frags__skull .g-hi,
+.ut-ammo-bay__bullets .g-hi {
+  fill: rgba(var(--ut99-hue), 0.88);
+}
+.ut-frags__skull .g-mid,
+.ut-ammo-bay__bullets .g-mid {
+  fill: rgba(var(--ut99-hue), 0.72);
+}
+/* Sockets, nasal cavity and tooth gaps are DARKER than the tile fill, so under
+   a screen blend they read as the world showing through: draw nothing. */
+.ut-frags__skull .g-hole {
+  fill: rgba(0, 0, 0, 0.35);
+}
+
+/* Score flash (DrawFragCount): for 3 s after ScoreTime the tile colour is
+   Gold + (HUDColor - Gold) * frac(4t) — a 4 Hz sawtooth from gold back to the
+   HUD colour — with a soft gold glow tile (HUDWeapons 0,128,256,128) drawn at
+   256 S x 128 S centred on the box behind it. */
+.ut-frags.is-scored {
+  animation: ut-frag-score 3s linear 1;
+}
+
+@keyframes ut-frag-score {
+  0%,
+  8.33%,
+  16.67%,
+  25%,
+  33.33%,
+  41.67%,
+  50%,
+  58.33%,
+  66.67%,
+  75%,
+  83.33%,
+  91.67% {
+    background-color: rgba(255, 255, 0, 0.55);
+  }
+  8.32%,
+  16.66%,
+  24.99%,
+  33.32%,
+  41.66%,
+  49.99%,
+  58.32%,
+  66.66%,
+  74.99%,
+  83.32%,
+  91.66%,
+  100% {
+    background-color: rgba(var(--ut99-hue), 0.259);
+  }
+}
+
+/* The glow blob. The source draws it BEHIND the tile; at these alphas over a
+   translucent tile the difference is not visible, so it is drawn on top and
+   kept out of the hit-testing path. */
+.ut-frags__flash {
+  position: absolute;
+  left: calc(-64 * var(--ut-s));
+  top: calc(-32 * var(--ut-s));
+  width: calc(256 * var(--ut-s));
+  height: calc(128 * var(--ut-s));
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(255, 255, 0, 0.34) 0%,
+    rgba(255, 255, 0, 0.16) 42%,
+    rgba(255, 255, 0, 0) 72%
+  );
+}
+
+.ut-frags.is-scored .ut-frags__flash {
+  animation: ut-frag-glow 3s linear 1;
+}
+
+@keyframes ut-frag-glow {
+  0%,
+  95% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* --- ten weapon slots (DrawWeapons) ----------------------------------------
+   BaseX = 0.1 W, pitch WeaponOffset = 0.08 W, tile 128 x 64 at WeapScale 0.8:
+   8vw x 4vw, edge to edge, no gap. All ten are always drawn. */
+.ut-weapons {
+  position: absolute;
+  left: 10vw;
+  bottom: calc(-0.4 * var(--ut-s));
+  width: 80vw;
+  height: 4vw; /* 51.2 S */
   display: flex;
-  align-items: flex-end;
   gap: 0;
   padding: 0;
-  background: linear-gradient(var(--ut-plate-top), var(--ut-plate-bot));
-  border-top: 1px solid var(--ut-edge-top);
+  margin: 0;
+  transform: none;
 }
 
-.ut-weapons {
-  display: flex;
-  gap: 4px;
-  padding: 4px 8px;
-}
-
-.ut-ammo-bay {
-  margin-left: auto;
-  padding: 4px 14px 4px 10px;
-  border-left: 1px solid var(--ut-edge-top);
-}
-
-/* --- the held weapon slot: yellow corner bracket ---------------------------- */
-.ut-wslot.is-active .ut-panel__in,
-.ut-wslot.is-active {
-  background: transparent !important;
-}
-.ut-wslot.is-active {
+/* EMPTY and OWNED-BUT-NOT-HELD slots are the SAME cell: HUDWeapons
+   ((i-1)%4*64, (i-1)/4*32, 64, 32) at 0.5 * HUDColor, translucent. The cell art
+   is a vertical ramp with a 1-texel border and a ghost outline of that group's
+   weapon, so at half strength it is a very dim box you can see the map through.
+   One texel of the doubled cell is 0.125vw. */
+.ut-wslot {
   position: relative;
-  outline: none;
+  flex: 0 0 8vw;
+  width: 8vw;
+  height: 4vw;
+  opacity: 1;
+  border-radius: 0;
+  background-color: transparent;
+  background-image: linear-gradient(
+      to bottom,
+      rgba(var(--ut99-hue), 0.137) 0%,
+      rgba(var(--ut99-hue), 0.041) 100%
+    ),
+    linear-gradient(
+      to right,
+      rgba(var(--ut99-hue), 0.03) 0 0.125vw,
+      transparent 0.125vw
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(var(--ut99-hue), 0.03) 0 0.125vw,
+      transparent 0.125vw
+    );
+  background-size: 100% 100%, 1vw 100%, 100% 1vw;
+  background-position: 0 0, 0.125vw 0, 0 0.875vw;
+  background-repeat: no-repeat, repeat, repeat;
+  /* the cell border: bright along the top, fading to a fifth of that at the
+     bottom, which is what gives the empty bar its horizon line */
+  box-shadow: inset 0 0 0 0.125vw rgba(var(--ut99-hue), 0.14),
+    inset 0 0.125vw 0 0 rgba(var(--ut99-hue), 0.24);
+  /* Translucent cell -> STY_Translucent -> screen, like every other tile. */
+  mix-blend-mode: screen;
 }
-/* Four L-shaped corners rather than a full box — the original brackets the slot,
-   it does not outline it. */
-.ut-wslot.is-active::before,
+
+/* The left tenth of the cell is the recess the slot number sits in — a shade
+   lighter than the box behind it in both the empty cell and the held tile. */
+.ut-wslot::before {
+  content: "";
+  position: absolute;
+  left: 0.125vw;
+  top: 0.125vw;
+  width: 1.25vw;
+  height: calc(100% - 0.25vw);
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--ut99-hue), 0.08),
+    rgba(var(--ut99-hue), 0)
+  );
+}
+
+/* THE HELD SLOT. W.StatusIcon (UseAutoM) at SolidHUDColor, STY_Normal: the one
+   OPAQUE thing on the HUD. Tinted grid box, lighter number recess, a black
+   weapon silhouette and the black recess the ammo bar runs in. One texel of the
+   128x64 tile is 0.0625vw here. */
+.ut-wslot.is-active {
+  background-color: #000;
+  background-image: linear-gradient(
+      to right,
+      var(--ut99-sol-grid) 0 0.125vw,
+      transparent 0.125vw
+    ),
+    linear-gradient(to bottom, var(--ut99-sol-grid) 0 0.125vw, transparent 0.125vw),
+    linear-gradient(var(--ut99-sol-fill), var(--ut99-sol-fill));
+  background-size: 1.0625vw 100%, 100% 1.0625vw, 100% 100%;
+  background-position: 0.75vw 0, 0 0.875vw, 0 0;
+  background-repeat: repeat, repeat, no-repeat;
+  box-shadow: inset 0 0 0 0.1875vw var(--ut99-sol-line);
+  /* W.StatusIcon is drawn STY_Normal — the one OPAQUE tile on the HUD, so it
+     is also the one tile that does not screen. */
+  mix-blend-mode: normal;
+}
+
+.ut-wslot.is-active::before {
+  left: 0.1875vw;
+  top: 0.1875vw;
+  width: 1.25vw;
+  height: 2.5vw;
+  background: var(--ut99-sol-panel);
+}
+
+/* The recess the ammo bar sits in: black in the tile art, cols 3..98 rows
+   50..60 of the 128x64 held tile. Only the held slot's art has one. */
 .ut-wslot.is-active::after {
   content: "";
   position: absolute;
-  inset: -3px;
+  left: 0.1875vw;
+  top: 3.125vw;
+  width: 5.9375vw;
+  height: 0.6875vw;
+  background: #000;
   pointer-events: none;
-  border: 2px solid var(--ut-bracket);
 }
-.ut-wslot.is-active::before {
-  clip-path: polygon(0 0, 38% 0, 38% 12%, 12% 12%, 12% 38%, 0 38%,
-                     0 62%, 12% 62%, 12% 88%, 38% 88%, 38% 100%, 0 100%);
-}
-.ut-wslot.is-active::after {
-  clip-path: polygon(100% 0, 62% 0, 62% 12%, 88% 12%, 88% 38%, 100% 38%,
-                     100% 62%, 88% 62%, 88% 88%, 62% 88%, 62% 100%, 100% 100%);
-}
-.ut-wslot.is-active .ut-wslot__key { color: var(--ut-bracket); }
 
-/* Unowned slots show their number and nothing else, dimmed. */
-.ut-wslot:not(.is-owned) .ut-panel__in { background: rgba(10, 12, 52, 0.28) !important; }
-.ut-wslot:not(.is-owned) .ut-wslot__key { opacity: 0.4; }
+/* Slot number: HudElements1 digit i (0 for slot 10) at 0.75 * WeapScale * 25 x
+   64, so a 15 S x 38.4 S cell whose glyph is 13.2 S x 21.6 S, at
+   (slotX + 4 WeapScale, BaseY + 4 WeapScale) = (3.2 S, 3.2 S). GoldColor,
+   STY_Normal -> OPAQUE gold at the glyph's own 50% luminance = (127,127,0).
+   Drawn for every owned slot, the held one included. */
+.ut-wslot__key {
+  position: absolute;
+  left: 0.25vw; /* 3.2 S */
+  top: 0.25vw;
+  z-index: 2;
+  /* The digit is the SAME atlas cell the big numbers use, drawn at 0.75 of the
+     weapon scale — so rather than restate the glyph, shrink the unit the shared
+     `.ut-seg` model measures itself in: 0.6 S gives a 15 S x 38.4 S cell whose
+     glyph is 13.2 S x 21.6 S, which is what DrawTile produces. */
+  --ut-s: calc(0.6 * 0.078125vw);
+  /* GoldColor x the glyph's own texels (core lum 127, rim 93), OPAQUE: this one
+     tile is drawn STY_Normal, so it is the only flat colour on the bar. */
+  --ut-seg-on: #7f7f00;
+  --ut-seg-rim: #5d5d00;
+  /* GoldColor STY_Normal: opaque, and its own blend so the cell's screen
+     composite never reaches it. */
+  mix-blend-mode: normal;
+}
 
-/* The frag chip and TAB hint keep the same flat idiom as everything else. */
-.ut-chip--frags,
+/* DrawTile, not DrawBigNum: the slot number is placed outright at
+   (4 WeapScale, 4 WeapScale) with no kerning walk, so the shared cell's
+   advance margins have to come off. */
+.ut-wslot__key .ut-seg {
+  margin: 0;
+}
+
+/* The weapon itself. Held: the SOLID BLACK silhouette of UseAutoM, ink bbox
+   cols 40..108 rows 8..42 of the 128x64 tile. Not held: the same weapon as the
+   1-texel ghost OUTLINE the HUDWeapons cell carries, at 0.5 * HUDColor. */
+.ut-wslot__icon {
+  position: absolute;
+  left: 2.5vw; /* 40 texels x 0.0625vw */
+  top: 0.5vw;
+  width: 4.3125vw;
+  height: 2.1875vw;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ut-wslot__icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.ut-wslot__icon svg path {
+  fill: none;
+  stroke: rgba(var(--ut99-hue), 0.098);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.ut-wslot.is-active .ut-wslot__icon svg path {
+  fill: #000;
+  stroke: var(--ut99-sol-line);
+  stroke-width: 1;
+}
+
+/* Per-slot ammo bar: HudElements1 (64,64,128,8) drawn AmmoScale x 8 WeapScale
+   at (slotX + 3.2 S, BaseY + 41.6 S) in BaseColor (white), so the texture keeps
+   its own colour: a flat (255,236,0) band over the top quarter and an
+   orange->yellow gradient (255,108,0) -> (255,244,0) under it. The full
+   128-texel gradient is mapped onto the CURRENT width — it squashes, it does
+   not clip — which is what a percentage-free linear-gradient already does.
+   Max width is 88 * WeapScale = 70.4 S = 5.5vw. (Epic's FClamp caps the result
+   at 88 *pixels*, so above 1600 px wide the real bar stops growing; the
+   continuous 5.5vw is kept here for the same reason the scale is continuous.)
+   Width is written by hud-root.js in vw. */
+.ut-wslot__ammo {
+  position: absolute;
+  left: 0.25vw; /* 3.2 S */
+  top: 3.25vw; /* 41.6 S */
+  height: 0.5vw; /* 6.4 S */
+  width: 0;
+  max-width: 5.5vw; /* 70.4 S */
+  z-index: 2;
+  background-image: linear-gradient(to bottom, #ffec00 0 25%, transparent 25%),
+    linear-gradient(to right, #ff6c00, #fff400);
+  background-size: 100% 100%, 100% 100%;
+}
+
+/* Selection bracket: HUDWeapons (128,64,128,64) at slot size, GoldColor,
+   translucent. Four corners and nothing else — 3 texels thick (0.1875vw),
+   horizontal arms 12 texels (0.75vw), vertical arms 14 texels (0.875vw), at the
+   tile's own luminance 149. */
+.ut-wslot.is-active .ut-wslot__bracket {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background-image: linear-gradient(var(--ut99-gold), var(--ut99-gold)),
+    linear-gradient(var(--ut99-gold), var(--ut99-gold)),
+    linear-gradient(var(--ut99-gold), var(--ut99-gold)),
+    linear-gradient(var(--ut99-gold), var(--ut99-gold)),
+    linear-gradient(var(--ut99-gold), var(--ut99-gold)),
+    linear-gradient(var(--ut99-gold), var(--ut99-gold)),
+    linear-gradient(var(--ut99-gold), var(--ut99-gold)),
+    linear-gradient(var(--ut99-gold), var(--ut99-gold));
+  background-size: 0.75vw 0.1875vw, 0.1875vw 0.875vw, 0.75vw 0.1875vw,
+    0.1875vw 0.875vw, 0.75vw 0.1875vw, 0.1875vw 0.875vw, 0.75vw 0.1875vw,
+    0.1875vw 0.875vw;
+  background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%,
+    100% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: normal;
+}
+
+.ut-wslot__bracket {
+  display: none;
+}
+
+.ut-wslot.is-active .ut-wslot__bracket {
+  display: block;
+}
+
+/* Not a source behaviour: this build's Enforcer has a client-side magazine, and
+   a single-frame lift on the held cell is the cheapest honest way to show a
+   shot landed. Kept small enough that it cannot be mistaken for the pending
+   glow the original uses. */
+.ut-wslot.is-fired {
+  animation: ut-slot-fire 120ms ease-out 1;
+}
+
+@keyframes ut-slot-fire {
+  0% {
+    background-color: #3a3a3a;
+  }
+  100% {
+    background-color: #000;
+  }
+}
+
+/* --- the ammo box (DrawAmmo) ------------------------------------------------
+   HudElements1 (128,192,128,64) at (W - 128 S, H - 63.5 S). The bullets glyph
+   is part of the tile art, on the RIGHT: ink bbox cols 87..120 rows 8..57. */
+.ut-ammo-bay {
+  right: 0;
+  bottom: calc(-0.5 * var(--ut-s));
+  width: 10vw;
+  height: 5vw;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ut-ammo-bay__bullets {
+  position: absolute;
+  left: calc(87 * var(--ut-s));
+  top: calc(8 * var(--ut-s));
+  width: calc(34 * var(--ut-s));
+  height: calc(50 * var(--ut-s));
+}
+
+/* --- DrawBigNum inside the two corner boxes ---------------------------------
+   Cell 25 S x 64 S with the glyph in its top-left 22 S x 36 S; rows 36..63 of
+   the cell are empty, so the number's visual baseline is 36 S below the origin,
+   not 64 S. Pitch is 25 - 4 + 7 = 28 S. The field is neither left- nor
+   right-aligned: DrawBigNum steps CurX left by 16 S for every digit it is about
+   to draw, so the start is 44 S - 16 S * ndigits from the origin (+28 S for one
+   digit, +12 S for two, -4 S for three). */
+.ut-num--frags,
+.ut-num--ammo {
+  position: absolute;
+  top: calc(16 * var(--ut-s));
+}
+
+.ut-num--frags {
+  left: calc(40 * var(--ut-s)); /* DrawBigNum(Score, X + 40 S, Y + 16 S) */
+}
+.ut-num--ammo {
+  left: calc(4 * var(--ut-s)); /* DrawBigNum(AmmoAmount, X + 4 S, Y + 16 S) */
+}
+
+/* The field start — first tile = origin + (44 - 16n) S, so the number is
+   neither left- nor right-aligned and each extra digit moves the start 16 S
+   left and the end 12 S right — is the shared `.ut-num` model's: makeNumber
+   writes the DrawBigNum Step walk as the field's own padding, and the cell
+   carries the -4 S / -10 S kerning. Only the origin belongs here. */
+
+/* Not a source behaviour either — UT99 has no reload — so it is the smallest
+   thing that still reads: the digits hold at 0 and dim, they do not recolour. */
+.ut-ammo-bay.is-reloading .ut-num--ammo {
+  animation: ut-ammo-reload 0.42s steps(1) infinite;
+}
+
+@keyframes ut-ammo-reload {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* --- CTF: team score + flag icon, right edge, mid height (spec §1.8) --------
+   ChallengeCTFHUD.DrawTeam, which OVERRIDES the base team HUD's icon+label
+   version — there is no I_TeamR/I_TeamB tab in CTF. Per team index i:
+
+     digits  DrawBigNum origin (W - 144 S, H - 336 S - 150 S * i)
+     icon    DrawIcon at        (W -  70 S, H - 350 S - 150 S * i), 64 S square
+
+   Team 0 is RED and team 1 is BLUE, so RED IS THE LOWER ROW. S = 0.078125vw:
+
+     144 S = 11.25vw    336 S = 26.25vw    486 S = 37.96875vw
+      70 S =  5.46875vw 350 S = 27.34375vw 500 S = 39.0625vw    64 S = 5vw
+
+   Both members are placed against the viewport, so `.ut-flagrow` exists only to
+   carry `data-flag` for the icon state.
+
+   Hidden unless the document carries a team: network.js sets html[data-team]
+   only when the server puts you on one, i.e. only in CTF, so DM never draws it.
+   -------------------------------------------------------------------------- */
+.ut-flags {
+  display: none;
+}
+
+html[data-team="blue"] .ut-flags,
+html[data-team="red"] .ut-flags {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.ut-flagrow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* STY_Translucent -> screen, on the row so the icon and its digits composite
+     as one group (the same wrapper-level blend `.ut-wslot` and `.ut-frags`
+     use); on the descendants it would screen the icon against itself. */
+  mix-blend-mode: screen;
+}
+
+/* Icon rect: left edge at W-70S, 64S square, so its right margin is 6 S. */
+.ut-flag {
+  position: absolute;
+  right: 0.46875vw;
+  width: 5vw;
+  height: 5vw;
+}
+
+.ut-flagrow--red .ut-flag {
+  top: calc(100% - 27.34375vw);
+}
+
+.ut-flagrow--blue .ut-flag {
+  top: calc(100% - 39.0625vw);
+}
+
+.ut-flag svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Digit field: the DrawBigNum origin is the field's TOP-LEFT. Cell metrics and
+   kerning are the shared `.ut-seg` model (25 S x 64 S, 28 S pitch); only the
+   origin belongs here. */
+.ut-num--flag {
+  position: absolute;
+  left: calc(100% - 11.25vw);
+}
+
+.ut-flagrow--red .ut-num--flag {
+  top: calc(100% - 26.25vw);
+}
+
+.ut-flagrow--blue .ut-num--flag {
+  top: calc(100% - 37.96875vw);
+}
+
+/* The score digits are drawn in TeamColor at FULL strength — (255,0,0) and
+   (0,128,255), NOT the opacity-scaled HUDColor. The glyph's own texels are
+   lum 127 core / 93 rim, so on screen the strokes are half the team colour with
+   a slightly darker rim. Retinting is all these rows need: the stroke geometry,
+   the mitres and the "unlit segments are not drawn" rule are the shared
+   `.ut-seg` model's, and `--ut-seg-on` / `--ut-seg-rim` are its colour hooks. */
+.ut-flagrow--blue {
+  --ut-seg-on: rgba(0, 128, 255, 0.5);
+  --ut-seg-rim: rgba(0, 128, 255, 0.36);
+}
+
+.ut-flagrow--red {
+  --ut-seg-on: rgba(255, 0, 0, 0.5);
+  --ut-seg-rim: rgba(255, 0, 0, 0.36);
+}
+
+/* --- flag icon states (I_Home / I_Capt / I_Down, spec §4.8) -----------------
+   All three share the pole (lum 61 = .24, cap 99 = .39) and the cloth frame
+   (lum 128 = .50). What changes is the interior: I_Home fills the cloth to
+   lum 99, I_Capt and I_Down drop it to lum 61 and put a lum 128 figure on it.
+   Colour is TeamColor[Flag.Team], translucent. No blink, no dimming — the state
+   is carried by the artwork, which is the whole point of there being three
+   textures.
+
+   `carried` is the SERVER's word for bHeld; it is what network.js sends.
+   -------------------------------------------------------------------------- */
+.ut-flagrow--red .ut-flag {
+  --ut-flag-rgb: 255, 0, 0;
+}
+
+.ut-flagrow--blue .ut-flag {
+  --ut-flag-rgb: 0, 128, 255;
+}
+
+.ut-flag__pole {
+  fill: rgba(var(--ut-flag-rgb), 0.24);
+}
+.ut-flag__cap {
+  fill: rgba(var(--ut-flag-rgb), 0.39);
+}
+.ut-flag__cloth {
+  fill: rgba(var(--ut-flag-rgb), 0.24);
+}
+.ut-flag__frame {
+  fill: none;
+  stroke: rgba(var(--ut-flag-rgb), 0.5);
+  stroke-width: 1;
+}
+.ut-flag__post {
+  fill: rgba(var(--ut-flag-rgb), 0.5);
+}
+.ut-flag__mark {
+  fill: rgba(var(--ut-flag-rgb), 0.5);
+  display: none;
+}
+
+.ut-flagrow[data-flag="home"] .ut-flag__cloth {
+  fill: rgba(var(--ut-flag-rgb), 0.39);
+}
+
+.ut-flagrow[data-flag="carried"] .ut-flag__mark--capt {
+  display: block;
+}
+
+.ut-flagrow[data-flag="dropped"] .ut-flag__mark--down {
+  display: block;
+}
+
+/* The TAB hint keeps the flat idiom. UT99 has no such hint at all, but a browser
+   game with no menu needs one. It must stay OUT of DrawSpeechArea's message
+   band -- left 6S, top 2S, 768S wide (60vw) and ~77S (6vw) tall -- or it sits
+   on kill-feed lines 2 and 3. It parks on the right instead, directly under the
+   vitals bay (256S tall), which is the only other thing in that corner. */
 .ut-hint {
   background: linear-gradient(var(--ut-plate-top), var(--ut-plate-bot));
   border: 1px solid var(--ut-edge-top);
   border-radius: 0;
+  top: calc(256 * var(--ut-s) + 8px) !important;
+  right: 6px !important;
+  left: auto !important;
 }
 
-/* The TAB hint used to own the top right. The vitals bay lives there now, so it
-   moves under the frag chip on the left — UT99 has no such hint at all, and the
-   top right is the one corner the original genuinely reserves. */
-.ut-hint {
-  top: 58px !important;
-  left: 16px !important;
-  right: auto !important;
-}
-
-/* The doll is the most recognisable thing on this HUD, and at 62px of pale
-   outline it was neither. UT99 draws it as a solid, saturated blue figure. */
-.ut-doll {
-  width: 74px;
-  height: 108px;
-  filter: drop-shadow(0 0 6px var(--ut-glow-weak));
-}
-.ut-doll svg { width: 100%; height: 100%; }
-.ut-doll__body path {
-  fill: rgba(60, 66, 220, 0.55);
-  stroke: var(--ut-hue-deep);
-  stroke-width: 1.2;
-}
-.ut-doll__lit path { fill: var(--ut-hue); stroke: none; }

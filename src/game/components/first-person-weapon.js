@@ -88,41 +88,52 @@ AFRAME.registerComponent("first-person-weapon", {
     // Local avatar is excluded from traces so you cannot shoot yourself point blank
     this.localAvatarEl = null;
 
-    // Kill flash. This used to be a flat 30%-opacity GREEN wash over the whole
-    // screen on every frag, which read as a bug rather than a reward. It is now
-    // a short accent-hue rim pulse (.ut-killflash in styles.css) that leaves the
-    // middle of the screen — where you are aiming — completely clear.
-    this.flashOverlay = document.createElement("div");
-    this.flashOverlay.className = "ut-killflash";
-    document.body.appendChild(this.flashOverlay);
+    // No kill flash. DrawFragCount's only feedback on a frag is the 3 s gold
+    // sawtooth on the frag box plus its gold glow blob, both of which the HUD
+    // already draws; ChallengeHUD has no screen-edge pulse anywhere.
 
-    // Crosshair — centre pip plus four ticks that bloom outward on every shot.
-    // Sizes, colours and the dark 1px outline that keeps it legible against the
-    // skybox all live in styles.css (.ut-crosshair); only the bloom offset is
-    // written from here, because it is animated per frame.
+    // Crosshair — Botpack.CHair1, the stock UT99 default (Engine.HUD Crosshair=0).
+    //
+    // It is a 64x64 GREYSCALE texture drawn at
+    //     XScale  = ClipX < 512 ? 0.5 : max(1, int(0.1 + ClipX/640))
+    //     XLength = 64 * XScale, centred at ((W-XLength)/2, (H-XLength)/2)
+    // in 15 * CrosshairColor = 15 * (0,16,0) = (0,240,0) GREEN, STY_Translucent.
+    // No outline, no glow, no bloom, and it does NOT move when you fire — the
+    // only animation on it is a 0.4 s grow-to-2x-and-back after a PICKUP.
+    //
+    // The art is EXACTLY 16 lit texels, pixel-dumped from the shipped PNG: four
+    // ticks per arm, the horizontal arm an exact mirror of the vertical, and NO
+    // texel at (32,32) — the centre is hollow, so nothing sits on the point you
+    // are aiming at. Drawn here as 1x1 rects in a 64-unit viewBox with
+    // crispEdges, so the SVG lands on the same integer grid the
+    // nearest-neighbour blit would.
     this.crosshair = document.createElement("div");
     this.crosshair.className = "ut-crosshair";
-    this.crosshairTicks = [];
-    // dx / dy are the unit directions the tick travels when the crosshair blooms
-    const tickDirs = [
-      { dx: -1, dy: 0, axis: "h" },
-      { dx: 1, dy: 0, axis: "h" },
-      { dx: 0, dy: -1, axis: "v" },
-      { dx: 0, dy: 1, axis: "v" },
-    ];
-    for (let i = 0; i < tickDirs.length; i++) {
-      const d = tickDirs[i];
-      const tick = document.createElement("i");
-      tick.className = `ut-crosshair--${d.axis}`;
-      tick._dx = d.dx;
-      tick._dy = d.dy;
-      this.crosshair.appendChild(tick);
-      this.crosshairTicks.push(tick);
-    }
+    this.crosshair.innerHTML =
+      '<svg viewBox="0 0 64 64" shape-rendering="crispEdges" aria-hidden="true">' +
+      // vertical arm, x = 32: rows 26, 28..30, 34..36, 38
+      '<rect x="32" y="26" width="1" height="1"/>' +
+      '<rect x="32" y="28" width="1" height="3"/>' +
+      '<rect x="32" y="34" width="1" height="3"/>' +
+      '<rect x="32" y="38" width="1" height="1"/>' +
+      // horizontal arm, y = 32: the mirror of the vertical — cols 26, 28..30,
+      // 34..36, 38
+      '<rect x="26" y="32" width="1" height="1"/>' +
+      '<rect x="28" y="32" width="3" height="1"/>' +
+      '<rect x="34" y="32" width="3" height="1"/>' +
+      '<rect x="38" y="32" width="1" height="1"/>' +
+      "</svg>";
     document.body.appendChild(this.crosshair);
+    this.crosshairPulse = 0; // seconds remaining of the 0.4 s pickup pulse
+    this._onResize = () => this.updateCrosshair();
+    window.addEventListener("resize", this._onResize);
     this.updateCrosshair();
 
-    // Hitmarker — a chunky X with a gold bloom, hidden by default. The two bars are
+    // Hitmarker — NOT A SOURCE BEHAVIOUR, kept deliberately and annotated the
+    // way the reload blink and the TAB hint are. UT99 confirms a hit with the
+    // victim's pain sound over a LAN link; this build is a browser peer game
+    // where that sound may never arrive, so an 80 ms white X stands in for it.
+    // A chunky X with a gold bloom, hidden by default. The two bars are
     // rotated by .ut-hitmarker i:first-child / :last-child in styles.css.
     this.hitmarker = document.createElement("div");
     this.hitmarker.className = "ut-hitmarker";
@@ -205,7 +216,12 @@ AFRAME.registerComponent("first-person-weapon", {
     this.dual = false;
     this.leftWeapon = null;
     this.fireLeft = false; // which hand fires the next shot
-    this._onLoadout = (e) => this.setDual(!!(e.detail && e.detail.dual));
+    // A loadout change is the only local "you picked something up" signal the
+    // network layer emits, so it is what drives the crosshair's pickup pulse.
+    this._onLoadout = (e) => {
+      this.setDual(!!(e.detail && e.detail.dual));
+      this.pulseCrosshair();
+    };
     this.el.sceneEl.addEventListener("local-loadout", this._onLoadout);
     // Dying costs you the second gun, so the weapon has to hear about deaths too.
     this.el.sceneEl.addEventListener("local-death", () => this.setDual(false));
@@ -636,23 +652,41 @@ AFRAME.registerComponent("first-person-weapon", {
   },
 
   // ---- crosshair ----
+  // ChallengeHUD.DrawCrossHair does not react to firing at all — the crosshair
+  // is nailed to the centre of the screen at a fixed integer scale. The one
+  // thing that moves it is a pickup: for 0.4 s afterwards XScale is multiplied
+  // by 1+5t while t < 0.2 and by 3-5t after, i.e. it grows to 2x and comes back.
+  // `crosshairBloom` is still fed by fireBullet() and still drives the weapon's
+  // own spread feel; it just no longer reaches the crosshair.
   decayCrosshairBloom(dt) {
+    if (this.crosshairPulse > 0) {
+      this.crosshairPulse = Math.max(0, this.crosshairPulse - dt);
+      this.updateCrosshair();
+    }
     if (this.crosshairBloom <= 0) return;
     this.crosshairBloom = Math.max(0, this.crosshairBloom - dt * GAME_CONFIG.WEAPON.CROSSHAIR_BLOOM_DECAY);
+  },
+
+  /** Start the 0.4 s pickup pulse. */
+  pulseCrosshair() {
+    this.crosshairPulse = 0.4;
     this.updateCrosshair();
   },
 
   updateCrosshair() {
-    if (!this.crosshairTicks) return;
-    // Ticks are longer than they used to be, so the resting gap moved out with them
-    const gap = 8 + this.crosshairBloom * 10;
-    for (let i = 0; i < this.crosshairTicks.length; i++) {
-      const t = this.crosshairTicks[i];
-      t.style.transform = `translate(-50%, -50%) translate(${t._dx * gap}px, ${t._dy * gap}px)`;
-    }
-    if (this.crosshair) {
-      this.crosshair.style.opacity = (0.75 + this.crosshairBloom * 0.25).toFixed(3);
-    }
+    if (!this.crosshair) return;
+    const w = window.innerWidth || 1280;
+    // XScale = ClipX < 512 ? 0.5 : max(1, int(0.1 + ClipX/640)) — 1 @640,
+    // 2 @1280, 3 @1920. Integer steps, so the 64x64 art never lands off-grid.
+    let scale = w < 512 ? 0.5 : Math.max(1, Math.trunc(0.1 + w / 640));
+    // The pickup pulse rides on top as a pure multiplier, 1 -> 2 -> 1 over 0.4 s.
+    const t = 0.4 - this.crosshairPulse; // seconds since the pickup
+    if (this.crosshairPulse > 0) scale *= t < 0.2 ? 1 + 5 * t : 3 - 5 * t;
+    const px = 64 * scale;
+    this.crosshair.style.width = px + "px";
+    this.crosshair.style.height = px + "px";
+    this.crosshair.style.marginLeft = -px / 2 + "px";
+    this.crosshair.style.marginTop = -px / 2 + "px";
   },
 
   playWeaponSound() {
@@ -848,59 +882,66 @@ AFRAME.registerComponent("first-person-weapon", {
     this.lastKillTime = now;
     this.spreeCount++;
 
-    // Show multi-kill announcement
+    // MultiKillMessage.ClientReceive, switch = kills in the streak - 1. These
+    // are the exact strings, spacing and punctuation the class ships; stock
+    // UT99 never reaches "Triple Kill!" even though the string exists. Switch 1
+    // (Double) is drawn in the Big font, 2 and up in the Huge one.
     if (this.killStreak >= 2) {
       const labels = {
-        2: "DOUBLE KILL",
-        3: "MULTI KILL",
-        4: "ULTRA KILL",
-        5: "MEGA KILL",
+        2: "Double Kill!",
+        3: "Multi Kill!",
+        4: "ULTRA KILL!!",
       };
-      const text = labels[this.killStreak] || "MONSTER KILL";
-      this.showAnnouncement(this.announceEl, text);
+      const text = labels[this.killStreak] || "M O N S T E R  K I L L !!!";
+      this.showAnnouncement(this.announceEl, text, this.killStreak >= 3 ? "huge" : "big");
     }
 
-    // Show spree announcement at thresholds
-    const spreeLabels = { 5: "KILLING SPREE", 10: "RAMPAGE", 15: "DOMINATING", 20: "UNSTOPPABLE", 25: "GODLIKE" };
+    // KillingSpreeMessage — third person, WITH the player's name, at exactly
+    // 5/10/15/20/25 kills without dying (DeathMatchPlus.NotifySpree).
+    const spreeLabels = {
+      5: "is on a killing spree!",
+      10: "is on a rampage!",
+      15: "is dominating!",
+      20: "is unstoppable!",
+      25: "is Godlike!",
+    };
     if (spreeLabels[this.spreeCount]) {
-      this.showAnnouncement(this.spreeEl, spreeLabels[this.spreeCount]);
+      let name = "You";
+      try {
+        if (typeof window.getPlayerName === "function") name = window.getPlayerName() || "You";
+      } catch {
+        /* the name is a nicety; never let it cost the announcement */
+      }
+      this.showAnnouncement(this.spreeEl, `${name} ${spreeLabels[this.spreeCount]}`, "big");
     }
 
     // Play multikill sound based on streak
     this.playMultikillSound(this.killStreak);
-
-    // Rim pulse for the kill
-    this.killFlash();
   },
 
-  showAnnouncement(el, text) {
+  /**
+   * A LocalMessage at 0.2552 H. bFadeMessage means DrawColor * remaining /
+   * Lifetime — a LINEAR ramp to black over the whole 3 s life, with no fade-in
+   * and no scale punch: the line is at full strength on the first frame and
+   * only ever gets dimmer. All of that is one CSS animation; this only restarts
+   * it, which is also how bIsUnique messages replace each other on a line.
+   * @param {HTMLElement} el
+   * @param {string} text
+   * @param {"big"|"huge"} [size] FontSize 1 -> GetBigFont, 2 -> GetHugeFont
+   */
+  showAnnouncement(el, text, size) {
     if (!el) return;
     clearTimeout(el._hideTimer);
     el.textContent = text;
-    el.style.transition = "none";
-    el.style.opacity = "1";
-    // Restart the slam-in keyframes; UT announcements arrive, they do not fade in
-    el.classList.remove("is-punch");
+    el.dataset.size = size === "huge" ? "huge" : "big";
+    el.classList.remove("is-on");
     void el.offsetWidth;
-    el.classList.add("is-punch");
-    el.style.transition = "opacity 0.5s ease-out";
+    el.classList.add("is-on");
     el._hideTimer = setTimeout(() => {
-      el.style.opacity = "0";
-    }, 2000);
+      el.classList.remove("is-on");
+    }, 3000);
   },
 
-  killFlash() {
-    if (!this.flashOverlay) return;
-    // Restart the keyframes rather than toggling opacity by hand, so the pulse
-    // is one declaration in styles.css and re-triggers cleanly on a fast streak.
-    this.flashOverlay.classList.remove("is-on");
-    void this.flashOverlay.offsetWidth;
-    this.flashOverlay.classList.add("is-on");
-    clearTimeout(this._flashTimer);
-    this._flashTimer = setTimeout(() => {
-      this.flashOverlay.classList.remove("is-on");
-    }, 420);
-  },
 
   playMultikillSound(streak) {
     // All streaks currently use the same sound — volume increases with streak
@@ -911,6 +952,7 @@ AFRAME.registerComponent("first-person-weapon", {
   remove() {
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("keyup", this._onKeyUp);
+    if (this._onResize) window.removeEventListener("resize", this._onResize);
     this.removeWeapon();
 
     // Dispose muzzle flash GPU resources
@@ -928,14 +970,12 @@ AFRAME.registerComponent("first-person-weapon", {
 
     // Clear any leftover timers
     clearTimeout(this._hitmarkerTimer);
-    clearTimeout(this._flashTimer);
 
     // Remove touch fire button
     const fireButton = document.getElementById("touch-fire-button");
     if (fireButton) fireButton.remove();
 
     // Remove HUD overlays
-    if (this.flashOverlay && this.flashOverlay.parentNode) this.flashOverlay.remove();
     if (this.crosshair && this.crosshair.parentNode) this.crosshair.remove();
     if (this.hitmarker && this.hitmarker.parentNode) this.hitmarker.remove();
     if (this.announceEl && this.announceEl.parentNode) this.announceEl.remove();

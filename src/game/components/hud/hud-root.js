@@ -60,76 +60,304 @@ const FONT_HREF =
 const MAG_SIZE = 50;
 const RELOAD_MS = 1400;
 
-// Fat square-armed plus. Blunt arms, not a rounded medical cross.
+// ChallengeHUD.DrawStatus: `if (Health < 50)` — absolute, not a fraction of
+// max, so a 49 on a 199-boosted player still trips it. Below it the cross tile
+// turns WHITE and ramps 100% -> 25% on a 2 Hz sawtooth while the digits dim to
+// ~50% and recover on the same clock. Nothing turns orange or red, and nothing
+// switches off. 25 does nothing special.
+const LOW_HEALTH = 50;
+
+// Health cross — HudElements1 tile (128,128,128,64), PIXEL-DUMPED at ink
+// threshold 140 rather than remembered: the ink runs cols 79..122 / rows 9..52
+// of the tile, a 44 x 44 isometric plus. Per-row runs off the atlas:
+//
+//   rows  9..52   cols 93..106      the stem, 14 texels wide, full height
+//   rows 23..37   cols 79..92       the LEFT arm, its lit top edge at rows 23..25
+//   rows 26..40   cols 107..122     the RIGHT arm, sitting ~5 texels LOWER
+//   row  31       cols 80..121      the one row that spans the whole 44
+//
+// So the band is not level: it drops from left to right, and that tilt is the
+// whole of the glyph's perspective. Local coordinates below are atlas minus
+// (79, 9), so the viewBox IS the ink bbox and CSS only has to place it.
+// Within the stem a row reads `*########%****`: col 93 mid, 94..101 the front
+// face, 102 a 1-texel highlight column, 103..106 the shaded right face.
+//
+// The alphas below are NOT the atlas luminances: every one is pre-composited
+// over the tile's own 0.26 fill, since in the original the glyph texel REPLACES
+// the box texel instead of sitting on top of it. a_css = (lum - .26) / .74.
+//   lum .70 front face -> .595   lum .90 lit face -> .865
+//   lum .45 shaded     -> .257   lum .95 highlight -> .932
 const SVG_HEALTH =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.4 1h5.2v7.4H22v5.2h-7.4V21H9.4v-7.4H2V8.4h7.4z"/></svg>';
-// Blunt shield.
+  '<svg viewBox="0 0 44 44" aria-hidden="true">' +
+  // the stem: atlas cols 93..106 -> 14..27, all 44 rows
+  '<path class="ut-glyph-face" d="M14 0h14v44H14z"/>' +
+  // stem shading, painted BEFORE the band so the band covers it where it
+  // crosses — which is exactly what the atlas shows (row 31 is flat across)
+  '<path class="ut-glyph-lit" d="M14 0h14v3H14z"/>' +
+  '<path class="ut-glyph-dark" d="M24 0h4v44h-4z"/>' +
+  '<path class="ut-glyph-dark" d="M14 42h14v2H14z"/>' +
+  '<path class="ut-glyph-hi" d="M23 0h1v44h-1z"/>' +
+  // the band: full 44 wide, dropping 5 texels from the left arm to the right
+  '<path class="ut-glyph-face" d="M0 14L44 19L44 31L0 27Z"/>' +
+  // its lit top edge (atlas rows 23..25 left, 26..28 right)
+  '<path class="ut-glyph-lit" d="M0 14L44 19v3L0 17Z"/>' +
+  // its shaded bottom edge (atlas rows 35..37 left, 38..40 right)
+  '<path class="ut-glyph-dark" d="M0 25L44 29v2L0 27Z"/>' +
+  // the bright band near the right arm's tip (atlas cols 118..119)
+  '<path class="ut-glyph-hi" d="M39 18h2v13h-2z"/>' +
+  "</svg>";
+// Armour shield — HudElements1 tile (0,192,128,64), cols 84..123, rows 196..250,
+// a 40 x 55 texel heraldic shield. The INTERIOR is the box fill showing through
+// (atlas lum 66..110 against a 66 fill), so nothing is painted there: only the
+// 2-texel rim, the two tall bosses that read as a "II", and the chevron across
+// the bottom point. Same pre-composited alpha model as the cross.
 const SVG_ARMOR =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5 3.5 4.4v8.1c0 5.2 3.6 9 8.5 10 4.9-1 8.5-4.8 8.5-10V4.4z"/></svg>';
-// Stubby round-nosed cartridge, read as "ammo" without being any particular gun.
+  '<svg viewBox="0 0 40 55" aria-hidden="true">' +
+  '<path class="ut-glyph-rim" d="M0 1H19L22 0L39 1V36Q39 49 19 54Q0 49 0 36Z"/>' +
+  '<path class="ut-glyph-hi" d="M8 5h8v28H8z"/>' +
+  '<path class="ut-glyph-hi" d="M22 5h8v28h-8z"/>' +
+  '<path class="ut-glyph-face" d="M4 44h30l-3 4-11 3-11-3z"/>' +
+  "</svg>";
+// Ammo box glyph: HudElements1 (128,192,128,64), the bullets that sit on the
+// RIGHT of the tile. Measured off the atlas, not remembered: the ink bbox is
+// cols 87..120 / rows 8..57 of the 128x64 tile, and it is TWO identical upright
+// rifle cartridges side by side, ~16 texels each with a 2-texel gap, pointing
+// up: a pointed ogive, a neck, a shoulder that flares into a straight case, and
+// a 2-texel rim at the base. The shading is a single bright column down the
+// left third (lum 255) and a broad highlight band on the right of the case.
+// Redrawn here to that geometry; the viewBox IS the ink bbox, so CSS places it
+// at the measured offset inside the tile and nothing has to be re-derived.
+const SVG_CARTRIDGE =
+  '<path class="g-body" d="M8 0c2.6 3.4 4 6.2 4 9.4V16l2 3v26H2V19l2-3V9.4C4 6.2 5.4 3.4 8 0Z"/>' +
+  '<path class="g-hi" d="M0 45h16v5H0z"/>' +
+  '<path class="g-hi" d="M4.2 6h1.5v39H4.2z"/>' +
+  '<path class="g-mid" d="M11 19h2.6v26H11z"/>';
 const SVG_AMMO =
-  '<svg viewBox="0 0 24 24" aria-hidden="true">' +
-  '<path d="M12 2c2.4 1.9 3.6 4.3 3.6 7.1v3.3H8.4V9.1C8.4 6.3 9.6 3.9 12 2z"/>' +
-  '<path d="M8 13.6h8v6.1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1z"/>' +
+  '<svg viewBox="0 0 34 50" aria-hidden="true">' +
+  "<g>" + SVG_CARTRIDGE + "</g>" +
+  '<g transform="translate(18 0)">' + SVG_CARTRIDGE + "</g>" +
   "</svg>";
-// Frag marker for the score chip: crossed-out target ring.
-const SVG_FRAG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true">' +
-  '<path d="M12 1.6a10.4 10.4 0 1 0 0 20.8 10.4 10.4 0 0 0 0-20.8zm0 3.1a7.3 7.3 0 1 1 0 14.6 7.3 7.3 0 0 1 0-14.6z"/>' +
-  '<path d="M10.4 8.2h3.2v7.6h-3.2z"/>' +
-  '<path d="M8.2 10.4h7.6v3.2H8.2z"/>' +
+// Frag box glyph: HudElements1 (0,128,128,64), the skull on the LEFT of the
+// tile. Measured, not remembered: ink bbox cols 8..39 / rows 9..56 of the
+// 128x64 tile (so it leaves cols 40..127 for the digits, which is exactly where
+// DrawBigNum's X + 40 S origin puts them). Inside it, cranium widest at rows
+// 20..21, two slanted sockets at cols 12..19 / 27..34 rows 22..30, a nasal
+// cavity rows 32..37, bright cheekbones either side of it, an upper tooth arc
+// rows 38..47 and a jaw rows 48..56 that is the brightest thing in the glyph.
+// The sockets and the nasal cavity are DARKER than the tile's own fill, so
+// under the screen blend they read as the world showing through.
+// The viewBox is the ink bbox; CSS places it at the measured offset.
+const SVG_SKULL =
+  '<svg viewBox="0 0 32 48" aria-hidden="true">' +
+  // cranium -> zygomatic arch -> jaw
+  '<path class="g-body" d="M16 0C8.2 0 2 5.6 2 13.4c0 3.6.4 6.4 1.5 8.9l1.1 2.6' +
+  "c.4 1 .7 2.1.8 3.2l.5 5.1c.3 2.9 1.9 5.4 4.3 6.8l.4.2v4.9c0 1.5 1.2 2.7 2.7 2.7" +
+  'h5.4c1.5 0 2.7-1.2 2.7-2.7V40.2l.4-.2c2.4-1.4 4-3.9 4.3-6.8l.5-5.1' +
+  'c.1-1.1.4-2.2.8-3.2l1.1-2.6C29.6 19.8 30 17 30 13.4 30 5.6 23.8 0 16 0Z"/>' +
+  // brow ridges: the two bright patches over the sockets
+  '<path class="g-hi" d="M3.1 8.6C5 6.5 8 5.1 11.7 4.6l.7 3.9c-3 .5-5.4 1.7-6.8 3.4z"/>' +
+  '<path class="g-hi" d="M28.9 8.6C27 6.5 24 5.1 20.3 4.6l-.7 3.9c3 .5 5.4 1.7 6.8 3.4z"/>' +
+  // cheekbones, either side of the nasal cavity
+  '<path class="g-hi" d="M3.4 23.2 10 25.4l-.6 5.4-4.6-1.5-1-3.7z"/>' +
+  '<path class="g-hi" d="M28.6 23.2 22 25.4l.6 5.4 4.6-1.5 1-3.7z"/>' +
+  // the jaw is the brightest band in the tile
+  '<path class="g-hi" d="M10.4 40.4h11.2v3.6H10.4z"/>' +
+  // sockets, nasal cavity, tooth gaps: all darker than the tile fill
+  '<path class="g-hole" d="M4.2 14.4l6.6-.9c.8-.1 1.5.5 1.5 1.3l-.2 4.6' +
+  'c0 .7-.5 1.3-1.2 1.4l-4.9.9c-.8.2-1.6-.4-1.7-1.2l-.5-4.6c-.1-.7.4-1.4 1.1-1.5Z"/>' +
+  '<path class="g-hole" d="M27.8 14.4l-6.6-.9c-.8-.1-1.5.5-1.5 1.3l.2 4.6' +
+  'c0 .7.5 1.3 1.2 1.4l4.9.9c.8.2 1.6-.4 1.7-1.2l.5-4.6c.1-.7-.4-1.4-1.1-1.5Z"/>' +
+  '<path class="g-hole" d="M16 21.5l3.4 7.5h-6.8Z"/>' +
+  '<path class="g-hole" d="M9.5 30.4h.8v7h-.8zM12.3 30.4h.8v7h-.8z' +
+  "M15.1 30.4h.8v7h-.8zM17.9 30.4h.8v7h-.8zM20.7 30.4h.8v7h-.8z" +
+  'M8 37.2h16v.9H8z"/>' +
   "</svg>";
-// Slot glyph for the one weapon that exists. A blocky sidearm silhouette —
-// authored here, not traced from anything.
+// The weapon in a slot. Both looks come from the same path: the HELD slot draws
+// W.StatusIcon (UseAutoM) in SOLID BLACK inside an opaque tinted box, every
+// other slot draws the same weapon as the 1-texel ghost OUTLINE the HUDWeapons
+// cell carries at 0.5 * HUDColor. CSS picks fill or stroke, so there is one
+// shape, not two.
+//
+// Traced off UseAutoM: the black texels run cols 40..108 / rows 8..42 of the
+// 128x64 tile, so the viewBox below IS that ink bbox at 1 unit per texel. The
+// grip hangs off the left of the receiver, the magazine block off the right,
+// and there is one enclosed light rectangle between them (cols 56..65, rows
+// 22..27) which is why the path is filled even-odd.
+const ENFORCER_PATH =
+  "M7 0 64 0 67 1 68 2 68 28 67 29 67 30 65 31 65 32 44 32 44 34 30 34 30 32 " +
+  "28 32 28 29 27 22 26 21 13 21 13 29 12 30 10 30 3 29 2 28 4 20 4 19 6 14 " +
+  "6 13 5 12 3 11 0 10 0 8 1 4 3 1Z M16 14 26 14 26 20 16 20Z";
 const SVG_ENFORCER =
-  '<svg viewBox="0 0 32 20" aria-hidden="true">' +
-  '<path d="M2 4h22l4 2v4h-6l-2 3h-5l-1 5H8l1-5H5a3 3 0 0 1-3-3z"/>' +
+  '<svg viewBox="0 0 69 35" aria-hidden="true">' +
+  '<path fill-rule="evenodd" d="' + ENFORCER_PATH + '"/>' +
+  "</svg>";
+// Dual Enforcers: the same profile twice, the second offset down and right,
+// which is how the original tells the pair apart from the single at slot size.
+const SVG_ENFORCER_DUAL =
+  '<svg viewBox="0 0 69 35" aria-hidden="true">' +
+  '<g transform="translate(0 -1) scale(0.8)">' +
+  '<path fill-rule="evenodd" d="' + ENFORCER_PATH + '"/></g>' +
+  '<g transform="translate(13.8 6) scale(0.8)">' +
+  '<path fill-rule="evenodd" d="' + ENFORCER_PATH + '"/></g>' +
+  "</svg>";
+// Ghost outlines for the nine groups this build does not ship. The HUDWeapons
+// cell for EVERY group carries a 1-texel outline of that group's weapon plus a
+// small caret, drawn at 0.5 * HUDColor — an unowned slot is a dim box WITH a
+// silhouette in it, never a blank rectangle, and that is what stops the empty
+// bar reading as ten identical panels. These are schematic profiles on the same
+// 69 x 35 ink bbox the Enforcer uses, stroked (not filled) by
+// `.ut-wslot__icon svg path`, so at ~10% alpha they read as a faint wireframe.
+// Each ends with the caret the cell art carries under the muzzle.
+const GHOST_CARET = " M60 30 64 34 68 30";
+/**
+ * Wrap a ghost profile in the shared 69 x 35 ink-bbox viewBox.
+ * @param {string} d profile path data, in texels of the HUDWeapons cell
+ * @returns {string} an <svg> string
+ */
+function ghost(d) {
+  return (
+    '<svg viewBox="0 0 69 35" aria-hidden="true">' +
+    '<path d="' + d + GHOST_CARET + '"/>' +
+    "</svg>"
+  );
+}
+// 1 Impact Hammer   piston head, collar, grip block, shaft
+const GHOST_HAMMER = ghost("M2 3h16v26H2Z M18 9h10v14H18Z M28 6h9v20h-9Z M37 13h30v7H37Z");
+// 3 Bio Rifle       tank over a stubby body, short fat muzzle
+const GHOST_BIO = ghost("M10 1h20v7H10Z M4 8h32v20H4Z M36 13h16v9H36Z M52 10h15v15H52Z");
+// 4 Shock Rifle     long slim barrel, boxed breech, grip
+const GHOST_SHOCK = ghost("M2 13h42v9H2Z M44 8h10v19H44Z M54 14h13v7H54Z M8 22h11v11H8Z");
+// 5 Pulse Gun       broad receiver, vented barrel, grip
+const GHOST_PULSE = ghost("M3 9h34v16H3Z M37 5h9v24h-9Z M46 12h21v11H46Z M9 25h10v9H9Z");
+// 6 Ripper          disc magazine on top of a flat body
+const GHOST_RIPPER = ghost("M2 10h30v15H2Z M46 1h12v12H46Z M32 6h13v23H32Z M45 13h22v9H45Z");
+// 7 Minigun         three barrels off a drum
+const GHOST_MINIGUN = ghost("M2 8h18v20H2Z M20 10h20v16H20Z M40 8h27v5H40Z M40 15h27v5H40Z M40 22h27v5H40Z");
+// 8 Flak Cannon     hopper, breech, flared muzzle
+const GHOST_FLAK = ghost("M3 5h25v24H3Z M28 10h16v15H28Z M44 3h10v29H44Z M54 9h13v17H54Z");
+// 9 Rocket Launcher two stacked tubes and a block sight
+const GHOST_ROCKET = ghost("M2 4h46v11H2Z M2 17h46v11H2Z M48 6h19v21H48Z M14 0h14v4H14Z");
+// 0 Sniper Rifle    long barrel, scope over the receiver, stock
+const GHOST_SNIPER = ghost("M2 14h32v9H2Z M34 12h33v5H34Z M20 3h22v6H20Z M14 23h11v10H14Z");
+// 2 Enforcer        the group this build owns: the same profile as the icon,
+// so an emptied slot 2 still shows the weapon it wants back.
+const GHOST_ENFORCER = ghost(ENFORCER_PATH);
+
+// CTF flag icon — I_Home / I_Capt / I_Down redrawn to the texel geometry in the
+// exact spec (§4.8). One 32x32 icon carrying all three interiors; `data-flag` on
+// the row picks which one is visible, so the state change costs no DOM work.
+//
+//   pole    cols 1..2, rows 3..31, lum 61 (0.24), a lum 99 cap texel at row 3
+//   frame   1-texel outline of cols 1..30 x rows 6..24, lum 128 (0.50), with a
+//           3-texel left post and the col-7 divider that cuts the inner panel
+//   cloth   lum 99 (0.39) when home, lum 61 (0.24) when held or down
+//   I_Capt  a lum 128 "!" — block cols 15..20 rows 9..17, dot cols 16..19 rows 20..22
+//   I_Down  a lum 128 arrow — shaft cols 16..20 rows 10..13, head cols 11..25 at
+//           row 14 narrowing to col 18 at row 21
+//
+// Drawn at 64 S = 5 vw square in TeamColor (255,0,0) / (0,128,255), translucent.
+const SVG_FLAG =
+  '<svg viewBox="0 0 32 32" shape-rendering="crispEdges" aria-hidden="true">' +
+  '<rect class="ut-flag__pole" x="1" y="4" width="2" height="27"/>' +
+  '<rect class="ut-flag__cap" x="1" y="3" width="2" height="1"/>' +
+  '<rect class="ut-flag__cloth" x="1" y="6" width="29" height="18"/>' +
+  '<rect class="ut-flag__frame" x="1.5" y="6.5" width="28" height="17"/>' +
+  '<rect class="ut-flag__post" x="1" y="6" width="3" height="18"/>' +
+  '<rect class="ut-flag__post" x="7" y="9" width="1" height="13"/>' +
+  '<g class="ut-flag__mark ut-flag__mark--capt">' +
+  '<rect x="15" y="9" width="6" height="9"/>' +
+  '<rect x="16" y="20" width="4" height="3"/>' +
+  "</g>" +
+  '<g class="ut-flag__mark ut-flag__mark--down">' +
+  '<rect x="16" y="10" width="5" height="4"/>' +
+  '<path d="M11 14h15l-7.5 7z"/>' +
+  "</g>" +
   "</svg>";
 
-// The paper doll. A front-facing armoured figure with the massing UT99's doll
-// has — helmet with a visor band, wide pauldrons, a plated chest, a belt, heavy
-// thighs and boots — built from plain polygons rather than traced from any
-// artwork. `.ut-doll__lit` paints the visor, chest plate and belt a shade
-// brighter, which is what stops the silhouette reading as one blob.
-const SVG_DOLL =
-  '<svg viewBox="0 0 72 118" aria-hidden="true">' +
-  '<g class="ut-doll__body">' +
-  // helmet + neck
-  '<path d="M30 3h12l4 5v10l-3 4H29l-3-4V8z"/>' +
-  '<path d="M32.5 22h7v4.5h-7z"/>' +
+// The paper doll — `Icons.Man`, a 128 x 256 texture drawn at 128S x 256S in the
+// top-right corner, i.e. 10vw x 20vw with its right edge on the screen edge.
+// This is a REDRAW to the measured geometry of the original, not a trace:
+//
+//   figure bbox   x 8..104, y 8..197 of the 128x256 tile
+//   head 8..30 (visor gap 19..21), pauldrons 28..46 spanning cols 18..90,
+//   torso 32..96 tapering 60 -> 34 wide, belt 96..104, thighs 104..148,
+//   shins 148..180, boots 180..197 flaring to 20 wide each
+//
+// Material: fill lum 90 (.35), a 4-texel-pitch wireframe grid at lum 138 (.54)
+// over the whole fill, and a 2-texel lum 255 outline with the panel lines. The
+// same silhouette is drawn three times — fill, grid, outline — from one <defs>
+// group so the three layers can never drift apart.
+const DOLL_BODY =
+  // helmet + visor brow + neck
+  '<path d="M54 12q0-4 10-4t10 4v14l-4 4H58l-4-4z"/>' +
+  '<path d="M60 30h8v5h-8z"/>' +
   // pauldrons
-  '<path d="M27 26 15 30l-4 10 2 8 12 2 3-7V28z"/>' +
-  '<path d="M45 26l12 4 4 10-2 8-12 2-3-7V28z"/>' +
+  '<path d="M46 30 22 34l-4 10 4 6 22-2z"/>' +
+  '<path d="M82 30l24 4 4 10-4 6-22-2z"/>' +
   // torso
-  '<path d="M28 26h16l4 5 1 15-2 15-3 7H29l-3-7-2-15 1-15z"/>' +
-  // upper arms + forearms + fists
-  '<path d="M12 41l9 2 1 15-1 9-9-1-3-11z"/>' +
-  '<path d="M60 41l-9 2-1 15 1 9 9-1 3-11z"/>' +
-  '<path d="M12 67h9l1 12-1 8h-8l-2-9z"/>' +
-  '<path d="M60 67h-9l-1 12 1 8h8l2-9z"/>' +
-  // pelvis
-  '<path d="M28 66h16l2 6-2 7H28l-2-7z"/>' +
-  // legs + boots
-  '<path d="M28.5 77h7.5v14l-1 12 1 9h-11l1-11 1.5-13z"/>' +
-  '<path d="M43.5 77H36v14l1 12-1 9h11l-1-11-1.5-13z"/>' +
+  '<path d="M34 32h60l-8 64H42z"/>' +
+  // upper arms out to the elbows, forearms in to the hips
+  '<path d="M20 46l18 2-2 28-14 2z"/>' +
+  '<path d="M108 46l-18 2 2 28 14 2z"/>' +
+  '<path d="M22 78l14-2 16 24-6 8z"/>' +
+  '<path d="M106 78l-14-2-16 24 6 8z"/>' +
+  // belt
+  '<path d="M42 96h44v8H42z"/>' +
+  // thighs, shins, boots
+  '<path d="M44 104h18v44H46z"/>' +
+  '<path d="M84 104H66v44h16z"/>' +
+  '<path d="M46 148h16l-2 32H48z"/>' +
+  '<path d="M82 148H66l2 32h12z"/>' +
+  '<path d="M44 180h18v17H42z"/>' +
+  '<path d="M84 180H66v17h20z"/>';
+const SVG_DOLL =
+  // viewBox min-x 8: the figure is NOT centred in the tile. Its bbox is
+  // x 8..104 of 128, i.e. 8 texels of margin on the left and 24 on the right,
+  // so the whole drawing is shifted 8 texels left of centre.
+  '<svg viewBox="8 0 128 256" aria-hidden="true">' +
+  "<defs>" +
+  '<g id="ut-doll-fig">' + DOLL_BODY + "</g>" +
+  '<pattern id="ut-doll-grid" width="4" height="4" patternUnits="userSpaceOnUse">' +
+  '<path d="M0 0.5H4M0.5 0V4"/>' +
+  "</pattern>" +
+  "</defs>" +
+  '<use href="#ut-doll-fig" class="ut-doll__fill"/>' +
+  '<use href="#ut-doll-fig" class="ut-doll__grid"/>' +
+  '<use href="#ut-doll-fig" class="ut-doll__edge"/>' +
+  // panel lines: visor slot, chest plate edge, knee line
+  '<g class="ut-doll__panel">' +
+  '<path d="M56 18h16v4H56z"/>' +
+  '<path d="M40 40h48v2H40z"/>' +
+  '<path d="M46 148h36v2H46z"/>' +
   "</g>" +
-  '<g class="ut-doll__lit">' +
-  // visor band, chest plate, belt buckle
-  '<path d="M29.5 9h13v6.5h-13z"/>' +
-  '<path d="M30 31h12l2.5 8-1.5 13-2 7h-10l-2-7-1.5-13z"/>' +
-  '<path d="M32.5 68h7v5h-7z"/>' +
+  // Chest armour overlay: `Man` sub-rect (128,0,128,64) drawn at HUDColor times
+  // min(ChestAmount/100, 1). hud-root writes --ut-chest; at 0 it is invisible.
+  '<g class="ut-doll__plate">' +
+  '<path d="M34 32h60l-6 30H40z"/>' +
+  '<path d="M46 30 26 34l-2 8 20-2z"/>' +
+  '<path d="M82 30l20 4 2 8-20-2z"/>' +
   "</g>" +
   "</svg>";
 
-// Weapon bar. Only the Enforcer exists in this build, so only slot 2 is filled;
-// the other slots render empty rather than being stocked with weapons the player
-// does not have. Add a weapon and it gets a row here.
+// Weapon bar. UT99 draws TEN fixed slots, keys 1-9 then 0, edge to edge between
+// the frag box and the ammo box. Only weapons you actually carry are drawn AS
+// weapons — a slot number, a black silhouette and a yellow ammo bar. This build
+// ships the Enforcer, so slot 2 is the only owned one; the other nine stay the
+// faint empty cells the original leaves for weapons you do not have, which is
+// what keeps the bar the right shape. Add a weapon and it claims its own slot.
+// `icon` is the weapon as it is drawn when you OWN the group; `ghost` is the
+// 1-texel outline the cell art carries when you do not. Every slot has a ghost.
 const WEAPON_SLOTS = [
-  { key: "1", name: "", icon: null },
-  { key: "2", name: "Enforcer", icon: SVG_ENFORCER },
-  { key: "3", name: "", icon: null },
-  { key: "4", name: "", icon: null },
-  { key: "5", name: "", icon: null },
+  { key: "1", name: "Impact Hammer", icon: null, ghost: GHOST_HAMMER },
+  { key: "2", name: "Enforcer", icon: SVG_ENFORCER, ghost: GHOST_ENFORCER },
+  { key: "3", name: "Bio Rifle", icon: null, ghost: GHOST_BIO },
+  { key: "4", name: "Shock Rifle", icon: null, ghost: GHOST_SHOCK },
+  { key: "5", name: "Pulse Gun", icon: null, ghost: GHOST_PULSE },
+  { key: "6", name: "Ripper", icon: null, ghost: GHOST_RIPPER },
+  { key: "7", name: "Minigun", icon: null, ghost: GHOST_MINIGUN },
+  { key: "8", name: "Flak Cannon", icon: null, ghost: GHOST_FLAK },
+  { key: "9", name: "Rocket Launcher", icon: null, ghost: GHOST_ROCKET },
+  { key: "0", name: "Sniper Rifle", icon: null, ghost: GHOST_SNIPER },
 ];
 const ACTIVE_SLOT = 1; // index into WEAPON_SLOTS
 
@@ -192,16 +420,17 @@ function makePanel(className) {
  * @param {number} slots digit positions to reserve
  * @returns {{el: HTMLElement, set: (v: number) => void, text: (s: string) => void}}
  */
-// Seven-segment digits.
+// BigNumbers — HudElements1 rows 0..63.
 //
-// This is not a stylistic choice, it is what UT99 uses: the health, armour and
-// ammo readouts are LCD-style seven-segment numerals, with the UNLIT segments
-// still faintly visible the way a real segment display shows its dead bars.
-// Verified against a retail UT99 screenshot rather than from memory.
+// Seven-segment, but NOT an LCD: the atlas is masked, so the unlit segments are
+// simply not in the texture. There are no ghost bars anywhere on this HUD. Each
+// digit is a 25 x 64 texel CELL carrying a 22 x 36 glyph at the TOP of it, so
+// the number's ink sits 36S below the DrawBigNum origin and the bottom 28S of
+// every cell is empty.
 //
-// Every digit renders all seven segments always; `set()` only toggles which are
-// lit. That is what produces the dim ghost bars, and it means no layout ever
-// reflows — the width is fixed by the slot count.
+// Every digit still renders all seven segment elements; CSS hides the ones
+// without `.is-on`, and a fully blank cell is removed from the flow entirely
+// (DrawBigNum draws nothing at all for a leading blank — see makeNumber).
 const SEG_KEYS = ["a", "b", "c", "d", "e", "f", "g"];
 const SEG_MAP = {
   0: "abcdef",
@@ -218,6 +447,7 @@ const SEG_MAP = {
 
 function makeDigit(parent) {
   const d = div("ut-seg", parent);
+  d.classList.add("is-blank"); // nothing is drawn until show() lights it
   const segs = {};
   for (const k of SEG_KEYS) {
     const i = document.createElement("i");
@@ -229,6 +459,14 @@ function makeDigit(parent) {
     el: d,
     /** @param {string|null} ch a single digit, or null for a fully blank cell */
     show(ch) {
+      // A blank leading cell is not drawn AND takes no space: DrawBigNum skips
+      // leading zeros by advancing CurX, which makeNumber reproduces as the
+      // field-start padding, so a blank cell must be out of the flow entirely.
+      d.classList.toggle("is-blank", ch === null);
+      // DrawDigit kerns a "1" by 0.625 * Step instead of 0.25 * Step — 6S
+      // further left than any other digit, which is why "100" reads tighter
+      // than "800". The cell still advances the same 28S afterwards.
+      d.classList.toggle("is-one", ch === 1);
       const on = ch === null ? "" : SEG_MAP[ch] || "";
       for (const k of SEG_KEYS) segs[k].classList.toggle("is-on", on.includes(k));
     },
@@ -253,6 +491,13 @@ function makeNumber(className, slots) {
       for (let i = 0; i < slots; i++) {
         digits[i].show(i < pad ? null : Number(text[i - pad]));
       }
+      // DrawBigNum walks hundreds -> tens -> ones and adds `Step = 16 * UpScale`
+      // for every leading position it skips, so the field START moves 16S right
+      // for each digit the number does NOT have: -4S for three digits, +12S for
+      // two, +28S for one (16S twice, then the first digit's own -4S). The
+      // number is therefore neither left- nor right-aligned in its box.
+      wrap.style.paddingLeft =
+        "calc(" + 16 * (3 - text.length) + " * var(--ut-s))";
     },
   };
 }
@@ -289,16 +534,79 @@ function makeMeter(modifier, svg, slots, discFirst) {
   return { row, num, panel, disc };
 }
 
-/** A small corner chip: glyph, numeral, caption. */
-function makeChip(modifier, svg, slots, labelText) {
-  const panel = makePanel(`ut-chip ${modifier}`);
-  const glyph = div("ut-chip__glyph", panel.inner);
+/**
+ * One status tile — DrawStatus's armour and health boxes.
+ *
+ * Both are the SAME 128x64 HudElements1 tile art (a grid box with a 3-texel
+ * border) with their glyph baked into the right 30%, drawn flush on top of each
+ * other at X = W - 128*StatScale - 140*Scale. There is no gap and no divider
+ * between them: each tile carries its own border, so the seam reads as a double
+ * rule. The digits are a separate DrawBigNum pass at (X + 4S, Y + 16S), which is
+ * why `.ut-vital__art` — the box and the glyph — is its own layer: below 50
+ * health the tile ramps and the digits do not ramp with it.
+ *
+ * @param {string} modifier
+ * @param {string} svg the glyph, in its own texel viewBox
+ * @param {HTMLElement} parent
+ */
+function makeVitalTile(modifier, svg, parent) {
+  const el = div(`ut-vital ${modifier}`, parent);
+  const art = div("ut-tile ut-vital__art", el);
+  const glyph = div("ut-vital__glyph", art);
   glyph.innerHTML = svg;
-  const num = makeNumber("ut-num--chip", slots);
-  panel.inner.appendChild(num.el);
-  const label = div("ut-chip__label", panel.inner);
-  label.textContent = labelText;
-  return { el: panel.el, num, label };
+  const num = makeNumber("ut-num--vital", 3);
+  el.appendChild(num.el);
+  return { el, art, num };
+}
+
+/**
+ * The frag box: UT99's score readout. Skull glyph on the left, a two-cell
+ * seven-segment count beside it, in its own tinted box at the bottom-left
+ * corner — NOT a captioned chip in the top corner. There is no label; the
+ * skull is the label.
+ * @returns {{el: HTMLElement, num: {set: (v: number) => void}}}
+ */
+function makeFragBox() {
+  const el = div("ut-frags ut-box");
+  div("ut-frags__flash", el);
+  const glyph = div("ut-frags__skull", el);
+  glyph.innerHTML = SVG_SKULL;
+  // Four cells, because DrawBigNum has no width limit and a CTF Score is frags
+  // plus capture bonuses. Leading cells that are not used draw nothing AND take
+  // no room — the field start is what positions the number.
+  const num = makeNumber("ut-num--frags", 4);
+  el.appendChild(num.el);
+  return { el, num };
+}
+
+/**
+ * One weapon slot. Ten of these sit between the frag box and the ammo box.
+ * An owned slot carries a yellow seven-segment slot number in the top-left, a
+ * solid black weapon silhouette and a yellow ammo bar along the bottom edge; an
+ * unowned slot is an empty tinted cell at a fraction of the alpha.
+ * @param {{key: string, icon: string|null, ghost: string|null}} w
+ * @returns {{el: HTMLElement, icon: HTMLElement, ammo: HTMLElement|null}}
+ */
+function makeWeaponSlot(w) {
+  // NOT a .ut-box: a slot is the HUDWeapons 64x32 cell scaled 2x, which is a
+  // different piece of art from the 128x64 corner tiles — a vertical ramp with
+  // its own 1-texel border, not a flat fill with a 3-texel one.
+  const el = div("ut-wslot");
+  div("ut-wslot__bracket", el);
+  const icon = div("ut-wslot__icon", el);
+  let ammo = null;
+  // An UNOWNED slot is not empty: the HUDWeapons cell for that group carries a
+  // 1-texel ghost outline of its weapon at 0.5 * HUDColor. Draw it, or the bar
+  // reads as ten blank rectangles.
+  if (!w.icon && w.ghost) icon.innerHTML = w.ghost;
+  if (w.icon) {
+    el.classList.add("is-owned");
+    icon.innerHTML = w.icon;
+    const key = div("ut-wslot__key", el);
+    makeDigit(key).show(Number(w.key));
+    ammo = div("ut-wslot__ammo", el);
+  }
+  return { el, icon, ammo };
 }
 
 function createHud() {
@@ -320,49 +628,310 @@ function createHud() {
   // UT2003/2004 does. That difference is most of why the previous build read as
   // the later games.
 
-  // ---- top right: armour over health, then the doll ----
+  // ---- top right: armour over health, doll on the corner ----
+  // DrawStatus, in S = ClipX/1280 = 0.078125vw:
+  //   doll   (W - 128S, 0)   128 x 256   -> right 0,        top 0
+  //   shield (W - 268S, 0)   128 x  64   -> right 10.9375vw, top 0
+  //   cross  (W - 268S, 64S) 128 x  64   -> right 10.9375vw, top 5vw
+  // i.e. a 12S gap between the boxes and the doll, and NO gap between the two
+  // boxes. All three are bottom-of-the-atlas tiles drawn with STY_Translucent,
+  // which is a screen blend, not an alpha wash.
   const vitalsBay = div("ut-vitals-bay", root);
 
-  const vitals = makePanel("ut-vitals");
-  const armor = makeMeter("ut-meter--armor", SVG_ARMOR, 3, false);
-  const health = makeMeter("ut-meter--health", SVG_HEALTH, 3, false);
-  vitals.inner.appendChild(armor.row);
-  vitals.inner.appendChild(health.row);
-  vitalsBay.appendChild(vitals.el);
+  const armor = makeVitalTile("ut-vital--armor", SVG_ARMOR, vitalsBay);
+  const health = makeVitalTile("ut-vital--health", SVG_HEALTH, vitalsBay);
 
   const doll = div("ut-doll", vitalsBay);
   doll.innerHTML = SVG_DOLL;
-
-  // ---- top left: frags ----
-  // UT99 keeps the running score on the scoreboard rather than the main HUD, but
-  // a browser game with no menu needs it visible. Kept, in the same translucent
-  // idiom as everything else, rather than invented in a different style.
-  const frags = makeChip("ut-chip--frags", SVG_FRAG, 3, "FRAGS");
-  root.appendChild(frags.el);
+  // ChallengeHUD.SetDamage parks up to four minus-sign tiles ON the doll where
+  // you were hit and clears them after a second. This is the whole of UT99's
+  // damage feedback on the HUD — there is no screen vignette and no health
+  // tint anywhere in ChallengeHUD.
+  const dollHits = div("ut-doll__hits", doll);
 
   const hint = div("ut-hint", root);
   hint.innerHTML = '<kbd>TAB</kbd><span>SCORES</span>';
 
-  // ---- bottom strip ----
+  // ---- bottom edge: frag box | ten weapon slots | ammo box ----
+  // Not a strip. UT99 lays three separate tinted islands along the bottom edge
+  // and lets the world show between the empty slots; the score lives in the
+  // left-hand one, which is why the frag chip that used to sit top-left is gone.
   const bar = div("ut-bar", root);
 
-  const weaponBar = div("ut-weapons", bar);
-  const slots = WEAPON_SLOTS.map((w, i) => {
-    const panel = makePanel("ut-wslot");
-    if (w.icon) panel.el.classList.add("is-owned");
-    if (i === ACTIVE_SLOT) panel.el.classList.add("is-active");
-    const key = div("ut-wslot__key", panel.inner);
-    key.textContent = w.key;
-    const icon = div("ut-wslot__icon", panel.inner);
-    if (w.icon) icon.innerHTML = w.icon;
-    weaponBar.appendChild(panel.el);
-    return panel.el;
-  });
+  const frags = makeFragBox();
+  bar.appendChild(frags.el);
 
-  // far right of the strip: ammo, glyph to its right like the vitals rows
-  const ammoBay = div("ut-ammo-bay", bar);
-  const ammo = makeMeter("ut-meter--ammo", SVG_AMMO, 3, false);
-  ammoBay.appendChild(ammo.row);
+  const weaponBar = div("ut-weapons", bar);
+  const built = WEAPON_SLOTS.map((w, i) => {
+    const slot = makeWeaponSlot(w);
+    if (i === ACTIVE_SLOT) slot.el.classList.add("is-active");
+    weaponBar.appendChild(slot.el);
+    return slot;
+  });
+  const slots = built.map((s) => s.el);
+  const activeSlot = built[ACTIVE_SLOT];
+
+  // Far right: DrawAmmo. One 128 S x 64 S tile whose bullets glyph is part of
+  // the tile art (cols 87..120), not a separate disc beside a plate, with
+  // DrawBigNum(AmmoAmount, X + 4 S, Y + 16 S) in white over it.
+  const ammoBay = div("ut-ammo-bay ut-box", bar);
+  const ammoGlyph = div("ut-ammo-bay__bullets", ammoBay);
+  ammoGlyph.innerHTML = SVG_AMMO;
+  const ammoNum = makeNumber("ut-num--ammo", 4);
+  ammoBay.appendChild(ammoNum.el);
+  const ammo = { row: ammoBay, num: ammoNum };
+
+  // ---- CTF: team scores and flag status, right edge, mid height ----
+  // ChallengeCTFHUD.DrawTeam, not a stacked panel: for each team the score
+  // digits sit at (W-144S, H-336S-150S*i) and the flag icon at (W-70S,
+  // H-350S-150S*i), team 0 (RED) on the LOWER row and team 1 (BLUE) above it.
+  // Both are absolutely placed against the viewport, so the row element only
+  // exists to carry `data-flag` for the icon state.
+  //
+  // The whole block is hidden by CSS unless the document carries a team —
+  // network.js sets html[data-team] only when the server puts you on one, i.e.
+  // only in CTF — so DM never sees it.
+  const flags = div("ut-flags", root);
+  const flagRows = {};
+  for (const team of ["red", "blue"]) {
+    const row = div(`ut-flagrow ut-flagrow--${team}`, flags);
+    const num = makeNumber("ut-num--flag", 2);
+    row.appendChild(num.el);
+    const icon = div("ut-flag", row);
+    icon.innerHTML = SVG_FLAG;
+    row.dataset.flag = "home";
+    num.set(0);
+    flagRows[team] = { row, num };
+  }
+
+  // ---- CTF carry banners (bottom centre, CTFMessage2) ----
+  // CTFMessage2 has Lifetime 1 and ChallengeCTFHUD.Timer re-sends it every
+  // second while the condition holds, with bFadeMessage — so it PULSES: full
+  // brightness on the second, fading linearly to black before the next one.
+  // switch 0 is yellow at H - 2*YL - 0.0833H, switch 1 red at H - 3*YL - 0.0833H,
+  // i.e. the red line sits one line ABOVE the yellow one.
+  const ctfBanner = div("ut-ctfmsg", root);
+  const ctfEnemyLine = div("ut-ctfmsg__line ut-ctfmsg__line--enemy", ctfBanner);
+  ctfEnemyLine.textContent = "The enemy has your flag, recover it!";
+  const ctfMineLine = div("ut-ctfmsg__line ut-ctfmsg__line--mine", ctfBanner);
+  ctfMineLine.textContent = "You have the flag, return to base!";
+
+  // ---- centre message (CriticalEventPlus family) ----
+  // Everything the LocalMessage path puts on screen mid-height lands here: at
+  // 0.2552 * H, big font, (0,128,255) unless the message class overrides it to
+  // red, and a LINEAR fade of DrawColor * remaining/Lifetime over the full 3 s.
+  // No fade-in, no scale punch — the announcement is at full strength on frame
+  // one and only ever gets dimmer.
+  const centerMsg = div("ut-center", root);
+
+  // ---- match end ----
+  // The winner line itself is a normal 3 s centre message ("Red team is the
+  // winner!"); this is the standing card underneath it that holds the final
+  // score up until the server's match-reset, which the transient message cannot.
+  const matchEnd = div("ut-matchend", root);
+
+  // ---- message rail (top left) ----
+  // ChallengeHUD's four-line message area: SetPos(6, 2 + YL*line), plain bitmap
+  // sans at 10/14/16 px by ClipX, 3 s lifetime, left aligned, no animation.
+  // Death lines are (255,0,0), Say/TeamSay (0,255,0), pickups and everything
+  // else white. DrawSpeechArea's faint hue backdrop fades in behind them.
+  const msgRail = div("ut-msgs", root);
+  div("ut-msgs__back", msgRail);
+  const msgList = div("ut-msgs__list", msgRail);
+
+
+  // ---- CTF state ----
+  const MSG_LIFETIME = 3000;
+  const flagState = { red: "home", blue: "home" };
+  let myTeam = null;
+  let carriedByMe = null; // the team colour of the flag ON MY BACK, or null
+  let centerTimer = 0;
+  const msgTimers = [];
+
+  function teamName(t) {
+    return t === "red" ? "Red" : t === "blue" ? "Blue" : "";
+  }
+
+  /**
+   * Push one line onto the top-left rail.
+   * @param {string} text
+   * @param {"death"|"chat"|"pickup"} [kind] picks the colour; default white.
+   */
+  function pushMessage(text, kind) {
+    if (!text) return;
+    const line = div(`ut-msgs__line ut-msgs__line--${kind || "pickup"}`, msgList);
+    line.textContent = text;
+    // Four lines total, oldest dropped — the source keeps a fixed four-slot
+    // array and overwrites the top of it.
+    while (msgList.children.length > 4) msgList.removeChild(msgList.firstChild);
+    msgRail.classList.add("is-on");
+    const t = setTimeout(() => {
+      if (line.parentNode) line.remove();
+      if (!msgList.children.length) msgRail.classList.remove("is-on");
+      const i = msgTimers.indexOf(t);
+      if (i > -1) msgTimers.splice(i, 1);
+    }, MSG_LIFETIME);
+    msgTimers.push(t);
+  }
+
+  /**
+   * Centre message at 0.2552 H.
+   * @param {string} text
+   * @param {"team"|"red"} [tone] (0,128,255) or (255,0,0)
+   */
+  function showCenterMessage(text, tone) {
+    if (!text) return;
+    centerMsg.textContent = text;
+    centerMsg.dataset.tone = tone === "red" ? "red" : "team";
+    // Restart the linear fade. bIsUnique messages sharing an offset replace each
+    // other, which is exactly what re-running the animation on one element does.
+    centerMsg.classList.remove("is-on");
+    void centerMsg.offsetWidth;
+    centerMsg.classList.add("is-on");
+    clearTimeout(centerTimer);
+    centerTimer = setTimeout(() => centerMsg.classList.remove("is-on"), MSG_LIFETIME);
+  }
+
+  function setTeamScores(a, b) {
+    // Accepts either setTeamScores({red, blue}) — the server's own vocabulary —
+    // or the legacy positional setTeamScores(blue, red).
+    let blue = b;
+    let red = a;
+    if (a && typeof a === "object") {
+      red = a.red;
+      blue = a.blue;
+    } else {
+      blue = a;
+      red = b;
+    }
+    if (typeof blue === "number") flagRows.blue.num.set(blue);
+    if (typeof red === "number") flagRows.red.num.set(red);
+  }
+
+  /**
+   * @param {"red"|"blue"} team
+   * @param {"home"|"carried"|"dropped"} state the SERVER's vocabulary, which is
+   *   also the source's: bHome -> I_Home, bHeld -> I_Capt, else I_Down.
+   */
+  function setFlagState(team, state) {
+    const row = flagRows[team];
+    if (!row) return;
+    const s = state === "carried" || state === "dropped" ? state : "home";
+    flagState[team] = s;
+    row.row.dataset.flag = s;
+    paintBanner();
+  }
+
+  // The two bottom-centre lines are pure functions of the flag states: you have
+  // the enemy flag if one is on your back, they have yours if the flag whose
+  // team is yours is being carried.
+  function paintBanner() {
+    ctfMineLine.classList.toggle("is-on", carriedByMe !== null);
+    ctfEnemyLine.classList.toggle(
+      "is-on",
+      myTeam !== null && flagState[myTeam] === "carried"
+    );
+  }
+
+  function setLocalTeam(team) {
+    myTeam = team === "red" || team === "blue" ? team : null;
+    paintBanner();
+  }
+
+  // ---- scene wiring ----
+  // network.js emits every CTF fact on the a-scene, never on document, and the
+  // names/payloads below are its, not ours: `ctf-init` {flags, scores, myTeam},
+  // `local-team` {team}, `flag-update` {team, state, event, byName, byTeam,
+  // isMine}, `ctf-score` {scores:{red,blue}}, `match-end` {winner, scores},
+  // `match-reset`.
+  const onCtfInit = (e) => {
+    const d = (e && e.detail) || {};
+    if (d.myTeam !== undefined) setLocalTeam(d.myTeam);
+    if (d.scores) setTeamScores(d.scores);
+    carriedByMe = null;
+    for (const f of d.flags || []) setFlagState(f.team, f.state);
+    root.classList.remove("is-matchover");
+    paintBanner();
+  };
+
+  const onLocalTeam = (e) => {
+    setLocalTeam(((e && e.detail) || {}).team);
+  };
+
+  const onFlagUpdate = (e) => {
+    const d = (e && e.detail) || {};
+    if (!d.team) return;
+    // Who is carrying what has to settle BEFORE the banner is painted.
+    if (d.isMine && d.state === "carried") carriedByMe = d.team;
+    else if (carriedByMe === d.team) carriedByMe = null;
+    setFlagState(d.team, d.state);
+
+    // CTFMessage strings (§6). The flag's own colour names the flag; the actor's
+    // team names the scorer.
+    const flagWord = teamName(d.team).toLowerCase();
+    const who = d.byName || "";
+    switch (d.event) {
+      case "taken":
+        showCenterMessage(
+          who ? `${who} has the ${flagWord} flag!` : `The ${flagWord} flag was taken!`
+        );
+        break;
+      case "dropped":
+        showCenterMessage(
+          who
+            ? `${who} dropped the ${flagWord} flag!`
+            : `The ${flagWord} flag was dropped!`
+        );
+        break;
+      case "returned":
+        showCenterMessage(
+          who
+            ? `${who} returns the ${flagWord} flag!`
+            : `The ${flagWord} flag was returned!`
+        );
+        break;
+      case "captured":
+        showCenterMessage(
+          `${who || "Someone"} captured the ${flagWord} flag!  ` +
+            `The ${teamName(d.byTeam).toLowerCase() || "enemy"} team scores!`
+        );
+        break;
+      default:
+        break; // "reset" is silent; the match-reset card covers it
+    }
+  };
+
+  const onCtfScore = (e) => {
+    const d = (e && e.detail) || {};
+    setTeamScores(d.scores || d);
+  };
+
+  const onMatchEnd = (e) => {
+    const d = (e && e.detail) || {};
+    if (d.scores) setTeamScores(d.scores);
+    const s = d.scores || { red: 0, blue: 0 };
+    matchEnd.textContent = `Red ${s.red || 0}  -  Blue ${s.blue || 0}`;
+    root.classList.add("is-matchover");
+    showCenterMessage(`${teamName(d.winner)} team is the winner!`);
+  };
+
+  const onMatchReset = () => {
+    root.classList.remove("is-matchover");
+    carriedByMe = null;
+    paintBanner();
+  };
+
+  // getHud() is only ever called from a component init(), so <a-scene> is in the
+  // document by now; the guard is for the module being imported standalone.
+  const scene = document.querySelector("a-scene");
+  if (scene) {
+    scene.addEventListener("ctf-init", onCtfInit);
+    scene.addEventListener("local-team", onLocalTeam);
+    scene.addEventListener("flag-update", onFlagUpdate);
+    scene.addEventListener("ctf-score", onCtfScore);
+    scene.addEventListener("match-end", onMatchEnd);
+    scene.addEventListener("match-reset", onMatchReset);
+  }
 
   // ---- damage vignette ----
   const vignette = div("ut-vignette", root);
@@ -385,17 +954,18 @@ function createHud() {
   let dead = false;
   let reloadTimer = 0;
   let vignetteTimer = 0;
-  let dollTimer = 0;
+  let fragTimer = 0;
+  let lastFrags = 0;
 
   function paintHealth() {
-    const pct = hpMax > 0 ? Math.max(0, Math.min(1, hp / hpMax)) : 0;
     health.num.set(Math.max(0, hp));
-    // Three bands, matching UT's "you are fine / hurt / about to die" read. The
-    // doll carries the same band so peripheral vision gets it without reading
-    // the number.
-    const level = pct > 0.6 ? "ok" : pct > 0.25 ? "warn" : "crit";
-    health.row.dataset.level = level;
-    doll.dataset.level = level;
+    // NO colour bands, no threshold hues, no doll tint. Under 50 the cross TILE
+    // (box and glyph together, `.ut-vital__art`) goes white and ramps 100% ->
+    // 25% every half second, and the digits run their own 100% -> 50% -> 62.5%
+    // sawtooth on the same clock. Both are pure brightness: the hue never
+    // moves and neither ever switches off. Above 50 nothing animates.
+    health.el.classList.toggle("is-low", hp > 0 && hp < LOW_HEALTH);
+    delete doll.dataset.level;
   }
 
   function paintAmmo() {
@@ -405,12 +975,59 @@ function createHud() {
     ammo.num.set(reloading ? 0 : mag);
     ammo.row.classList.toggle("is-reloading", reloading);
     ammo.row.dataset.level = reloading || mag <= 10 ? "crit" : "ok";
+    paintSlotAmmo();
+  }
+
+  // The held slot carries its own ammo bar along its bottom edge, as a fraction
+  // of a full magazine. It is the same count the ammo box shows, drawn the way
+  // the original draws it per slot.
+  function paintSlotAmmo() {
+    if (!activeSlot.ammo) return;
+    // AmmoScale = clamp(88 * WeapScale * ammo/max, 0, 88) -> 0..70.4 S = 0..5.5vw
+    // of the slot, NOT a percentage of the slot's own width.
+    const pct = MAG_SIZE > 0 ? Math.max(0, Math.min(1, mag / MAG_SIZE)) : 0;
+    activeSlot.ammo.style.width = (pct * 5.5).toFixed(3) + "vw";
   }
 
   function paintArmor(v) {
+    // DrawBigNum(Min(150, Armor)) — the box clamps, and a 0 is drawn in the
+    // same full white as any other value. It is never dimmed.
     const n = Math.max(0, Math.round(v));
-    armor.num.set(n);
-    armor.row.dataset.level = n > 0 ? "ok" : "empty";
+    armor.num.set(Math.min(150, n));
+    // The doll's chest plate is drawn at HUDColor * Min(ChestAmount/100, 1), so
+    // the figure brightens as you pick armour up. Body Armor is the only
+    // armour on CTF-Face, and it maps to ChestAmount.
+    doll.style.setProperty("--ut-chest", String(Math.min(1, n / 100)));
+  }
+
+  // ---- doll damage markers ----------------------------------------------
+  // SetDamage sizes each marker by HitDamage = Clamp(dmg * 0.06, 2, 4) and
+  // draws the HudElements1 minus tile (0,64,25,64) at HitPos * StatScale. The
+  // real HitPos comes from the hit direction, which the HUD is not told here,
+  // so the four canonical body positions are cycled instead.
+  const HIT_POS = [
+    [40, 44],
+    [70, 44],
+    [46, 108],
+    [66, 108],
+  ];
+  let hitIndex = 0;
+  function dollHit(damage) {
+    const d = Math.max(2, Math.min(4, (damage || 20) * 0.06));
+    const spot = HIT_POS[hitIndex % HIT_POS.length];
+    hitIndex++;
+    const dash = document.createElement("i");
+    dash.className = "ut-dash";
+    // the minus glyph is cols 2..17, rows 16..21 of the 25x64 cell
+    dash.style.left = `calc(${(spot[0] + 2 * d).toFixed(2)} * var(--ut-s))`;
+    dash.style.top = `calc(${(spot[1] + 16 * d).toFixed(2)} * var(--ut-s))`;
+    dash.style.width = `calc(${(15 * d).toFixed(2)} * var(--ut-s))`;
+    dash.style.height = `calc(${(6 * d).toFixed(2)} * var(--ut-s))`;
+    dollHits.appendChild(dash);
+    // four markers live at a time, one second each, exactly as SetDamage keeps
+    // them
+    while (dollHits.childElementCount > 4) dollHits.firstChild.remove();
+    setTimeout(() => dash.remove(), 1000);
   }
 
   // ---- local shot detection ----
@@ -470,6 +1087,9 @@ function createHud() {
   paintHealth();
   paintArmor(0);
   paintAmmo();
+  // The frag box is drawn in CTF too (bHideFrags is false and ChallengeCTFHUD
+  // does not override DrawFragCount), so it starts at a real 0, not blank.
+  frags.num.set(0);
 
   return {
     root,
@@ -483,12 +1103,45 @@ function createHud() {
     setArmor: paintArmor,
 
     setFrags(n) {
-      frags.num.set(n || 0);
+      const v = Math.max(0, Math.round(n || 0));
+      // A kill flashes the whole box gold for half a second — the one place
+      // UT99 puts a warm colour outside the weapon bar.
+      if (v > lastFrags) {
+        frags.el.classList.remove("is-scored");
+        void frags.el.offsetWidth;
+        frags.el.classList.add("is-scored");
+        clearTimeout(fragTimer);
+        // DrawFragCount holds the flash for 3 s (Whiten < 3.0), not half a one.
+        fragTimer = setTimeout(() => frags.el.classList.remove("is-scored"), 3000);
+      }
+      lastFrags = v;
+      frags.num.set(v);
     },
 
-    /** Red edge vignette on damage — reads as a hit without whiting out the
-     *  scene. The doll blinks with it, which is the cheapest way to tie the
-     *  feedback to the figure that represents you. */
+    /** Swap the held weapon's silhouette. "dual" is the Enforcer pair, which
+     *  UT99 gives its own two-pistol icon in the same slot. */
+    setWeapon(kind) {
+      activeSlot.icon.innerHTML =
+        kind === "dual" ? SVG_ENFORCER_DUAL : SVG_ENFORCER;
+    },
+
+    /** CTF hooks. Normally driven straight off the scene events above; these
+     *  stay public so a test or a replay can poke the same state. No-ops in DM:
+     *  the rows are hidden unless html[data-team] is set. */
+    setTeamScores,
+    setFlagState,
+    setLocalTeam,
+
+    /** One line on the top-left rail. kind: "death" (red), "chat" (green) or
+     *  "pickup" (white, the default). */
+    pushMessage,
+
+    /** One line at 0.2552 H. tone: "team" (0,128,255) or "red". */
+    showCenterMessage,
+
+    /** Damage feedback. On the HUD itself UT99 draws only the doll markers —
+     *  red minus signs where you were hit, one second each; the red wash the
+     *  original has is PlayerPawn.ClientFlash, an engine fog, not ChallengeHUD. */
     damageFlash() {
       vignette.classList.remove("is-on");
       void vignette.offsetWidth;
@@ -496,11 +1149,9 @@ function createHud() {
       clearTimeout(vignetteTimer);
       vignetteTimer = setTimeout(() => vignette.classList.remove("is-on"), 140);
 
-      doll.classList.remove("is-hit");
-      void doll.offsetWidth;
-      doll.classList.add("is-hit");
-      clearTimeout(dollTimer);
-      dollTimer = setTimeout(() => doll.classList.remove("is-hit"), 200);
+      // The doll does not blink and does not change colour: it collects a red
+      // minus marker where you were hit, for one second (ChallengeHUD.SetDamage).
+      dollHit(20);
     },
 
     showDeath() {
@@ -531,9 +1182,19 @@ function createHud() {
       if (refCount > 0) return;
       cancelAnimationFrame(rafId);
       document.removeEventListener("visibilitychange", onVisibility);
+      if (scene) {
+        scene.removeEventListener("ctf-init", onCtfInit);
+        scene.removeEventListener("local-team", onLocalTeam);
+        scene.removeEventListener("flag-update", onFlagUpdate);
+        scene.removeEventListener("ctf-score", onCtfScore);
+        scene.removeEventListener("match-end", onMatchEnd);
+        scene.removeEventListener("match-reset", onMatchReset);
+      }
+      clearTimeout(centerTimer);
+      while (msgTimers.length) clearTimeout(msgTimers.pop());
       clearTimeout(reloadTimer);
       clearTimeout(vignetteTimer);
-      clearTimeout(dollTimer);
+        clearTimeout(fragTimer);
       if (root.parentNode) root.remove();
       instance = null;
     },
