@@ -1,3 +1,4 @@
+import { GAME_CONFIG } from "../../config/game-config.js";
 // hud-root.js — the shared status bar.
 //
 // Every 2D overlay the player sees while alive lives here: the bottom-left
@@ -41,7 +42,7 @@
 // HUD kept it. The doll moves down beside the health plate so the whole vitals
 // group reads as one bay.
 //
-// No UT art or fonts are used or shipped. The doll and every glyph are
+// With GAME_CONFIG.HUD.ATLAS off, no UT art is used: the doll and every glyph are
 // hand-authored inline SVG; the type is a generic squared grotesque from Google
 // Fonts behind a full system fallback stack, so the page is unchanged offline
 // apart from the exact letterforms.
@@ -475,6 +476,9 @@ function makeDigit(parent) {
       // further left than any other digit, which is why "100" reads tighter
       // than "800". The cell still advances the same 28S afterwards.
       d.classList.toggle("is-one", ch === 1);
+      // Atlas mode picks the HudElements1 digit cell off this attribute.
+      if (ch === null) delete d.dataset.d;
+      else d.dataset.d = String(ch);
       const on = ch === null ? "" : SEG_MAP[ch] || "";
       for (const k of SEG_KEYS) segs[k].classList.toggle("is-on", on.includes(k));
     },
@@ -622,6 +626,10 @@ function createHud() {
 
   const root = div("ut-hud");
   root.id = "ut-hud";
+  // Atlas mode: the CSS under `.ut-hud--atlas` masks every glyph, digit, box,
+  // weapon cell and the doll out of the original UT99 textures instead of the
+  // SVG/CSS recreations built below. The DOM is the same either way.
+  if (GAME_CONFIG.HUD && GAME_CONFIG.HUD.ATLAS) root.classList.add("ut-hud--atlas");
 
   // LAYOUT IS UT99's, read off a retail screenshot rather than interpreted:
   //

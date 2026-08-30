@@ -2585,3 +2585,183 @@ html[data-team="red"] .ut-flags {
   flex-direction: column-reverse;
   align-items: flex-start;
 }
+
+/* ==========================================================================
+   ATLAS MODE — the HUD drawn from the original UT99 textures.
+   GAME_CONFIG.HUD.ATLAS puts `.ut-hud--atlas` on the root; everything below
+   is how ChallengeHUD.uc's DrawTile calls map onto CSS:
+
+     DrawColor x texel luminance  ->  background-color masked by the atlas
+                                      with mask-mode: luminance
+     STY_Translucent              ->  mix-blend-mode: screen
+     STY_Normal                   ->  mix-blend-mode: normal (the held slot
+                                      and the gold slot numbers)
+     one texel                    ->  1 S (0.078125vw) on the corner tiles,
+                                      1.6 S in the weapon bar (64x32 cells
+                                      drawn at 128x64), 0.6 S for slot numbers
+
+   The atlases are greyscale, so luminance masking IS the engine's modulate.
+   The SVG/CSS recreation below stays in the DOM and takes over again the
+   moment the class is absent.
+   ========================================================================== */
+.ut-hud--atlas {
+  --ut-atlas: url("assets/ut99/BotPack.Icons.HudElements1.png");
+  --ut-wpn: url("assets/ut99/BotPack.Icons.HUDWeapons.png");
+  --ut-man: url("assets/ut99/BotPack.Icons.Man.png");
+}
+
+/* A masked tile. Every atlas element is a ::before/::after carrying one of
+   these; the parent keeps its position and size and loses its CSS art. */
+.ut-hud--atlas .ut-seg::before,
+.ut-hud--atlas .ut-vital__art::before,
+.ut-hud--atlas .ut-frags::before,
+.ut-hud--atlas .ut-ammo-bay::before,
+.ut-hud--atlas .ut-wslot:not(.is-active)::before,
+.ut-hud--atlas .ut-doll::before,
+.ut-hud--atlas .ut-doll::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  pointer-events: none;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-mode: luminance;
+  mask-mode: luminance;
+}
+
+/* --- digits: HudElements1 (d*25, 0, 25, 64), the cell IS 25S x 64S --------- */
+.ut-hud--atlas .ut-seg > i { display: none !important; }
+.ut-hud--atlas .ut-seg::before {
+  --ut-d: 0;
+  background: var(--ut-digit, #fff);
+  -webkit-mask-image: var(--ut-atlas);
+  mask-image: var(--ut-atlas);
+  -webkit-mask-size: calc(256 * var(--ut-s)) calc(256 * var(--ut-s));
+  mask-size: calc(256 * var(--ut-s)) calc(256 * var(--ut-s));
+  -webkit-mask-position: calc(var(--ut-d) * -25 * var(--ut-s)) 0;
+  mask-position: calc(var(--ut-d) * -25 * var(--ut-s)) 0;
+}
+.ut-hud--atlas .ut-seg[data-d="0"]::before { --ut-d: 0; }
+.ut-hud--atlas .ut-seg[data-d="1"]::before { --ut-d: 1; }
+.ut-hud--atlas .ut-seg[data-d="2"]::before { --ut-d: 2; }
+.ut-hud--atlas .ut-seg[data-d="3"]::before { --ut-d: 3; }
+.ut-hud--atlas .ut-seg[data-d="4"]::before { --ut-d: 4; }
+.ut-hud--atlas .ut-seg[data-d="5"]::before { --ut-d: 5; }
+.ut-hud--atlas .ut-seg[data-d="6"]::before { --ut-d: 6; }
+.ut-hud--atlas .ut-seg[data-d="7"]::before { --ut-d: 7; }
+.ut-hud--atlas .ut-seg[data-d="8"]::before { --ut-d: 8; }
+.ut-hud--atlas .ut-seg[data-d="9"]::before { --ut-d: 9; }
+
+/* DrawColor per readout: health and armour WhiteColor (DrawStatus), ammo
+   WhiteColor (DrawAmmo), frags the current HUDColor (DrawFragCount), slot
+   numbers GoldColor STY_Normal. */
+.ut-hud--atlas .ut-num--frags .ut-seg::before { --ut-digit: rgb(var(--ut99-hue)); }
+.ut-hud--atlas .ut-wslot__key .ut-seg::before { --ut-digit: #ffff00; }
+.ut-hud--atlas .ut-num--flag .ut-seg::before { --ut-digit: rgb(var(--ut-solid-rgb, 255, 255, 255)); }
+.ut-hud--atlas .ut-meter--ammo.is-reloading .ut-seg::before,
+.ut-hud--atlas .ut-ammo-bay.is-reloading .ut-seg::before {
+  animation: ut-atlas-blink 0.42s steps(1) infinite;
+}
+@keyframes ut-atlas-blink { 50% { opacity: 0; } }
+
+/* --- the four 128x64 corner tiles, box and glyph in one draw ----------------- */
+.ut-hud--atlas .ut-vital__art,
+.ut-hud--atlas .ut-frags,
+.ut-hud--atlas .ut-ammo-bay {
+  background: none;
+  box-shadow: none;
+  border: 0;
+}
+.ut-hud--atlas .ut-vital__glyph,
+.ut-hud--atlas .ut-frags__skull,
+.ut-hud--atlas .ut-ammo-bay__bullets { display: none; }
+.ut-hud--atlas .ut-vital__art::before,
+.ut-hud--atlas .ut-frags::before,
+.ut-hud--atlas .ut-ammo-bay::before {
+  -webkit-mask-image: var(--ut-atlas);
+  mask-image: var(--ut-atlas);
+  -webkit-mask-size: calc(256 * var(--ut-s)) calc(256 * var(--ut-s));
+  mask-size: calc(256 * var(--ut-s)) calc(256 * var(--ut-s));
+  z-index: 0;
+}
+.ut-hud--atlas .ut-vital__art::before { background: rgb(var(--ut-rgb)); }
+.ut-hud--atlas .ut-vital--health .ut-vital__art::before {
+  -webkit-mask-position: calc(-128 * var(--ut-s)) calc(-128 * var(--ut-s));
+  mask-position: calc(-128 * var(--ut-s)) calc(-128 * var(--ut-s));
+}
+.ut-hud--atlas .ut-vital--armor .ut-vital__art::before {
+  -webkit-mask-position: 0 calc(-192 * var(--ut-s));
+  mask-position: 0 calc(-192 * var(--ut-s));
+}
+.ut-hud--atlas .ut-frags::before {
+  background: rgb(var(--ut99-hue));
+  -webkit-mask-position: 0 calc(-128 * var(--ut-s));
+  mask-position: 0 calc(-128 * var(--ut-s));
+}
+.ut-hud--atlas .ut-ammo-bay::before {
+  background: rgb(var(--ut99-hue));
+  -webkit-mask-position: calc(-128 * var(--ut-s)) calc(-192 * var(--ut-s));
+  mask-position: calc(-128 * var(--ut-s)) calc(-192 * var(--ut-s));
+}
+/* Low health: DrawStatus lerps the tile colour toward white and the .is-low
+   opacity ramp on .ut-vital__art already carries the pulse. */
+.ut-hud--atlas .ut-vital--health.is-low .ut-vital__art::before { background: #fff; }
+/* Children paint above the tile. */
+.ut-hud--atlas .ut-vital .ut-num,
+.ut-hud--atlas .ut-frags .ut-num,
+.ut-hud--atlas .ut-frags__flash,
+.ut-hud--atlas .ut-ammo-bay .ut-num { z-index: 1; }
+
+/* --- weapon bar: HUDWeapons 64x32 cells at 2x, 0.5 * HUDColor, translucent --- */
+.ut-hud--atlas .ut-wslot:not(.is-active) {
+  background: none;
+  box-shadow: none;
+}
+.ut-hud--atlas .ut-wslot:not(.is-active) .ut-wslot__icon { display: none; }
+.ut-hud--atlas .ut-wslot:not(.is-active)::before {
+  left: 0; top: 0;
+  background: rgb(var(--ut99-hue));
+  opacity: 0.5;
+  -webkit-mask-image: var(--ut-wpn);
+  mask-image: var(--ut-wpn);
+  -webkit-mask-size: calc(409.6 * var(--ut-s)) calc(409.6 * var(--ut-s));
+  mask-size: calc(409.6 * var(--ut-s)) calc(409.6 * var(--ut-s));
+  -webkit-mask-position: calc(var(--ut-wx, 0) * -1.6 * var(--ut-s)) calc(var(--ut-wy, 0) * -1.6 * var(--ut-s));
+  mask-position: calc(var(--ut-wx, 0) * -1.6 * var(--ut-s)) calc(var(--ut-wy, 0) * -1.6 * var(--ut-s));
+}
+.ut-hud--atlas .ut-wslot:nth-child(1)::before { --ut-wx: 0; --ut-wy: 0; }
+.ut-hud--atlas .ut-wslot:nth-child(2)::before { --ut-wx: 64; --ut-wy: 0; }
+.ut-hud--atlas .ut-wslot:nth-child(3)::before { --ut-wx: 128; --ut-wy: 0; }
+.ut-hud--atlas .ut-wslot:nth-child(4)::before { --ut-wx: 192; --ut-wy: 0; }
+.ut-hud--atlas .ut-wslot:nth-child(5)::before { --ut-wx: 0; --ut-wy: 32; }
+.ut-hud--atlas .ut-wslot:nth-child(6)::before { --ut-wx: 64; --ut-wy: 32; }
+.ut-hud--atlas .ut-wslot:nth-child(7)::before { --ut-wx: 128; --ut-wy: 32; }
+.ut-hud--atlas .ut-wslot:nth-child(8)::before { --ut-wx: 192; --ut-wy: 32; }
+.ut-hud--atlas .ut-wslot:nth-child(9)::before { --ut-wx: 0; --ut-wy: 64; }
+.ut-hud--atlas .ut-wslot:nth-child(10)::before { --ut-wx: 64; --ut-wy: 64; }
+
+/* --- status doll: Icons.Man (0,0,128,256) at HUDColor; chest plate
+   (128,0,128,64) at HUDColor * ChestAmount over it ---------------------------- */
+.ut-hud--atlas .ut-doll > svg { display: none; }
+.ut-hud--atlas .ut-doll::before,
+.ut-hud--atlas .ut-doll::after {
+  background: rgb(var(--ut-rgb));
+  -webkit-mask-image: var(--ut-man);
+  mask-image: var(--ut-man);
+  -webkit-mask-size: calc(256 * var(--ut-s)) calc(256 * var(--ut-s));
+  mask-size: calc(256 * var(--ut-s)) calc(256 * var(--ut-s));
+}
+.ut-hud--atlas .ut-doll::before {
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+}
+.ut-hud--atlas .ut-doll::after {
+  bottom: auto;
+  height: calc(64 * var(--ut-s));
+  opacity: var(--ut-chest, 0);
+  -webkit-mask-position: calc(-128 * var(--ut-s)) 0;
+  mask-position: calc(-128 * var(--ut-s)) 0;
+}
+.ut-hud--atlas .ut-doll__hits { z-index: 1; }

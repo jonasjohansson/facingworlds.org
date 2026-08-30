@@ -4,6 +4,12 @@ A browser multiplayer FPS recreating UT99's CTF-Face, built on A-Frame 1.6 (thre
 with a WebSocket game server, plus an AR spectator page. Static site, no build step:
 GitHub Pages serves this repository as-is at <https://facingworlds.org>.
 
+## HUD art
+
+`assets/ut99/` holds four original UT99 HUD textures (Epic's; see the NOTICE
+there). `GAME_CONFIG.HUD.ATLAS` switches the HUD between drawing from those
+atlases exactly as `ChallengeHUD.uc` does, and the in-repo SVG/CSS recreation.
+
 ## Features
 
 - **Multiplayer Support**: Real-time multiplayer with WebSocket networking

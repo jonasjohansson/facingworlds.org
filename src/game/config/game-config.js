@@ -156,6 +156,14 @@ export const GAME_CONFIG = {
     EMISSIVE_STRENGTH: 0.45,
   },
 
+  // HUD art source. true: draw the HUD from the original UT99 atlases shipped
+  // under assets/ut99/ (Epic's textures, see assets/ut99/NOTICE.md), exactly the
+  // way ChallengeHUD.uc draws them. false: the measured SVG/CSS recreation of the
+  // same art, which stays in the code so this is a one-line revert.
+  HUD: {
+    ATLAS: true,
+  },
+
   WEAPON: {
     FIRE_RATE: 4, // shots per second
     // Dual Enforcers: UT99's second-Enforcer pickup. Same gun twice, fired
