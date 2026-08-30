@@ -239,3 +239,12 @@ Three multi-agent workflows. Highlights, and the things that bit:
   `bloomPass.resolution` across resize, and fractional render targets caused by a
   `devicePixelRatio` of 1.7999999523 — but neither was the cause.
 - **Nothing is committed.** 57 files across three workflows sit in the working tree.
+
+## Landed 2026-08-30
+
+- **Draco vendored** (`2e2dbe8`): decoder served from `src/ar/vendor/draco/`; zero third-party requests.
+- **Capture the Flag** (`58def08`): server-authoritative flags, teams, team spawns, 23 wire-level tests. The pose loop now carries the `ut-jump` hop, verified as a 1.47 m arc on the wire.
+- **HUD from source** (`8224c04`): `docs/reference/ut99-hud-exact-spec.md` is derived from `ChallengeHUD.uc` / `ChallengeCTFHUD.uc` and the `HudElements1` atlas of a retail install (kept outside the repo). The screenshot-based spec is superseded.
+- **True scale** (`eea4815`): the fan map was 42.8% of pawn scale. `WORLD_SCALE = 2.33552` is baked into the optimized glbs; flags, all 20 spawns and pickups come from the real `CTF-Face.unr` actors via `src/shared/map-transform.js`. Flags stand at the tower feet as in the original; the roofs hold the dual-Enforcer pedestals where UT99 has Body Armor.
+
+Open: shadow texel density halved with the scale (2048 map over ±165 m — consider a cascaded or tighter fitted frustum); AR page should show flags and team colours; the frag box shows kills, not a scoreboard-derived score; the doll's damage markers have no hit direction.
