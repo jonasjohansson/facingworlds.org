@@ -248,3 +248,9 @@ Three multi-agent workflows. Highlights, and the things that bit:
 - **True scale** (`eea4815`): the fan map was 42.8% of pawn scale. `WORLD_SCALE = 2.33552` is baked into the optimized glbs; flags, all 20 spawns and pickups come from the real `CTF-Face.unr` actors via `src/shared/map-transform.js`. Flags stand at the tower feet as in the original; the roofs hold the dual-Enforcer pedestals where UT99 has Body Armor.
 
 Open: shadow texel density halved with the scale (2048 map over ±165 m — consider a cascaded or tighter fitted frustum); AR page should show flags and team colours; the frag box shows kills, not a scoreboard-derived score; the doll's damage markers have no hit direction.
+
+## Landed 2026-08-30, evening
+
+- **AR spectator shows the match** (`9e6d267`): team-tinted figures, both flags through home/carried/dropped, score line + roster; name labels half size, tap toggles them.
+- **Bots** (`28e19cb`): server-side players on the real CTF-Face PathNode/ReachSpec network (592 of Epic's edges, A* verified), UT99 CTF brain, beatable aim, fill to 2/team yielding to humans. Confirmed live on production: Tamerlane, Sarena, Kane, Baird joined an empty server.
+- **Field fixes** (same commit): remote facing includes camera yaw; the grey box gun was a destructive 5 s fallback racing a slow Draco decode; in-game team tint off; through-wall reports measured to be interpolation lag, tracing verified solid from three angles.
