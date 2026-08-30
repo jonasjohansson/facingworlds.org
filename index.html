@@ -89,6 +89,7 @@
       shadow="type: pcfsoft; autoUpdate: true"
       loading-screen="enabled: false"
       xr-mode-ui="enabled: false"
+      gltf-model="dracoDecoderPath: src/ar/vendor/draco/"
       renderer="colorManagement: true; physicallyCorrectLights: true; antialias: auto; precision: high; anisotropy: 8; sortTransparentObjects: true">
       <!--
         Space Environment - the CTF-Face skybox.
@@ -136,13 +137,14 @@
           EXT_texture_webp            - three r164's GLTFLoader registers this handler
                                         unconditionally in its constructor. No wiring.
           KHR_draco_mesh_compression  - A-Frame 1.6's gltf-model *system* defaults
-                                        dracoDecoderPath to the gstatic CDN and builds
-                                        a DRACOLoader from it, so this also needs no
-                                        wiring - but it does mean the models will not
-                                        decode if gstatic is unreachable. See the
-                                        "Draco decoder" note in README.md for the
-                                        offline fix (vendor the decoder, then set
-                                        gltf-model="dracoDecoderPath: ..." on a-scene).
+                                        dracoDecoderPath to the gstatic CDN, which
+                                        would leave the map, gun and soldier undecodable
+                                        whenever that host is blocked or offline. The
+                                        a-scene above sets dracoDecoderPath to the
+                                        decoder vendored at src/ar/vendor/draco/
+                                        (shared with the AR page), so nothing is fetched
+                                        from a third party. Verified by blocking
+                                        www.gstatic.com and reloading.
 
         Do NOT point these back at assets/ without also regenerating - the two trees
         are not interchangeable at the URL level (.gltf vs .glb).
