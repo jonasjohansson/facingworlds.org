@@ -415,10 +415,23 @@
           rotation="0 0 0">
         </a-entity>
 
-        <!-- Camera (child of rig, follows movement and rotation) -->
+        <!-- Camera (child of rig, follows movement and rotation).
+
+             near: A-Frame's default is 0.005, which wrecks depth precision at
+             range. Precision at distance z is roughly
+             z^2(far-near) / (far * near * 2^24), so at the Earth (~500 units
+             out) 0.005 gives ~2.98 units of depth resolution - while the cloud
+             shell sits only 0.95 units above the planet surface. Both landed in
+             the same depth bucket, so which one won flipped per pixel per frame
+             and the Earth flickered at distance. 0.05 gives ~0.30 units,
+             comfortably inside that gap.
+
+             It cannot go much higher: the weapon's nearest vertex is 0.325
+             units from the camera and would start clipping. Measured in the
+             running scene, not guessed. -->
         <a-entity
           id="cam"
-          camera="active: true"
+          camera="active: true; near: 0.05"
           look-controls="enabled: true"
           position="0 1.4 0"
           first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0">
