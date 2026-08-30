@@ -451,10 +451,22 @@
             scale="0.025 0.025 0.025"
             position="0.2 -0.3 -0.5"
             weapon-sway="enabled: true; swayIntensity: 0.001; swaySpeed: 6.0; bobIntensity: 0.0; bobSpeed: 0.0; walkMultiplier: 1.0; runMultiplier: 1.5; smoothing: 0.2">
-            <!-- Muzzle point (position this at the tip of the weapon barrel) -->
+            <!--
+              Muzzle point: where the tracer starts and the muzzle flash sits.
+
+              MEASURED, not eyeballed. The weapon mesh's local bounding box runs
+              z -10.8..+10.8, so the previous (0, 1, -1) sat essentially at the
+              gun's CENTRE and the flash appeared to come out of the middle of
+              the weapon rather than the barrel. Sampling the 247 vertices at
+              z <= -10 puts the barrel tip's centroid at (0.35, 1.4, -10.59),
+              with the bore axis around y = 1.4.
+
+              These are the weapon's LOCAL units, so #player-weapon's 0.025 scale
+              applies on top: this is ~0.27 world units ahead of the old point.
+            -->
             <a-entity
               id="weapon-muzzle"
-              position="0 1 -1"
+              position="0.2 1.4 -10.7"
               visible="false">
             </a-entity>
           </a-entity>
