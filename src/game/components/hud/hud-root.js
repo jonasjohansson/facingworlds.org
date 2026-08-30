@@ -192,26 +192,71 @@ function makePanel(className) {
  * @param {number} slots digit positions to reserve
  * @returns {{el: HTMLElement, set: (v: number) => void, text: (s: string) => void}}
  */
-function makeNumber(className, slots) {
-  const el = div(`ut-num ${className}`);
-  el.style.setProperty("--ut-num-slots", String(slots));
-  const max = Math.pow(10, slots) - 1;
+// Seven-segment digits.
+//
+// This is not a stylistic choice, it is what UT99 uses: the health, armour and
+// ammo readouts are LCD-style seven-segment numerals, with the UNLIT segments
+// still faintly visible the way a real segment display shows its dead bars.
+// Verified against a retail UT99 screenshot rather than from memory.
+//
+// Every digit renders all seven segments always; `set()` only toggles which are
+// lit. That is what produces the dim ghost bars, and it means no layout ever
+// reflows — the width is fixed by the slot count.
+const SEG_KEYS = ["a", "b", "c", "d", "e", "f", "g"];
+const SEG_MAP = {
+  0: "abcdef",
+  1: "bc",
+  2: "abdeg",
+  3: "abcdg",
+  4: "bcfg",
+  5: "acdfg",
+  6: "acdefg",
+  7: "abc",
+  8: "abcdefg",
+  9: "abcdfg",
+};
+
+function makeDigit(parent) {
+  const d = div("ut-seg", parent);
+  const segs = {};
+  for (const k of SEG_KEYS) {
+    const i = document.createElement("i");
+    i.className = `ut-seg__${k}`;
+    d.appendChild(i);
+    segs[k] = i;
+  }
   return {
-    el,
-    set(value) {
-      const n = Math.min(max, Math.max(0, Math.round(Number(value) || 0)));
-      el.textContent = String(n);
-      el.classList.remove("is-text");
-    },
-    text(s) {
-      el.textContent = s;
-      el.classList.add("is-text");
+    el: d,
+    /** @param {string|null} ch a single digit, or null for a fully blank cell */
+    show(ch) {
+      const on = ch === null ? "" : SEG_MAP[ch] || "";
+      for (const k of SEG_KEYS) segs[k].classList.toggle("is-on", on.includes(k));
     },
   };
 }
 
-/** A round recessed disc carrying one glyph, as on the outboard end of the
- *  2003/2004 health and ammo plates. */
+function makeNumber(className, slots) {
+  const wrap = div(`ut-num ${className}`);
+  const digits = [];
+  for (let i = 0; i < slots; i++) digits.push(makeDigit(wrap));
+  return {
+    el: wrap,
+    /**
+     * Right-aligned, leading cells blanked rather than zero-padded — UT99 shows
+     * "100" and "0", never "000". Clamped to the reserved width so a value that
+     * outgrows the display cannot widen it and shove the rest of the row.
+     */
+    set(value) {
+      const n = Math.max(0, Math.round(value || 0));
+      const text = String(Math.min(n, Math.pow(10, slots) - 1));
+      const pad = slots - text.length;
+      for (let i = 0; i < slots; i++) {
+        digits[i].show(i < pad ? null : Number(text[i - pad]));
+      }
+    },
+  };
+}
+
 function makeDisc(className, svg) {
   const el = div(`ut-disc ${className}`);
   const glyph = div("ut-disc__glyph", el);
@@ -262,35 +307,45 @@ function createHud() {
   const root = div("ut-hud");
   root.id = "ut-hud";
 
-  // ---- top left: frag chip ----
-  // Three digit slots, not two: makeNumber CLAMPS to the reserved width, so a
-  // two-slot chip would silently freeze at 99 while the TAB scoreboard kept
-  // counting past it. A long session reaches three figures.
+  // LAYOUT IS UT99's, read off a retail screenshot rather than interpreted:
+  //
+  //   top right   one translucent panel, armour row ABOVE health row, each
+  //               number with its glyph to the RIGHT of it, and the paper doll
+  //               standing immediately to the right of the panel.
+  //   bottom      one translucent strip the full width of the screen: numbered
+  //               weapon slots from the left, the held slot in a yellow corner
+  //               bracket, ammo at the far right.
+  //
+  // Numbers are bare inside their panel — UT99 does not box each readout the way
+  // UT2003/2004 does. That difference is most of why the previous build read as
+  // the later games.
+
+  // ---- top right: armour over health, then the doll ----
+  const vitalsBay = div("ut-vitals-bay", root);
+
+  const vitals = makePanel("ut-vitals");
+  const armor = makeMeter("ut-meter--armor", SVG_ARMOR, 3, false);
+  const health = makeMeter("ut-meter--health", SVG_HEALTH, 3, false);
+  vitals.inner.appendChild(armor.row);
+  vitals.inner.appendChild(health.row);
+  vitalsBay.appendChild(vitals.el);
+
+  const doll = div("ut-doll", vitalsBay);
+  doll.innerHTML = SVG_DOLL;
+
+  // ---- top left: frags ----
+  // UT99 keeps the running score on the scoreboard rather than the main HUD, but
+  // a browser game with no menu needs it visible. Kept, in the same translucent
+  // idiom as everything else, rather than invented in a different style.
   const frags = makeChip("ut-chip--frags", SVG_FRAG, 3, "FRAGS");
   root.appendChild(frags.el);
 
-  // ---- top right: key hint ----
-  // Only TAB is advertised. `name-changer` is registered by main.js but no entity
-  // in index.html carries the component, so N is a dead key — hinting it would
-  // lie. Add `name-changer` to a scene entity and the N/NAME pair comes back.
   const hint = div("ut-hint", root);
   hint.innerHTML = '<kbd>TAB</kbd><span>SCORES</span>';
 
-  // ---- bottom bar ----
+  // ---- bottom strip ----
   const bar = div("ut-bar", root);
 
-  // bottom left: paper doll + armour over health
-  const bayL = div("ut-bay ut-bay--left", bar);
-  const doll = div("ut-doll", bayL);
-  doll.innerHTML = SVG_DOLL;
-
-  const vitals = div("ut-vitals", bayL);
-  const armor = makeMeter("ut-meter--armor", SVG_ARMOR, 3, true);
-  const health = makeMeter("ut-meter--health", SVG_HEALTH, 3, true);
-  vitals.appendChild(armor.row);
-  vitals.appendChild(health.row);
-
-  // bottom centre: weapon bar
   const weaponBar = div("ut-weapons", bar);
   const slots = WEAPON_SLOTS.map((w, i) => {
     const panel = makePanel("ut-wslot");
@@ -304,12 +359,10 @@ function createHud() {
     return panel.el;
   });
 
-  // bottom right: weapon name over ammo
-  const bayR = div("ut-bay ut-bay--right", bar);
-  const weaponName = div("ut-weaponname", bayR);
-  weaponName.textContent = WEAPON_SLOTS[ACTIVE_SLOT].name.toUpperCase();
+  // far right of the strip: ammo, glyph to its right like the vitals rows
+  const ammoBay = div("ut-ammo-bay", bar);
   const ammo = makeMeter("ut-meter--ammo", SVG_AMMO, 3, false);
-  bayR.appendChild(ammo.row);
+  ammoBay.appendChild(ammo.row);
 
   // ---- damage vignette ----
   const vignette = div("ut-vignette", root);
@@ -346,13 +399,11 @@ function createHud() {
   }
 
   function paintAmmo() {
-    if (reloading) {
-      ammo.num.text("--");
-      weaponName.textContent = "RELOADING";
-    } else {
-      ammo.num.set(mag);
-      weaponName.textContent = WEAPON_SLOTS[ACTIVE_SLOT].name.toUpperCase();
-    }
+    // UT99's HUD carries no weapon-name text, so reloading is shown by blinking
+    // the ammo readout (.is-reloading in styles.css) rather than by a label the
+    // original never had. The digits hold at 0 while it blinks.
+    ammo.num.set(reloading ? 0 : mag);
+    ammo.row.classList.toggle("is-reloading", reloading);
     ammo.row.dataset.level = reloading || mag <= 10 ? "crit" : "ok";
   }
 

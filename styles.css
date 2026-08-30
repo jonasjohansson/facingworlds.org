@@ -81,42 +81,51 @@ a {
    ========================================================================== */
 
 :root {
-  /* Google Fonts is injected by hud-root.js. Both stacks degrade to condensed
-     system faces, so the HUD still reads correctly offline. */
+  /* UT99's HUD, matched against a retail screenshot rather than interpreted.
+     Google Fonts is injected by hud-root.js; only the small caption text uses
+     it now, because the numerals are drawn as seven-segment shapes. */
   --ut-font-ui: "Saira Condensed", "Arial Narrow", "Roboto Condensed",
     "DIN Condensed", "Haettenschweiler", Impact, sans-serif;
-  --ut-font-num: "Saira", "Saira Condensed", "Arial Narrow", "DIN Condensed",
-    "Haettenschweiler", Impact, sans-serif;
+  --ut-font-num: var(--ut-font-ui);
 
-  /* --- accent hue -----------------------------------------------------------
-     One hue at a time. Gold is the neutral default, which is what a player with
-     no team gets. */
-  --ut-hue: #ffc046;
-  --ut-hue-deep: #ff8a12;
-  --ut-glow: rgba(255, 168, 40, 0.85);
-  --ut-glow-weak: rgba(255, 168, 40, 0.32);
-  --ut-fill: rgba(255, 150, 20, 0.28);
+  /* --- accent -------------------------------------------------------------
+     UT99's HUD is BLUE by default, not gold. The panels are flat translucent
+     navy with a bright blue edge; the numerals are pale periwinkle; the glyphs
+     are saturated blue. The one warm colour anywhere is the yellow bracket
+     around the held weapon slot, which is why it reads instantly. */
+  --ut-hue: #b9b9ff;
+  --ut-hue-deep: #4a4aff;
+  --ut-glow: rgba(90, 90, 255, 0.75);
+  --ut-glow-weak: rgba(90, 90, 255, 0.28);
+  --ut-fill: rgba(40, 40, 200, 0.26);
 
-  /* --- plate chassis --------------------------------------------------------
-     Cold steel, deliberately not the accent hue: in the reference the plates are
-     near-neutral and only the glyphs, the glow and the active weapon slot carry
-     colour. That is what keeps a big white numeral readable over bright sand. */
-  --ut-plate-top: rgba(46, 62, 92, 0.82);
-  --ut-plate-bot: rgba(7, 11, 21, 0.9);
-  --ut-edge-top: rgba(186, 210, 250, 0.72);
-  --ut-edge-bot: rgba(58, 78, 118, 0.6);
+  /* --- panel chassis -------------------------------------------------------
+     FLAT, not bevelled. UT99 panels are a translucent wash with a single bright
+     1px edge — you can see the map through them. The chamfered, gradient-lit
+     plates this replaces are the UT2003/2004 idiom and were the main reason the
+     old bar read as the later games. */
+  --ut-plate-top: rgba(18, 20, 78, 0.5);
+  --ut-plate-bot: rgba(10, 12, 52, 0.5);
+  --ut-edge-top: rgba(96, 100, 255, 0.85);
+  --ut-edge-bot: rgba(96, 100, 255, 0.85);
+
+  /* Seven-segment: lit bars, and the dim ghost bars a real segment display
+     shows for the segments that are off. */
+  --ut-seg-on: #c3c3ff;
+  --ut-seg-off: rgba(90, 95, 200, 0.16);
+  --ut-seg-glow: rgba(140, 140, 255, 0.55);
+
+  /* The active weapon slot's bracket. The only warm colour on the HUD. */
+  --ut-bracket: #ffd21e;
 
   --ut-warn: #ffa023;
   --ut-warn-glow: rgba(255, 150, 25, 0.9);
   --ut-crit: #ff4436;
   --ut-crit-glow: rgba(255, 56, 44, 0.95);
 
-  --ut-ink: rgba(255, 255, 255, 0.44);
+  --ut-ink: rgba(200, 205, 255, 0.5);
 }
 
-/* Set data-team="red" / "blue" on <html> and the whole bar recolours: plates,
-   numerals, doll, weapon bar, scoreboard. No JS in this repo sets it yet —
-   there are no teams on the server — so the neutral gold above is what ships. */
 html[data-team="red"] {
   --ut-hue: #ff6b56;
   --ut-hue-deep: #e02414;
@@ -1418,3 +1427,249 @@ html.a-fullscreen body > .ut-modal {
     display: none;
   }
 }
+
+/* ============================================================================
+   UT99 pass
+   ----------------------------------------------------------------------------
+   Everything below matches the retail UT99 HUD against a real screenshot, and
+   supersedes the UT2003/2004-styled rules above where the two disagree. The
+   differences that matter, in order of how much they change the read:
+
+     1. Numerals are SEVEN-SEGMENT, with the unlit bars faintly visible.
+     2. Panels are FLAT translucent washes with one bright edge — no chamfer,
+        no gradient, no bevel. You can see the map through them.
+     3. Armour sits ABOVE health in ONE panel, top right, glyph to the RIGHT of
+        each number, with the paper doll standing beside the panel.
+     4. The bottom is a single full-width strip carrying the weapon slots and
+        the ammo readout, not three separate corner bays.
+     5. The held weapon slot wears a YELLOW CORNER BRACKET. It is the only warm
+        colour on the HUD.
+   ========================================================================== */
+
+/* --- flat panels ---------------------------------------------------------- */
+.ut-panel,
+.ut-panel__in {
+  clip-path: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.ut-panel {
+  background: var(--ut-edge-top) !important;
+  padding: 1px !important;
+}
+.ut-panel__in {
+  background: linear-gradient(var(--ut-plate-top), var(--ut-plate-bot)) !important;
+}
+
+/* --- seven-segment digits -------------------------------------------------- */
+.ut-num {
+  display: flex;
+  gap: 0.14em;
+  font-size: 26px; /* the em box every segment is sized from */
+  line-height: 1;
+}
+
+.ut-seg {
+  position: relative;
+  width: 0.62em;
+  height: 1.06em;
+}
+
+.ut-seg i {
+  position: absolute;
+  background: var(--ut-seg-off);
+  transition: background 60ms linear;
+}
+.ut-seg i.is-on {
+  background: var(--ut-seg-on);
+  box-shadow: 0 0 6px var(--ut-seg-glow);
+}
+
+/* Bars are drawn as rectangles with mitred ends, which is what a segment
+   display actually looks like — a hexagon, not a rounded pill. */
+.ut-seg__a,
+.ut-seg__d,
+.ut-seg__g {
+  left: 0.1em;
+  width: 0.42em;
+  height: 0.1em;
+  clip-path: polygon(0.06em 0, calc(100% - 0.06em) 0, 100% 50%, calc(100% - 0.06em) 100%, 0.06em 100%, 0 50%);
+}
+.ut-seg__a { top: 0; }
+.ut-seg__g { top: 0.48em; }
+.ut-seg__d { bottom: 0; }
+
+.ut-seg__b,
+.ut-seg__c,
+.ut-seg__e,
+.ut-seg__f {
+  width: 0.1em;
+  height: 0.42em;
+  clip-path: polygon(0 0.06em, 50% 0, 100% 0.06em, 100% calc(100% - 0.06em), 50% 100%, 0 calc(100% - 0.06em));
+}
+.ut-seg__f { left: 0; top: 0.06em; }
+.ut-seg__b { right: 0; top: 0.06em; }
+.ut-seg__e { left: 0; bottom: 0.06em; }
+.ut-seg__c { right: 0; bottom: 0.06em; }
+
+/* Damage states recolour the lit bars only; the ghosts stay cold. */
+.ut-meter--health[data-level="warn"] .ut-seg i.is-on { background: var(--ut-warn); box-shadow: 0 0 7px var(--ut-warn-glow); }
+.ut-meter--health[data-level="crit"] .ut-seg i.is-on,
+.ut-meter--ammo[data-level="crit"] .ut-seg i.is-on { background: var(--ut-crit); box-shadow: 0 0 8px var(--ut-crit-glow); }
+
+.ut-meter--ammo.is-reloading .ut-seg i.is-on { animation: ut-seg-blink 0.42s steps(1) infinite; }
+@keyframes ut-seg-blink { 50% { background: var(--ut-seg-off); box-shadow: none; } }
+
+/* --- top right: armour over health, doll beside ---------------------------- */
+.ut-vitals-bay {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.ut-vitals .ut-panel__in {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 6px 10px;
+}
+
+/* The divider between armour and health is a rule inside one panel, not two
+   separate panels stacked. */
+.ut-vitals .ut-meter + .ut-meter {
+  border-top: 1px solid var(--ut-edge-top);
+  margin-top: 5px;
+  padding-top: 5px;
+}
+
+/* Number first, glyph to its right — the order in the original. */
+.ut-vitals .ut-meter,
+.ut-ammo-bay .ut-meter {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  background: none;
+  padding: 0;
+}
+.ut-vitals .ut-meter .ut-panel,
+.ut-ammo-bay .ut-meter .ut-panel {
+  background: none !important;
+  padding: 0 !important;
+}
+.ut-vitals .ut-meter .ut-panel__in,
+.ut-ammo-bay .ut-meter .ut-panel__in {
+  background: none !important;
+  padding: 0 !important;
+}
+
+.ut-disc {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  width: auto !important;
+  height: auto !important;
+}
+.ut-disc__glyph svg { width: 26px; height: 26px; }
+.ut-disc__glyph svg * { fill: var(--ut-hue-deep); stroke: var(--ut-hue-deep); }
+
+/* The doll sits OUTSIDE the panel, to its right, standing on nothing. */
+.ut-doll {
+  position: static !important;
+  width: 62px;
+  height: 96px;
+}
+
+/* --- bottom strip ---------------------------------------------------------- */
+.ut-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  padding: 0;
+  background: linear-gradient(var(--ut-plate-top), var(--ut-plate-bot));
+  border-top: 1px solid var(--ut-edge-top);
+}
+
+.ut-weapons {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+}
+
+.ut-ammo-bay {
+  margin-left: auto;
+  padding: 4px 14px 4px 10px;
+  border-left: 1px solid var(--ut-edge-top);
+}
+
+/* --- the held weapon slot: yellow corner bracket ---------------------------- */
+.ut-wslot.is-active .ut-panel__in,
+.ut-wslot.is-active {
+  background: transparent !important;
+}
+.ut-wslot.is-active {
+  position: relative;
+  outline: none;
+}
+/* Four L-shaped corners rather than a full box — the original brackets the slot,
+   it does not outline it. */
+.ut-wslot.is-active::before,
+.ut-wslot.is-active::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  border: 2px solid var(--ut-bracket);
+}
+.ut-wslot.is-active::before {
+  clip-path: polygon(0 0, 38% 0, 38% 12%, 12% 12%, 12% 38%, 0 38%,
+                     0 62%, 12% 62%, 12% 88%, 38% 88%, 38% 100%, 0 100%);
+}
+.ut-wslot.is-active::after {
+  clip-path: polygon(100% 0, 62% 0, 62% 12%, 88% 12%, 88% 38%, 100% 38%,
+                     100% 62%, 88% 62%, 88% 88%, 62% 88%, 62% 100%, 100% 100%);
+}
+.ut-wslot.is-active .ut-wslot__key { color: var(--ut-bracket); }
+
+/* Unowned slots show their number and nothing else, dimmed. */
+.ut-wslot:not(.is-owned) .ut-panel__in { background: rgba(10, 12, 52, 0.28) !important; }
+.ut-wslot:not(.is-owned) .ut-wslot__key { opacity: 0.4; }
+
+/* The frag chip and TAB hint keep the same flat idiom as everything else. */
+.ut-chip--frags,
+.ut-hint {
+  background: linear-gradient(var(--ut-plate-top), var(--ut-plate-bot));
+  border: 1px solid var(--ut-edge-top);
+  border-radius: 0;
+}
+
+/* The TAB hint used to own the top right. The vitals bay lives there now, so it
+   moves under the frag chip on the left — UT99 has no such hint at all, and the
+   top right is the one corner the original genuinely reserves. */
+.ut-hint {
+  top: 58px !important;
+  left: 16px !important;
+  right: auto !important;
+}
+
+/* The doll is the most recognisable thing on this HUD, and at 62px of pale
+   outline it was neither. UT99 draws it as a solid, saturated blue figure. */
+.ut-doll {
+  width: 74px;
+  height: 108px;
+  filter: drop-shadow(0 0 6px var(--ut-glow-weak));
+}
+.ut-doll svg { width: 100%; height: 100%; }
+.ut-doll__body path {
+  fill: rgba(60, 66, 220, 0.55);
+  stroke: var(--ut-hue-deep);
+  stroke-width: 1.2;
+}
+.ut-doll__lit path { fill: var(--ut-hue); stroke: none; }
