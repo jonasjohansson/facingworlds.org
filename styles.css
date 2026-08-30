@@ -2530,3 +2530,58 @@ html[data-team="red"] .ut-flags {
   left: auto !important;
 }
 
+
+/* ==========================================================================
+   Credits as a "?" in the corner. The block used to sit centred over the
+   floor; UT99 draws nothing there, so it now collapses to one glyph tucked
+   above the frag box and opens on click (touch) or hover (mouse).
+   ========================================================================== */
+#credits-container {
+  left: 8px;
+  right: auto;
+  bottom: calc(5vw + 10px);
+  transform: none;
+  width: auto;
+  max-width: min(360px, 70vw);
+  text-align: left;
+}
+
+.credit-toggle {
+  pointer-events: auto;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(var(--ut-rgb, 0, 120, 239), 0.6);
+  background: rgba(var(--ut-rgb, 0, 120, 239), 0.26);
+  color: rgba(255, 255, 255, 0.85);
+  font: 700 13px/20px var(--ut-font-ui);
+  text-align: center;
+  mix-blend-mode: screen;
+}
+
+.credit-toggle:hover,
+#credits-container.is-open .credit-toggle {
+  background: rgba(var(--ut-rgb, 0, 120, 239), 0.6);
+  color: #fff;
+}
+
+.credit-panel {
+  display: none;
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.55);
+  border-left: 2px solid rgba(var(--ut-rgb, 0, 120, 239), 0.6);
+}
+
+#credits-container.is-open .credit-panel,
+#credits-container:hover .credit-panel {
+  display: block;
+}
+
+/* Panel above, glyph below, so opening it never covers the frag box. */
+#credits-container {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+}

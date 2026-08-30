@@ -129,3 +129,16 @@ document.addEventListener("DOMContentLoaded", () => {
     handleError(error, "DOM Content Loaded");
   }
 });
+
+// The "?" in the corner: click toggles the controls/credits panel (hover does it
+// for mouse users via CSS). Kept out of the HUD component because it is not HUD.
+{
+  const credits = document.getElementById("credits-container");
+  const toggle = credits && credits.querySelector(".credit-toggle");
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      const open = credits.classList.toggle("is-open");
+      toggle.setAttribute("aria-expanded", String(open));
+    });
+  }
+}

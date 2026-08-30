@@ -553,28 +553,25 @@
 
       <!-- Credits Display -->
       <div id="credits-container">
-        <!-- Only one of these is ever true. The touch line describes the aframe-extras
-             touch-controls path (1 finger forward / 2 fingers back); desktop runs
-             keyboard-controls + ut-jump, which that sentence says nothing about, so it
-             used to be the only instruction a mouse-and-keyboard player ever got. -->
-        <div class="credit-line credit-instructions credit-instructions--desktop">
-          WASD move &middot; mouse look &middot; Space jump &middot; X fire &middot; Tab scores
-        </div>
-        <div class="credit-line credit-instructions credit-instructions--touch">
-          1 finger tap to move forward, 2 fingers to move backward, move finger or camera to look around, fire to… fire. Game on!
-        </div>
-        <div class="credit-line">
-          Made by
-          <a
-            href="https://www.instagram.com/jnsjohansson"
-            target="_blank"
-            class="credit-author"
-            >Jonas Johansson</a
-          >
-        </div>
-        <div class="credit-line credit-highlight">3D Model by Harry Clark</div>
-        <div class="credit-link">
-          <a href="ar/">View Facing Worlds in AR, click this link and point your camera towards the sticker.</a>
+        <!-- A "?" in the corner; UT99 draws nothing here, so the controls and
+             credits stay out of the HUD until asked for (click, or hover on a
+             mouse). Only one of the two instruction lines is ever shown. -->
+        <button type="button" class="credit-toggle" aria-expanded="false" aria-controls="credit-panel" title="Controls and credits">?</button>
+        <div id="credit-panel" class="credit-panel">
+          <div class="credit-line credit-instructions credit-instructions--desktop">
+            WASD move &middot; mouse look &middot; Space jump &middot; X or click fire &middot; Tab scores
+          </div>
+          <div class="credit-line credit-instructions credit-instructions--touch">
+            1 finger to move forward, 2 fingers to move backward, drag or turn the phone to look, tap fire to fire.
+          </div>
+          <div class="credit-line">
+            Made by
+            <a href="https://www.instagram.com/jnsjohansson" target="_blank" class="credit-author">Jonas Johansson</a>
+          </div>
+          <div class="credit-line credit-highlight">3D Model by Harry Clark</div>
+          <div class="credit-link">
+            <a href="ar/">View Facing Worlds in AR: open this on a phone and point it at the sticker.</a>
+          </div>
         </div>
       </div>
 
