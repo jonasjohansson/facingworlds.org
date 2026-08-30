@@ -40,6 +40,12 @@ const WORLD_SCALE = 2.33552;
 // Regenerate with `node scripts/gen-map-actors.mjs`; `--check` fails if it is stale.
 const MAP = require("./map-actors.js");
 
+// Bots. Everything about them lives in server/bots.js; this file only creates the manager
+// (below, once the state and helpers it borrows exist) and calls its roster check from the
+// world sweep. A bot is an ordinary entry in `players` with no socket, so nothing else in
+// here — publicPlayer, applyHit, dropFlag, resetMatch, the scoreboard — knows or cares.
+const { createBots } = require("./bots.js");
+
 // ---- validation / anti-cheat tuning ----
 const HEARTBEAT_INTERVAL = 15000; // ms between pings; two misses reaps the socket
 // NOT scaled by k, deliberately. This is a SPEED, and the player did not get faster: the
@@ -605,10 +611,19 @@ wss.on("connection", (ws, req) => {
 
     switch (m.type) {
       case "setName": {
-        const clean =
+        let clean =
           String(m.name || "")
             .slice(0, MAX_NAME)
             .trim() || `Player_${id}`;
+        // Humans share seven names with BOT_NAMES and two humans can pick the
+        // same one; two identical scoreboard rows help nobody. The newcomer
+        // gets a numeric suffix.
+        {
+          const want = clean;
+          let n = 2;
+          const taken = () => { for (const p of players.values()) if (p !== me && p.name === clean) return true; return false; };
+          while (taken()) clean = `${want} ${n++}`.slice(0, MAX_NAME + 3);
+        }
         me.name = clean;
 
         // Optional session token — lets a reconnecting player resume the score the
@@ -869,71 +884,11 @@ wss.on("connection", (ws, req) => {
       // Refusals are silent, exactly like takePickup: a client that is out of position
       // or out of turn simply sees nothing happen.
       case "touchFlag": {
-        const now = Date.now();
-        // A decided match still lets people shoot it out; it just stops scoring.
-        if (match.state !== "playing") break;
-        if (!me.spawned || me.hp <= 0) break; // a corpse does not touch
-        if (!takeToken(me.flagBucket, now, FLAG_MIN_INTERVAL, FLAG_BURST)) break;
-
-        // Exact string match, never a bare `flags[m.team]` lookup: m.team is
-        // attacker-controlled, and "__proto__"/"constructor" would otherwise hand back a
-        // truthy object whose undefined coordinates make the distance check NaN — which
-        // is not greater than the reach, so it would pass.
-        if (m.team !== "red" && m.team !== "blue") break;
-        const f = flags[m.team];
-        if (f.state === "carried") break;
-
-        // Judged in 3D against the SERVER's copy of the position — the flags stand 30
-        // units up on the tower roofs, and a 2D check would let the whole base touch them.
-        const fdx = me.x - f.x;
-        const fdy = me.y - f.y;
-        const fdz = me.z - f.z;
-        const freach = FLAG_RADIUS + FLAG_CLAIM_SLACK;
-        if (fdx * fdx + fdy * fdy + fdz * fdz > freach * freach) break;
-
-        if (f.team !== me.team) {
-          // Enemy flag, home or dropped: carry it. One flag to a carrier.
-          if (me.flag) break;
-          f.state = "carried";
-          f.carrier = me.id;
-          f.returnAt = 0;
-          f.x = me.x;
-          f.y = me.y;
-          f.z = me.z;
-          me.flag = f.team;
-          broadcastFlag(f, "taken", me);
-          console.log(`[server] ${me.name} took the ${f.team} flag`);
-          break;
-        }
-
-        // Own flag, lying where its carrier fell: send it home. Works while carrying the
-        // enemy flag too — in UT99 you can return your own and cap on the same run.
-        if (f.state === "dropped") {
-          returnFlag(f, me);
-          break;
-        }
-
-        // Own flag, at home. That is a capture if and only if I am carrying the enemy's;
-        // otherwise touching your own flag stand does nothing at all.
-        if (!me.flag) break;
-        const carried = flags[me.flag];
-        // me.flag and flags[].carrier are two halves of the same fact, and a bug (or a
-        // race between a drop and a capture) that lets them disagree must not mint a
-        // point — a flag that is home, dropped, or on someone else's back is not mine to
-        // score. Clear the stale half and refuse.
-        if (!carried || carried.carrier !== me.id || carried.state !== "carried") {
-          me.flag = null;
-          break;
-        }
-        me.flag = null;
-        sendFlagHome(carried);
-        match.scores[me.team]++;
-        broadcastFlag(carried, "captured", me);
-        broadcast({ type: "ctf-score", scores: { ...match.scores }, by: me.id, team: me.team });
-        console.log(
-          `[server] ${me.name} captured the ${carried.team} flag (red ${match.scores.red} - blue ${match.scores.blue})`
-        );
-        if (match.scores[me.team] >= match.capLimit) endMatch(me.team);
+        // Every rule — match state, the rate limit, the reach, and what a touch MEANS —
+        // lives in tryTouchFlag(). The bots call the same function rather than reaching
+        // into `flags` themselves, so there is exactly one copy of this validation and a
+        // bot can no more take a flag from across the map than a client can.
+        tryTouchFlag(me, m.team);
         break;
       }
 
@@ -996,6 +951,38 @@ wss.on("connection", (ws, req) => {
   });
 });
 
+// ---- bots ----
+// Created here, after every function and table it borrows exists. The context is explicit
+// rather than a module-wide reach-in so that bots.js holds no second copy of any rule:
+// tryTouchFlag is the flag rule, canHit/applyHit are the damage path the clientHit
+// handler uses, teamSpawn is the spawn every respawn already goes through.
+const bots = createBots({
+  players,
+  flags,
+  match,
+  lastPoseUpdate,
+  PLAYER_HP,
+  MAX_POSE_SPEED,
+  ROOF_AIRSPACE_Y,
+  FIRE_BURST,
+  HIT_BURST,
+  FLAG_BURST,
+  FLAG_RADIUS,
+  id4,
+  q2,
+  q3,
+  clampWorld,
+  otherTeam,
+  publicPlayer,
+  broadcast,
+  broadcastHighscore,
+  teamSpawn,
+  dropFlag,
+  tryTouchFlag,
+  canHit,
+  applyHit,
+});
+
 // ---- heartbeat: reap sockets that stopped answering, sweep expired sessions ----
 // Pickup respawn sweep. One timer for every pedestal rather than a setTimeout per
 // claim: a timer per claim would have to be cancelled on shutdown and could fire
@@ -1033,6 +1020,9 @@ const worldSweep = setInterval(() => {
     if (f.state === "dropped" && now >= f.returnAt) returnFlag(f, null);
   }
   if (match.state === "ended" && now >= match.resetAt) resetMatch();
+  // Roster only — bots move and think on their own 20 Hz timer. Throttled inside to a
+  // check every few seconds, so this is a cheap call ten times a second.
+  bots.sweep(now);
 }, 500);
 worldSweep.unref && worldSweep.unref();
 
@@ -1106,7 +1096,11 @@ function applyHit(shooter, victim) {
     // what makes holding the bridge mean something.
     v.dual = false;
     v.flag = null;
-    teamSpawn(v);
+    // A victim killed before it ever sent `spawn` (shot on the loading screen —
+    // no longer possible from bots, still possible from humans) must not be
+    // silently moved: its client still sits on the hello.spawn point and the
+    // first pose after load would read as a teleport. Leave the point alone.
+    if (v.spawned) teamSpawn(v);
     v.animation = { idle: 1, walk: 0, run: 0 };
     v.speed = 0;
     v.shots.length = 0;
@@ -1207,6 +1201,88 @@ function dropFlag(p, reason) {
   f.returnAt = Date.now() + CTF_AUTO_RETURN_MS;
   broadcastFlag(f, "dropped", p);
   console.log(`[server] ${p.name} dropped the ${f.team} flag (${reason})`);
+}
+
+// "I am standing on this flag." The server works out what that MEANS — take the enemy's,
+// return your own, or capture — from who is asking and what they carry. Refusals are
+// silent, exactly like takePickup: a player who is out of position or out of turn simply
+// sees nothing happen.
+//
+// This is the WHOLE rule, in one function, because it has two callers: the `touchFlag`
+// message from a client, and a bot deciding it is standing on a flag (server/bots.js).
+// A bot has no socket and so bypasses the ws-level fire/hit token buckets, but it does
+// NOT bypass anything here — same match-state gate, same per-player flag bucket, same
+// 3D reach against the server's own copy of the position, same capture bookkeeping.
+//
+// `team` is untrusted: it arrives straight off the wire in the client's case.
+// Returns "taken" | "returned" | "captured" | null (nothing happened).
+function tryTouchFlag(me, team) {
+  const now = Date.now();
+  // A decided match still lets people shoot it out; it just stops scoring.
+  if (match.state !== "playing") return null;
+  if (!me || !me.spawned || me.hp <= 0) return null; // a corpse does not touch
+  if (!takeToken(me.flagBucket, now, FLAG_MIN_INTERVAL, FLAG_BURST)) return null;
+
+  // Exact string match, never a bare `flags[team]` lookup: team is attacker-controlled,
+  // and "__proto__"/"constructor" would otherwise hand back a truthy object whose
+  // undefined coordinates make the distance check NaN — which is not greater than the
+  // reach, so it would pass.
+  if (team !== "red" && team !== "blue") return null;
+  const f = flags[team];
+  if (f.state === "carried") return null;
+
+  // Judged in 3D against the SERVER's copy of the position — a 2D check would let a
+  // player standing on the tower above the plinth touch the flag through the floor.
+  const fdx = me.x - f.x;
+  const fdy = me.y - f.y;
+  const fdz = me.z - f.z;
+  const freach = FLAG_RADIUS + FLAG_CLAIM_SLACK;
+  if (fdx * fdx + fdy * fdy + fdz * fdz > freach * freach) return null;
+
+  if (f.team !== me.team) {
+    // Enemy flag, home or dropped: carry it. One flag to a carrier.
+    if (me.flag) return null;
+    f.state = "carried";
+    f.carrier = me.id;
+    f.returnAt = 0;
+    f.x = me.x;
+    f.y = me.y;
+    f.z = me.z;
+    me.flag = f.team;
+    broadcastFlag(f, "taken", me);
+    console.log(`[server] ${me.name} took the ${f.team} flag`);
+    return "taken";
+  }
+
+  // Own flag, lying where its carrier fell: send it home. Works while carrying the
+  // enemy flag too — in UT99 you can return your own and cap on the same run.
+  if (f.state === "dropped") {
+    returnFlag(f, me);
+    return "returned";
+  }
+
+  // Own flag, at home. That is a capture if and only if I am carrying the enemy's;
+  // otherwise touching your own flag stand does nothing at all.
+  if (!me.flag) return null;
+  const carried = flags[me.flag];
+  // me.flag and flags[].carrier are two halves of the same fact, and a bug (or a race
+  // between a drop and a capture) that lets them disagree must not mint a point — a flag
+  // that is home, dropped, or on someone else's back is not mine to score. Clear the
+  // stale half and refuse.
+  if (!carried || carried.carrier !== me.id || carried.state !== "carried") {
+    me.flag = null;
+    return null;
+  }
+  me.flag = null;
+  sendFlagHome(carried);
+  match.scores[me.team]++;
+  broadcastFlag(carried, "captured", me);
+  broadcast({ type: "ctf-score", scores: { ...match.scores }, by: me.id, team: me.team });
+  console.log(
+    `[server] ${me.name} captured the ${carried.team} flag (red ${match.scores.red} - blue ${match.scores.blue})`
+  );
+  if (match.scores[me.team] >= match.capLimit) endMatch(me.team);
+  return "captured";
 }
 
 function endMatch(winner) {

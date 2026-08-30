@@ -94,6 +94,13 @@ function startServer() {
     // wss server and every client below would fail to connect for the wrong reason.
     delete env.SSL_CERT;
     delete env.SSL_KEY;
+    // No bots. This suite is about the rules a HUMAN client is held to, and every
+    // assertion below reads the whole world off one spectator socket: a bot roster would
+    // put extra players in `hello`, take the teams off 2/2, and walk a flag off its stand
+    // in the middle of a test that is waiting to see nothing happen. The bots go through
+    // the very same tryTouchFlag/applyHit functions these tests exercise (server/bots.js
+    // calls them directly), so turning them off here loses no coverage of the rules.
+    env.BOTS_ENABLED = "0";
 
     child = spawn(process.execPath, [SERVER_JS], {
       cwd: REPO_ROOT,

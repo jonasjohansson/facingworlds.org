@@ -536,7 +536,12 @@ export function startNetwork() {
         y: o.position.y + hop,
         z: o.position.z,
       };
-      const currentRotation = o.rotation.y;
+      // The rig's own yaw only changes on Q/E and spawns — MOUSE look yaw
+      // lives on the camera child (look-controls on #cam). Remote players face
+      // the sum, or they run sideways staring at their spawn direction.
+      const cam = rig.querySelector("#cam");
+      const camYaw = cam && cam.object3D ? cam.object3D.rotation.y : 0;
+      const currentRotation = o.rotation.y + camYaw;
 
       // Calculate velocity for animation from the real elapsed time, not a constant
       const now = performance.now();

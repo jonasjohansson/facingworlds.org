@@ -266,8 +266,18 @@ AFRAME.registerComponent("first-person-weapon", {
       return;
     }
 
-    // Wait for model to load
+    // Wait for model to load. Keep the glTF entity's handle: on a slow cold
+    // load (the Draco decode can outlive the timeout below) the fallback boxes
+    // may already be up when this fires, and the real gun must win.
+    this._gltfWeapon = this.weapon;
     this.weapon.addEventListener("model-loaded", () => {
+      if (this.weapon !== this._gltfWeapon) {
+        // The timeout built the box gun in the meantime; tear it down and
+        // re-adopt the real one.
+        if (this.weapon && this.weapon.parentNode) this.weapon.parentNode.removeChild(this.weapon);
+        this.weapon = this._gltfWeapon;
+        this.weapon.setAttribute("visible", true);
+      }
       this.setupMuzzlePosition();
       this.captureWeaponRest();
       this.setupMuzzleFlash();
@@ -280,13 +290,19 @@ AFRAME.registerComponent("first-person-weapon", {
       this.createFallbackWeapon();
     });
 
-    // Timeout fallback
+    // Timeout fallback. Check for the actual loaded mesh — object3D.children
+    // is non-empty for reasons that have nothing to do with the model — and
+    // HIDE the glTF entity rather than removing it, so a late model-loaded
+    // can still restore the real gun (see above). This is what put a grey box
+    // gun in players' hands: the true-scale asset's cold Draco decode can take
+    // longer than 5 s, and the old path replaced the entity permanently.
     setTimeout(() => {
-      if (!this.weapon || !this.weapon.object3D || this.weapon.object3D.children.length === 0) {
-        console.warn("[first-person-weapon] Weapon model timeout, creating fallback");
+      if (this.weapon === this._gltfWeapon && !this.weapon.getObject3D("mesh")) {
+        console.warn("[first-person-weapon] Weapon model slow (>8s), showing fallback until it lands");
+        this._gltfWeapon.setAttribute("visible", false);
         this.createFallbackWeapon();
       }
-    }, 5000);
+    }, 8000);
 
   },
 
@@ -705,7 +721,7 @@ AFRAME.registerComponent("first-person-weapon", {
     console.log("[first-person-weapon] Creating weapon");
 
     // Remove existing weapon
-    if (this.weapon) {
+    if (this.weapon && this.weapon !== this._gltfWeapon) {
       this.el.removeChild(this.weapon);
     }
 

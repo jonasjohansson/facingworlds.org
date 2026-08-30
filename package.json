@@ -13,6 +13,8 @@
     "test:ctf": "node --test server/test/ctf.test.mjs",
     "gen:map-actors": "node scripts/gen-map-actors.mjs",
     "gen:map-actors:check": "node scripts/gen-map-actors.mjs --check",
+    "gen:nav-graph": "node scripts/gen-nav-graph.mjs",
+    "gen:nav-graph:check": "node scripts/gen-nav-graph.mjs --check",
     "optimize:assets": "node scripts/optimize-assets.mjs",
     "optimize:assets:webp": "node scripts/optimize-assets.mjs --codec=webp",
     "optimize:assets:ktx2": "node scripts/optimize-assets.mjs --codec=ktx2",

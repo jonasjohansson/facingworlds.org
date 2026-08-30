@@ -1,0 +1,9060 @@
+{
+  "map": "CTF-Face.unr",
+  "packageVersion": 68,
+  "units": "Unreal Units (UU). Locations are UT axes: x forward, y right, z UP. Convert with src/shared/map-transform.js.",
+  "edgeSource": "reachspecs",
+  "edgesAreDirected": true,
+  "edgeSourceNote": "Edges are Epic's own FReachSpecs, decoded from the ULevel object of the .unr and cross-checked against every NavigationPoint's Paths[]/upstreamPaths[] arrays. Pruned specs (redundant, editor-only) are excluded.",
+  "reachFlags": {
+    "walk": 1,
+    "fly": 2,
+    "swim": 4,
+    "jump": 8,
+    "door": 16,
+    "special": 32,
+    "playerOnly": 64
+  },
+  "counts": {
+    "nodes": 166,
+    "edges": 592,
+    "nodesByClass": {
+      "Ambushpoint": 3,
+      "DefensePoint": 9,
+      "FlagBase": 2,
+      "InventorySpot": 56,
+      "LiftExit": 12,
+      "PathNode": 47,
+      "PlayerStart": 20,
+      "Teleporter": 12,
+      "translocdest": 5
+    },
+    "edgesByFlags": {
+      "walk": 521,
+      "walk+jump": 39,
+      "special": 32
+    }
+  },
+  "diagnostics": {
+    "levelObject": "MyLevel",
+    "actorSlots": 1768,
+    "liveActors": 602,
+    "url": {
+      "protocol": "unreal",
+      "host": "",
+      "map": "Index.unr",
+      "op": [],
+      "portal": "",
+      "port": 7777,
+      "valid": 1
+    },
+    "model": "Model1",
+    "reachSpecCount": 956,
+    "bytesLeftInLevel": 23,
+    "crossChecked": 1184,
+    "crossCheckMismatches": 0,
+    "prunedSpecs": 364
+  },
+  "warnings": [],
+  "nodesWithoutLocation": [],
+  "nodes": [
+    {
+      "id": 0,
+      "class": "LiftExit",
+      "name": "LiftExit8",
+      "location": {
+        "x": 1186.909,
+        "y": 556.844,
+        "z": -1504.953
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 1,
+      "class": "LiftExit",
+      "name": "LiftExit4",
+      "location": {
+        "x": 334.73,
+        "y": 182.416,
+        "z": -1806.926
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 2,
+      "class": "InventorySpot",
+      "name": "InventorySpot145",
+      "location": {
+        "x": -1087.123,
+        "y": 607.832,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 3,
+      "class": "PathNode",
+      "name": "PathNode38",
+      "location": {
+        "x": 6205.706,
+        "y": -162.027,
+        "z": -1957.914
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 4,
+      "class": "LiftExit",
+      "name": "LiftExit11",
+      "location": {
+        "x": 4934.807,
+        "y": -542.688,
+        "z": -1738.067
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 5,
+      "class": "DefensePoint",
+      "name": "DefensePoint2",
+      "location": {
+        "x": -866.46,
+        "y": 242.966,
+        "z": -1996.913
+      },
+      "Team": 1,
+      "Tag": "DefensePoint"
+    },
+    {
+      "id": 6,
+      "class": "InventorySpot",
+      "name": "InventorySpot113",
+      "location": {
+        "x": 6476.979,
+        "y": -776.602,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 7,
+      "class": "PathNode",
+      "name": "PathNode8",
+      "location": {
+        "x": 4011.691,
+        "y": 463.962,
+        "z": -1713.509
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 8,
+      "class": "InventorySpot",
+      "name": "InventorySpot112",
+      "location": {
+        "x": 6875.772,
+        "y": 119.512,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 9,
+      "class": "InventorySpot",
+      "name": "InventorySpot117",
+      "location": {
+        "x": 6546.729,
+        "y": -774.65,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 10,
+      "class": "InventorySpot",
+      "name": "InventorySpot150",
+      "location": {
+        "x": -823.1,
+        "y": -401.531,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 11,
+      "class": "InventorySpot",
+      "name": "InventorySpot147",
+      "location": {
+        "x": -1021.921,
+        "y": 607.518,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 12,
+      "class": "InventorySpot",
+      "name": "InventorySpot121",
+      "location": {
+        "x": 6279.1,
+        "y": 252.228,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 13,
+      "class": "PathNode",
+      "name": "PathNode25",
+      "location": {
+        "x": -742.811,
+        "y": 2.562,
+        "z": -1981.89
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 14,
+      "class": "LiftExit",
+      "name": "LiftExit6",
+      "location": {
+        "x": -799.617,
+        "y": 44.009,
+        "z": 1074.11
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 15,
+      "class": "InventorySpot",
+      "name": "InventorySpot134",
+      "location": {
+        "x": -823.1,
+        "y": 437.384,
+        "z": -1995.076
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 16,
+      "class": "InventorySpot",
+      "name": "InventorySpot132",
+      "location": {
+        "x": -853.825,
+        "y": -0.241,
+        "z": 1077.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 17,
+      "class": "InventorySpot",
+      "name": "InventorySpot116",
+      "location": {
+        "x": 6967.813,
+        "y": 88.562,
+        "z": -1974.908
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 18,
+      "class": "InventorySpot",
+      "name": "InventorySpot146",
+      "location": {
+        "x": -957.644,
+        "y": 608.652,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 19,
+      "class": "InventorySpot",
+      "name": "InventorySpot148",
+      "location": {
+        "x": -823.1,
+        "y": 364.778,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 20,
+      "class": "PathNode",
+      "name": "PathNode35",
+      "location": {
+        "x": -1293.408,
+        "y": 290.319,
+        "z": -1997.917
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 21,
+      "class": "InventorySpot",
+      "name": "InventorySpot114",
+      "location": {
+        "x": 6279.1,
+        "y": -605.004,
+        "z": -1965.976
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 22,
+      "class": "DefensePoint",
+      "name": "DefensePoint1",
+      "location": {
+        "x": -905.38,
+        "y": -537.486,
+        "z": -1996.913
+      },
+      "Team": 1,
+      "Tag": "DefensePoint"
+    },
+    {
+      "id": 23,
+      "class": "InventorySpot",
+      "name": "InventorySpot149",
+      "location": {
+        "x": -823.1,
+        "y": -322.613,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 24,
+      "class": "InventorySpot",
+      "name": "InventorySpot120",
+      "location": {
+        "x": 6279.1,
+        "y": 160.747,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 25,
+      "class": "PathNode",
+      "name": "PathNode34",
+      "location": {
+        "x": 6665.907,
+        "y": -492.606,
+        "z": -1973.915
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 26,
+      "class": "Ambushpoint",
+      "name": "Ambushpoint3",
+      "location": {
+        "x": 6423.83,
+        "y": 337.071,
+        "z": -1973.889
+      },
+      "Tag": "Ambushpoint"
+    },
+    {
+      "id": 27,
+      "class": "InventorySpot",
+      "name": "InventorySpot140",
+      "location": {
+        "x": -1434.249,
+        "y": -274.142,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 28,
+      "class": "InventorySpot",
+      "name": "InventorySpot119",
+      "location": {
+        "x": 6279.1,
+        "y": -518.532,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 29,
+      "class": "PathNode",
+      "name": "PathNode55",
+      "location": {
+        "x": 6724.942,
+        "y": -169.771,
+        "z": -1968.037
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 30,
+      "class": "LiftExit",
+      "name": "LiftExit3",
+      "location": {
+        "x": 5391.492,
+        "y": -307.894,
+        "z": -1971.919
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 31,
+      "class": "Ambushpoint",
+      "name": "Ambushpoint5",
+      "location": {
+        "x": 6603.416,
+        "y": 310.459,
+        "z": -1973.9
+      },
+      "Tag": "Ambushpoint"
+    },
+    {
+      "id": 32,
+      "class": "InventorySpot",
+      "name": "InventorySpot115",
+      "location": {
+        "x": 6827.229,
+        "y": 188.132,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 33,
+      "class": "InventorySpot",
+      "name": "InventorySpot118",
+      "location": {
+        "x": 6403.203,
+        "y": -773.073,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 34,
+      "class": "Ambushpoint",
+      "name": "Ambushpoint4",
+      "location": {
+        "x": 6526.119,
+        "y": 205.145,
+        "z": -1973.898
+      },
+      "Tag": "Ambushpoint"
+    },
+    {
+      "id": 35,
+      "class": "PathNode",
+      "name": "PathNode54",
+      "location": {
+        "x": -1241.384,
+        "y": 1.865,
+        "z": -1996.927
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 36,
+      "class": "PlayerStart",
+      "name": "PlayerStart4",
+      "location": {
+        "x": -1360.666,
+        "y": 1315.519,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 37,
+      "class": "PathNode",
+      "name": "PathNode18",
+      "location": {
+        "x": 6291.826,
+        "y": -53.202,
+        "z": 1098.089
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 38,
+      "class": "LiftExit",
+      "name": "LiftExit9",
+      "location": {
+        "x": -59.28,
+        "y": -5.625,
+        "z": -1981.926
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 39,
+      "class": "DefensePoint",
+      "name": "DefensePoint8",
+      "location": {
+        "x": -800.483,
+        "y": 133.016,
+        "z": 1074.103
+      },
+      "Team": 1,
+      "Tag": "DefensePoint"
+    },
+    {
+      "id": 40,
+      "class": "InventorySpot",
+      "name": "InventorySpot143",
+      "location": {
+        "x": -1496.215,
+        "y": -243.266,
+        "z": -2002.031
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 41,
+      "class": "InventorySpot",
+      "name": "InventorySpot131",
+      "location": {
+        "x": 6271.781,
+        "y": -170.456,
+        "z": 1101.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 42,
+      "class": "PlayerStart",
+      "name": "PlayerStart12",
+      "location": {
+        "x": 6874.405,
+        "y": 927.779,
+        "z": -1973.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 43,
+      "class": "PlayerStart",
+      "name": "PlayerStart9",
+      "location": {
+        "x": -1619.666,
+        "y": 1120.519,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 44,
+      "class": "InventorySpot",
+      "name": "InventorySpot127",
+      "location": {
+        "x": 6461.299,
+        "y": -324.199,
+        "z": 1101.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 45,
+      "class": "LiftExit",
+      "name": "LiftExit7",
+      "location": {
+        "x": 822.481,
+        "y": 409.559,
+        "z": -1949.329
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 46,
+      "class": "FlagBase",
+      "name": "FlagBase0",
+      "location": {
+        "x": 6488.14,
+        "y": 438.625,
+        "z": -1956.936
+      },
+      "Team": 0,
+      "Tag": "FlagBase"
+    },
+    {
+      "id": 47,
+      "class": "PlayerStart",
+      "name": "PlayerStart5",
+      "location": {
+        "x": -1137.666,
+        "y": 1195.519,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 48,
+      "class": "FlagBase",
+      "name": "FlagBase1",
+      "location": {
+        "x": -1013.432,
+        "y": -592.112,
+        "z": -1968.936
+      },
+      "Team": 1,
+      "Tag": "FlagBase"
+    },
+    {
+      "id": 49,
+      "class": "PathNode",
+      "name": "PathNode39",
+      "location": {
+        "x": 7343.775,
+        "y": -1198.986,
+        "z": -1968.073
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 50,
+      "class": "InventorySpot",
+      "name": "InventorySpot130",
+      "location": {
+        "x": 6630.104,
+        "y": -308.106,
+        "z": 1101.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 51,
+      "class": "PathNode",
+      "name": "PathNode57",
+      "location": {
+        "x": 6650.523,
+        "y": -342.685,
+        "z": 1098.097
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 52,
+      "class": "PlayerStart",
+      "name": "PlayerStart2",
+      "location": {
+        "x": 6835.405,
+        "y": -1379.221,
+        "z": -1983.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 53,
+      "class": "InventorySpot",
+      "name": "InventorySpot144",
+      "location": {
+        "x": -1382.37,
+        "y": -351.077,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 54,
+      "class": "PathNode",
+      "name": "PathNode43",
+      "location": {
+        "x": -1746.037,
+        "y": 1032.733,
+        "z": -1996.948
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 55,
+      "class": "PathNode",
+      "name": "PathNode14",
+      "location": {
+        "x": 3940.971,
+        "y": -806.741,
+        "z": -1720.698
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 56,
+      "class": "PathNode",
+      "name": "PathNode27",
+      "location": {
+        "x": 272.306,
+        "y": 455.425,
+        "z": -1991.447
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 57,
+      "class": "PathNode",
+      "name": "PathNode2",
+      "location": {
+        "x": 1090.662,
+        "y": 378.515,
+        "z": -1837.411
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 58,
+      "class": "Teleporter",
+      "name": "Teleporter1",
+      "location": {
+        "x": 6023.633,
+        "y": -171.096,
+        "z": -447.898
+      },
+      "Tag": "icihomie1"
+    },
+    {
+      "id": 59,
+      "class": "PathNode",
+      "name": "PathNode23",
+      "location": {
+        "x": 387.322,
+        "y": -435.321,
+        "z": -1996.901
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 60,
+      "class": "PathNode",
+      "name": "PathNode0",
+      "location": {
+        "x": 113.099,
+        "y": -2.989,
+        "z": -1981.927
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 61,
+      "class": "DefensePoint",
+      "name": "DefensePoint11",
+      "location": {
+        "x": 6262.159,
+        "y": 1.261,
+        "z": 1098.107
+      },
+      "Tag": "DefensePoint"
+    },
+    {
+      "id": 62,
+      "class": "PlayerStart",
+      "name": "PlayerStart18",
+      "location": {
+        "x": 7212.405,
+        "y": -1336.221,
+        "z": -1983.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 63,
+      "class": "PlayerStart",
+      "name": "PlayerStart22",
+      "location": {
+        "x": 6790.405,
+        "y": 1118.779,
+        "z": -1973.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 64,
+      "class": "Teleporter",
+      "name": "Teleporter0",
+      "location": {
+        "x": 6699.695,
+        "y": -806.457,
+        "z": -1961.904
+      },
+      "Tag": "icihomie2"
+    },
+    {
+      "id": 65,
+      "class": "InventorySpot",
+      "name": "InventorySpot138",
+      "location": {
+        "x": -1062.221,
+        "y": 164.298,
+        "z": 1077.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 66,
+      "class": "Teleporter",
+      "name": "Teleporter6",
+      "location": {
+        "x": -1243.704,
+        "y": 634.704,
+        "z": -1996.906
+      },
+      "Tag": "apple1"
+    },
+    {
+      "id": 67,
+      "class": "PlayerStart",
+      "name": "PlayerStart6",
+      "location": {
+        "x": -1243.666,
+        "y": -1339.481,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 68,
+      "class": "Teleporter",
+      "name": "Teleporter11",
+      "location": {
+        "x": 6584.516,
+        "y": -161.648,
+        "z": 992.096
+      },
+      "Tag": "buffybabe2"
+    },
+    {
+      "id": 69,
+      "class": "PlayerStart",
+      "name": "PlayerStart13",
+      "location": {
+        "x": -1302.666,
+        "y": -1179.481,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 70,
+      "class": "PlayerStart",
+      "name": "PlayerStart1",
+      "location": {
+        "x": -1774.666,
+        "y": 1191.519,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 71,
+      "class": "PlayerStart",
+      "name": "PlayerStart8",
+      "location": {
+        "x": -1627.666,
+        "y": -1052.481,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 72,
+      "class": "PlayerStart",
+      "name": "PlayerStart7",
+      "location": {
+        "x": -1281.666,
+        "y": 1113.519,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 73,
+      "class": "LiftExit",
+      "name": "LiftExit5",
+      "location": {
+        "x": 4386.482,
+        "y": -817.092,
+        "z": -1868.598
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 74,
+      "class": "InventorySpot",
+      "name": "InventorySpot129",
+      "location": {
+        "x": 6686.263,
+        "y": 16.762,
+        "z": 1101.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 75,
+      "class": "PathNode",
+      "name": "PathNode30",
+      "location": {
+        "x": 6950.847,
+        "y": 1049.326,
+        "z": -1968.024
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 76,
+      "class": "PathNode",
+      "name": "PathNode13",
+      "location": {
+        "x": 4308.078,
+        "y": -655.991,
+        "z": -1834.45
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 77,
+      "class": "PlayerStart",
+      "name": "PlayerStart0",
+      "location": {
+        "x": 6181.343,
+        "y": 1059.246,
+        "z": -1973.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 78,
+      "class": "DefensePoint",
+      "name": "DefensePoint10",
+      "location": {
+        "x": 6252.345,
+        "y": -361.478,
+        "z": 1098.105
+      },
+      "Tag": "DefensePoint"
+    },
+    {
+      "id": 79,
+      "class": "InventorySpot",
+      "name": "InventorySpot139",
+      "location": {
+        "x": -1222.92,
+        "y": 158.101,
+        "z": 1077.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 80,
+      "class": "PlayerStart",
+      "name": "PlayerStart20",
+      "location": {
+        "x": 6441.405,
+        "y": -1299.221,
+        "z": -1983.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 81,
+      "class": "PathNode",
+      "name": "PathNode12",
+      "location": {
+        "x": 4726.098,
+        "y": -460.823,
+        "z": -1952.072
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 82,
+      "class": "PlayerStart",
+      "name": "PlayerStart19",
+      "location": {
+        "x": 7009.405,
+        "y": -1320.221,
+        "z": -1983.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 83,
+      "class": "Teleporter",
+      "name": "Teleporter7",
+      "location": {
+        "x": -589.021,
+        "y": 4.728,
+        "z": -464.9
+      },
+      "Tag": "apple2"
+    },
+    {
+      "id": 84,
+      "class": "DefensePoint",
+      "name": "DefensePoint0",
+      "location": {
+        "x": -1160.102,
+        "y": -516.105,
+        "z": -1996.913
+      },
+      "Team": 1,
+      "Tag": "DefensePoint"
+    },
+    {
+      "id": 85,
+      "class": "Teleporter",
+      "name": "Teleporter5",
+      "location": {
+        "x": -798.828,
+        "y": 640.154,
+        "z": -1994.904
+      },
+      "Tag": "fiona2"
+    },
+    {
+      "id": 86,
+      "class": "LiftExit",
+      "name": "LiftExit10",
+      "location": {
+        "x": 5796.524,
+        "y": -130.269,
+        "z": -1333.906
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 87,
+      "class": "Teleporter",
+      "name": "Teleporter3",
+      "location": {
+        "x": 6257.364,
+        "y": -806.802,
+        "z": -1983.896
+      },
+      "Tag": "peepee1"
+    },
+    {
+      "id": 88,
+      "class": "InventorySpot",
+      "name": "InventorySpot126",
+      "location": {
+        "x": 2669.272,
+        "y": -163.789,
+        "z": -1373.632
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 89,
+      "class": "PathNode",
+      "name": "PathNode46",
+      "location": {
+        "x": -1844.448,
+        "y": -889.992,
+        "z": -1996.938
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 90,
+      "class": "PathNode",
+      "name": "PathNode21",
+      "location": {
+        "x": 1183.833,
+        "y": -748.666,
+        "z": -1744.503
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 91,
+      "class": "PathNode",
+      "name": "PathNode5",
+      "location": {
+        "x": 2604.221,
+        "y": 140.819,
+        "z": -1392.878
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 92,
+      "class": "PathNode",
+      "name": "PathNode1",
+      "location": {
+        "x": 641.657,
+        "y": 196.155,
+        "z": -2005.465
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 93,
+      "class": "Teleporter",
+      "name": "Teleporter9",
+      "location": {
+        "x": -1185.839,
+        "y": 3.135,
+        "z": 975.094
+      },
+      "Tag": "hepburn2"
+    },
+    {
+      "id": 94,
+      "class": "InventorySpot",
+      "name": "InventorySpot128",
+      "location": {
+        "x": 6625.671,
+        "y": 22.124,
+        "z": 1101.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 95,
+      "class": "PathNode",
+      "name": "PathNode10",
+      "location": {
+        "x": 4844.499,
+        "y": 313.008,
+        "z": -1958.408
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 96,
+      "class": "PlayerStart",
+      "name": "PlayerStart21",
+      "location": {
+        "x": 6661.405,
+        "y": -1583.221,
+        "z": -1983.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 97,
+      "class": "LiftExit",
+      "name": "LiftExit1",
+      "location": {
+        "x": -377.066,
+        "y": 20.138,
+        "z": -1357.906
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 98,
+      "class": "PathNode",
+      "name": "PathNode59",
+      "location": {
+        "x": -1270.849,
+        "y": -11.689,
+        "z": 1074.084
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 99,
+      "class": "PlayerStart",
+      "name": "PlayerStart10",
+      "location": {
+        "x": -1686.666,
+        "y": -1158.481,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 100,
+      "class": "InventorySpot",
+      "name": "InventorySpot159",
+      "location": {
+        "x": -461.848,
+        "y": -150.95,
+        "z": -471.902
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 101,
+      "class": "InventorySpot",
+      "name": "InventorySpot135",
+      "location": {
+        "x": -474.729,
+        "y": -2.678,
+        "z": -476.897
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 102,
+      "class": "PlayerStart",
+      "name": "PlayerStart11",
+      "location": {
+        "x": -1592.666,
+        "y": -1308.481,
+        "z": -1995.106
+      },
+      "TeamNumber": 1,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 103,
+      "class": "LiftExit",
+      "name": "LiftExit2",
+      "location": {
+        "x": 5816.447,
+        "y": -187.625,
+        "z": -1334.906
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 104,
+      "class": "PathNode",
+      "name": "PathNode15",
+      "location": {
+        "x": 3661.035,
+        "y": -790.755,
+        "z": -1618.534
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 105,
+      "class": "LiftExit",
+      "name": "LiftExit0",
+      "location": {
+        "x": -377.066,
+        "y": -10.862,
+        "z": -1357.906
+      },
+      "Tag": "LiftExit"
+    },
+    {
+      "id": 106,
+      "class": "InventorySpot",
+      "name": "InventorySpot136",
+      "location": {
+        "x": -1127.313,
+        "y": -225.538,
+        "z": 1077.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 107,
+      "class": "PathNode",
+      "name": "PathNode16",
+      "location": {
+        "x": 3281.403,
+        "y": -558.622,
+        "z": -1515.075
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 108,
+      "class": "PathNode",
+      "name": "PathNode6",
+      "location": {
+        "x": 2763.362,
+        "y": 155.789,
+        "z": -1377.892
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 109,
+      "class": "PathNode",
+      "name": "PathNode17",
+      "location": {
+        "x": 2683.124,
+        "y": -250.642,
+        "z": -1369.035
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 110,
+      "class": "PlayerStart",
+      "name": "PlayerStart24",
+      "location": {
+        "x": 6389.405,
+        "y": 1182.779,
+        "z": -1973.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 111,
+      "class": "PlayerStart",
+      "name": "PlayerStart23",
+      "location": {
+        "x": 6563.405,
+        "y": 940.779,
+        "z": -1973.887
+      },
+      "TeamNumber": 0,
+      "Tag": "PlayerStart"
+    },
+    {
+      "id": 112,
+      "class": "InventorySpot",
+      "name": "InventorySpot152",
+      "location": {
+        "x": -672.464,
+        "y": -0.825,
+        "z": -1355.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 113,
+      "class": "InventorySpot",
+      "name": "InventorySpot137",
+      "location": {
+        "x": -1176.617,
+        "y": -215.767,
+        "z": 1077.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 114,
+      "class": "Teleporter",
+      "name": "Teleporter4",
+      "location": {
+        "x": -409.707,
+        "y": 3.61,
+        "z": -982.9
+      },
+      "Tag": "fiona1"
+    },
+    {
+      "id": 115,
+      "class": "PathNode",
+      "name": "PathNode22",
+      "location": {
+        "x": 765.711,
+        "y": -614.349,
+        "z": -1896.297
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 116,
+      "class": "PathNode",
+      "name": "PathNode7",
+      "location": {
+        "x": 3567.788,
+        "y": 431.753,
+        "z": -1605.01
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 117,
+      "class": "PathNode",
+      "name": "PathNode9",
+      "location": {
+        "x": 4438.087,
+        "y": 413.072,
+        "z": -1859.727
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 118,
+      "class": "PathNode",
+      "name": "PathNode3",
+      "location": {
+        "x": 1567.641,
+        "y": 535.85,
+        "z": -1637.881
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 119,
+      "class": "PathNode",
+      "name": "PathNode28",
+      "location": {
+        "x": 5346.137,
+        "y": -725.335,
+        "z": -1968.039
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 120,
+      "class": "PathNode",
+      "name": "PathNode45",
+      "location": {
+        "x": -1912.422,
+        "y": 756.588,
+        "z": -1996.908
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 121,
+      "class": "InventorySpot",
+      "name": "InventorySpot125",
+      "location": {
+        "x": 5944.099,
+        "y": -121.848,
+        "z": -435.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 122,
+      "class": "InventorySpot",
+      "name": "InventorySpot133",
+      "location": {
+        "x": -547.951,
+        "y": -56.653,
+        "z": -459.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 123,
+      "class": "PathNode",
+      "name": "PathNode36",
+      "location": {
+        "x": 7267.175,
+        "y": 652.731,
+        "z": -1968.041
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 124,
+      "class": "PathNode",
+      "name": "PathNode20",
+      "location": {
+        "x": 1580.549,
+        "y": -796.282,
+        "z": -1624.376
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 125,
+      "class": "InventorySpot",
+      "name": "InventorySpot160",
+      "location": {
+        "x": -468.086,
+        "y": 160.397,
+        "z": -471.898
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 126,
+      "class": "InventorySpot",
+      "name": "InventorySpot165",
+      "location": {
+        "x": 5911.757,
+        "y": -317.349,
+        "z": -447.901
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 127,
+      "class": "PathNode",
+      "name": "PathNode24",
+      "location": {
+        "x": -607.313,
+        "y": 1221.795,
+        "z": -1993.401
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 128,
+      "class": "PathNode",
+      "name": "PathNode41",
+      "location": {
+        "x": 5855.962,
+        "y": -1236.889,
+        "z": -1968.037
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 129,
+      "class": "InventorySpot",
+      "name": "InventorySpot151",
+      "location": {
+        "x": 6154.202,
+        "y": -179.625,
+        "z": -1331.91
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 130,
+      "class": "InventorySpot",
+      "name": "InventorySpot155",
+      "location": {
+        "x": 6958.344,
+        "y": 668.221,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 131,
+      "class": "InventorySpot",
+      "name": "InventorySpot141",
+      "location": {
+        "x": -715.463,
+        "y": -64.214,
+        "z": -1355.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 132,
+      "class": "InventorySpot",
+      "name": "InventorySpot156",
+      "location": {
+        "x": 6956.979,
+        "y": -1027.576,
+        "z": -1965.148
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 133,
+      "class": "InventorySpot",
+      "name": "InventorySpot122",
+      "location": {
+        "x": 6146.726,
+        "y": -94.78,
+        "z": -1331.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 134,
+      "class": "InventorySpot",
+      "name": "InventorySpot158",
+      "location": {
+        "x": -1478.951,
+        "y": 844.288,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 135,
+      "class": "InventorySpot",
+      "name": "InventorySpot142",
+      "location": {
+        "x": -720.229,
+        "y": 69.541,
+        "z": -1355.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 136,
+      "class": "DefensePoint",
+      "name": "DefensePoint9",
+      "location": {
+        "x": -818.311,
+        "y": -205.09,
+        "z": 1074.103
+      },
+      "Team": 1,
+      "Tag": "DefensePoint"
+    },
+    {
+      "id": 137,
+      "class": "InventorySpot",
+      "name": "InventorySpot123",
+      "location": {
+        "x": 6127.319,
+        "y": -244.332,
+        "z": -1331.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 138,
+      "class": "InventorySpot",
+      "name": "InventorySpot157",
+      "location": {
+        "x": -1503.709,
+        "y": -869.967,
+        "z": -1994.032
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 139,
+      "class": "PathNode",
+      "name": "PathNode4",
+      "location": {
+        "x": 2139.344,
+        "y": 397.886,
+        "z": -1503.148
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 140,
+      "class": "PathNode",
+      "name": "PathNode37",
+      "location": {
+        "x": 5708.909,
+        "y": -153.164,
+        "z": -1957.912
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 141,
+      "class": "PathNode",
+      "name": "PathNode19",
+      "location": {
+        "x": 2042.876,
+        "y": -559.951,
+        "z": -1492.325
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 142,
+      "class": "InventorySpot",
+      "name": "InventorySpot124",
+      "location": {
+        "x": 5801.653,
+        "y": -176.169,
+        "z": -452.899
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 143,
+      "class": "PathNode",
+      "name": "PathNode26",
+      "location": {
+        "x": -163.939,
+        "y": 980.989,
+        "z": -1992.6
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 144,
+      "class": "PathNode",
+      "name": "PathNode48",
+      "location": {
+        "x": -571.531,
+        "y": -1215.184,
+        "z": -1996.95
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 145,
+      "class": "PathNode",
+      "name": "PathNode33",
+      "location": {
+        "x": 5424.499,
+        "y": 555.008,
+        "z": -1975.408
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 146,
+      "class": "PathNode",
+      "name": "PathNode29",
+      "location": {
+        "x": -90.678,
+        "y": -785.321,
+        "z": -1985.901
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 147,
+      "class": "InventorySpot",
+      "name": "InventorySpot167",
+      "location": {
+        "x": 5913.093,
+        "y": -18.801,
+        "z": -447.899
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 148,
+      "class": "InventorySpot",
+      "name": "InventorySpot153",
+      "location": {
+        "x": -233.514,
+        "y": 1.859,
+        "z": -971.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 149,
+      "class": "InventorySpot",
+      "name": "InventorySpot163",
+      "location": {
+        "x": -406.382,
+        "y": -84.393,
+        "z": -973.29
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 150,
+      "class": "InventorySpot",
+      "name": "InventorySpot164",
+      "location": {
+        "x": -404.994,
+        "y": 89.491,
+        "z": -972.941
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 151,
+      "class": "translocdest",
+      "name": "translocdest3",
+      "location": {
+        "x": 1160.861,
+        "y": 554.18,
+        "z": -1500.448
+      },
+      "Tag": "translocdest"
+    },
+    {
+      "id": 152,
+      "class": "translocdest",
+      "name": "translocdest2",
+      "location": {
+        "x": 301.699,
+        "y": 173.249,
+        "z": -1807.909
+      },
+      "Tag": "translocdest"
+    },
+    {
+      "id": 153,
+      "class": "PathNode",
+      "name": "PathNode49",
+      "location": {
+        "x": 7359.775,
+        "y": -721.986,
+        "z": -1968.073
+      },
+      "Tag": "PathNode"
+    },
+    {
+      "id": 154,
+      "class": "Teleporter",
+      "name": "Teleporter2",
+      "location": {
+        "x": 5854.188,
+        "y": -168.547,
+        "z": -946.9
+      },
+      "Tag": "peepee2"
+    },
+    {
+      "id": 155,
+      "class": "translocdest",
+      "name": "translocdest1",
+      "location": {
+        "x": 5788.322,
+        "y": -187.688,
+        "z": -1333.894
+      },
+      "Tag": "translocdest"
+    },
+    {
+      "id": 156,
+      "class": "Teleporter",
+      "name": "Teleporter10",
+      "location": {
+        "x": 6431.342,
+        "y": -169.894,
+        "z": -1961.904
+      },
+      "Tag": "buffybabe1"
+    },
+    {
+      "id": 157,
+      "class": "DefensePoint",
+      "name": "DefensePoint14",
+      "location": {
+        "x": -295.793,
+        "y": 0.404,
+        "z": -452.691
+      },
+      "Team": 1,
+      "Tag": "DefensePoint"
+    },
+    {
+      "id": 158,
+      "class": "DefensePoint",
+      "name": "DefensePoint13",
+      "location": {
+        "x": 5758.256,
+        "y": -166.135,
+        "z": -437.897
+      },
+      "Tag": "DefensePoint"
+    },
+    {
+      "id": 159,
+      "class": "translocdest",
+      "name": "translocdest4",
+      "location": {
+        "x": 4954.025,
+        "y": -538.244,
+        "z": -1738.08
+      },
+      "Tag": "translocdest"
+    },
+    {
+      "id": 160,
+      "class": "Teleporter",
+      "name": "Teleporter8",
+      "location": {
+        "x": -994.698,
+        "y": 2.115,
+        "z": -2000.906
+      },
+      "Tag": "hepburn1"
+    },
+    {
+      "id": 161,
+      "class": "translocdest",
+      "name": "translocdest0",
+      "location": {
+        "x": -330.046,
+        "y": -10.57,
+        "z": -1357.909
+      },
+      "Tag": "translocdest"
+    },
+    {
+      "id": 162,
+      "class": "InventorySpot",
+      "name": "InventorySpot162",
+      "location": {
+        "x": -324.333,
+        "y": -156.694,
+        "z": -471.9
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 163,
+      "class": "InventorySpot",
+      "name": "InventorySpot154",
+      "location": {
+        "x": 5692.936,
+        "y": -168.094,
+        "z": -947.0
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 164,
+      "class": "InventorySpot",
+      "name": "InventorySpot161",
+      "location": {
+        "x": -311.492,
+        "y": 146.934,
+        "z": -471.898
+      },
+      "Tag": "InventorySpot"
+    },
+    {
+      "id": 165,
+      "class": "InventorySpot",
+      "name": "InventorySpot166",
+      "location": {
+        "x": 5752.726,
+        "y": -320.569,
+        "z": -447.902
+      },
+      "Tag": "InventorySpot"
+    }
+  ],
+  "edges": [
+    {
+      "from": 52,
+      "to": 82,
+      "distance": 183,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 52,
+      "to": 80,
+      "distance": 402,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 52,
+      "to": 96,
+      "distance": 268,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 52,
+      "to": 132,
+      "distance": 372,
+      "radius": 31,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 60,
+      "to": 92,
+      "distance": 565,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 60,
+      "to": 59,
+      "distance": 512,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 60,
+      "to": 56,
+      "distance": 485,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 60,
+      "to": 38,
+      "distance": 172,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 92,
+      "to": 60,
+      "distance": 565,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 92,
+      "to": 56,
+      "distance": 451,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 92,
+      "to": 45,
+      "distance": 285,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 57,
+      "to": 118,
+      "distance": 540,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 57,
+      "to": 45,
+      "distance": 292,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 118,
+      "to": 57,
+      "distance": 540,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 118,
+      "to": 139,
+      "distance": 603,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 139,
+      "to": 118,
+      "distance": 603,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 139,
+      "to": 91,
+      "distance": 542,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 91,
+      "to": 139,
+      "distance": 542,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 91,
+      "to": 108,
+      "distance": 160,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 91,
+      "to": 88,
+      "distance": 312,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 108,
+      "to": 91,
+      "distance": 160,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 108,
+      "to": 116,
+      "distance": 880,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 108,
+      "to": 88,
+      "distance": 333,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 116,
+      "to": 108,
+      "distance": 880,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 116,
+      "to": 117,
+      "distance": 907,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 7,
+      "to": 116,
+      "distance": 458,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 7,
+      "to": 117,
+      "distance": 453,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 117,
+      "to": 116,
+      "distance": 907,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 117,
+      "to": 95,
+      "distance": 430,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 95,
+      "to": 117,
+      "distance": 430,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 95,
+      "to": 140,
+      "distance": 982,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 95,
+      "to": 145,
+      "distance": 628,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 95,
+      "to": 30,
+      "distance": 827,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 81,
+      "to": 76,
+      "distance": 476,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 81,
+      "to": 119,
+      "distance": 674,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 81,
+      "to": 30,
+      "distance": 683,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 81,
+      "to": 73,
+      "distance": 499,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 76,
+      "to": 81,
+      "distance": 476,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 76,
+      "to": 55,
+      "distance": 412,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 76,
+      "to": 73,
+      "distance": 182,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 55,
+      "to": 76,
+      "distance": 412,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 55,
+      "to": 104,
+      "distance": 298,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 55,
+      "to": 73,
+      "distance": 469,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 104,
+      "to": 55,
+      "distance": 298,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 104,
+      "to": 107,
+      "distance": 456,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 107,
+      "to": 104,
+      "distance": 456,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 107,
+      "to": 109,
+      "distance": 688,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 109,
+      "to": 107,
+      "distance": 688,
+      "radius": 70,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 109,
+      "to": 88,
+      "distance": 88,
+      "radius": 70,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 141,
+      "to": 124,
+      "distance": 535,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 141,
+      "to": 88,
+      "distance": 750,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 124,
+      "to": 141,
+      "distance": 535,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 124,
+      "to": 90,
+      "distance": 417,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 90,
+      "to": 124,
+      "distance": 417,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 90,
+      "to": 115,
+      "distance": 464,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 115,
+      "to": 90,
+      "distance": 464,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 115,
+      "to": 59,
+      "distance": 430,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 59,
+      "to": 60,
+      "distance": 512,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 59,
+      "to": 115,
+      "distance": 430,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 59,
+      "to": 146,
+      "distance": 592,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 13,
+      "to": 48,
+      "distance": 653,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 13,
+      "to": 38,
+      "distance": 683,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 13,
+      "to": 22,
+      "distance": 564,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 13,
+      "to": 5,
+      "distance": 270,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 13,
+      "to": 11,
+      "distance": 666,
+      "radius": 50,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 13,
+      "to": 23,
+      "distance": 335,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 140,
+      "to": 95,
+      "distance": 982,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 140,
+      "to": 3,
+      "distance": 496,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 140,
+      "to": 30,
+      "distance": 353,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 3,
+      "to": 140,
+      "distance": 496,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 3,
+      "to": 26,
+      "distance": 544,
+      "radius": 50,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 3,
+      "to": 6,
+      "distance": 671,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 3,
+      "to": 28,
+      "distance": 364,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 3,
+      "to": 24,
+      "distance": 331,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 46,
+      "to": 26,
+      "distance": 121,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 46,
+      "to": 34,
+      "distance": 237,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 46,
+      "to": 31,
+      "distance": 173,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 48,
+      "to": 13,
+      "distance": 653,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 48,
+      "to": 84,
+      "distance": 167,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 48,
+      "to": 22,
+      "distance": 124,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 48,
+      "to": 27,
+      "distance": 528,
+      "radius": 31,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 48,
+      "to": 40,
+      "distance": 596,
+      "radius": 24,
+      "height": 67,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 48,
+      "to": 53,
+      "distance": 441,
+      "radius": 18,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 48,
+      "to": 23,
+      "distance": 330,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 48,
+      "to": 10,
+      "distance": 270,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 43,
+      "to": 54,
+      "distance": 153,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 43,
+      "to": 70,
+      "distance": 170,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 43,
+      "to": 36,
+      "distance": 324,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 43,
+      "to": 72,
+      "distance": 338,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 43,
+      "to": 134,
+      "distance": 310,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 143,
+      "to": 56,
+      "distance": 683,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 143,
+      "to": 127,
+      "distance": 504,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 56,
+      "to": 60,
+      "distance": 485,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 56,
+      "to": 92,
+      "distance": 451,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 56,
+      "to": 143,
+      "distance": 683,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 56,
+      "to": 45,
+      "distance": 553,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 119,
+      "to": 81,
+      "distance": 674,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 119,
+      "to": 128,
+      "distance": 722,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 119,
+      "to": 30,
+      "distance": 419,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 119,
+      "to": 73,
+      "distance": 969,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 99,
+      "to": 89,
+      "distance": 311,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 99,
+      "to": 71,
+      "distance": 121,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 99,
+      "to": 102,
+      "distance": 177,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 99,
+      "to": 69,
+      "distance": 384,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 146,
+      "to": 59,
+      "distance": 592,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 146,
+      "to": 144,
+      "distance": 645,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 42,
+      "to": 75,
+      "distance": 143,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 42,
+      "to": 123,
+      "distance": 479,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 42,
+      "to": 63,
+      "distance": 208,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 42,
+      "to": 111,
+      "distance": 311,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 42,
+      "to": 130,
+      "distance": 272,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 145,
+      "to": 95,
+      "distance": 628,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 145,
+      "to": 77,
+      "distance": 909,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 145,
+      "to": 30,
+      "distance": 863,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 25,
+      "to": 29,
+      "distance": 328,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 25,
+      "to": 8,
+      "distance": 647,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 25,
+      "to": 6,
+      "distance": 341,
+      "radius": 70,
+      "height": 58,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 25,
+      "to": 21,
+      "distance": 402,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 25,
+      "to": 32,
+      "distance": 699,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 25,
+      "to": 9,
+      "distance": 306,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 20,
+      "to": 35,
+      "distance": 293,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 20,
+      "to": 15,
+      "distance": 492,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 20,
+      "to": 2,
+      "distance": 378,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 20,
+      "to": 18,
+      "distance": 462,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 20,
+      "to": 11,
+      "distance": 417,
+      "radius": 50,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 26,
+      "to": 3,
+      "distance": 544,
+      "radius": 50,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 26,
+      "to": 46,
+      "distance": 121,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 26,
+      "to": 34,
+      "distance": 166,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 26,
+      "to": 31,
+      "distance": 181,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 26,
+      "to": 8,
+      "distance": 501,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 26,
+      "to": 32,
+      "distance": 430,
+      "radius": 57,
+      "height": 54,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 26,
+      "to": 24,
+      "distance": 228,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 26,
+      "to": 12,
+      "distance": 167,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 34,
+      "to": 46,
+      "distance": 237,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 34,
+      "to": 26,
+      "distance": 166,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 34,
+      "to": 31,
+      "distance": 130,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 34,
+      "to": 32,
+      "distance": 301,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 34,
+      "to": 17,
+      "distance": 456,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 34,
+      "to": 24,
+      "distance": 251,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 34,
+      "to": 12,
+      "distance": 251,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 31,
+      "to": 46,
+      "distance": 173,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 31,
+      "to": 26,
+      "distance": 181,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 31,
+      "to": 34,
+      "distance": 130,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 31,
+      "to": 29,
+      "distance": 495,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 31,
+      "to": 8,
+      "distance": 332,
+      "radius": 37,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 31,
+      "to": 32,
+      "distance": 255,
+      "radius": 31,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 31,
+      "to": 17,
+      "distance": 426,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 77,
+      "to": 145,
+      "distance": 909,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 77,
+      "to": 111,
+      "distance": 400,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 77,
+      "to": 110,
+      "distance": 241,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 75,
+      "to": 42,
+      "distance": 143,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 75,
+      "to": 123,
+      "distance": 507,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 75,
+      "to": 63,
+      "distance": 174,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 75,
+      "to": 130,
+      "distance": 381,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 123,
+      "to": 42,
+      "distance": 479,
+      "radius": 50,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 123,
+      "to": 75,
+      "distance": 507,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 123,
+      "to": 130,
+      "distance": 309,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 49,
+      "to": 153,
+      "distance": 477,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 49,
+      "to": 62,
+      "distance": 190,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 49,
+      "to": 132,
+      "distance": 423,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 128,
+      "to": 119,
+      "distance": 722,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 128,
+      "to": 80,
+      "distance": 588,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 54,
+      "to": 43,
+      "distance": 153,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 54,
+      "to": 120,
+      "distance": 322,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 54,
+      "to": 70,
+      "distance": 161,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 54,
+      "to": 134,
+      "distance": 326,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 120,
+      "to": 54,
+      "distance": 322,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 89,
+      "to": 99,
+      "distance": 311,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 89,
+      "to": 71,
+      "distance": 270,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 89,
+      "to": 138,
+      "distance": 341,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 67,
+      "to": 144,
+      "distance": 683,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 67,
+      "to": 102,
+      "distance": 350,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 67,
+      "to": 69,
+      "distance": 170,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 144,
+      "to": 146,
+      "distance": 645,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 144,
+      "to": 67,
+      "distance": 683,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 153,
+      "to": 49,
+      "distance": 477,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 161,
+      "to": 105,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 105,
+      "to": 161,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 161,
+      "to": 38,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 38,
+      "to": 161,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 105,
+      "to": 97,
+      "distance": 31,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 103,
+      "to": 86,
+      "distance": 60,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 103,
+      "to": 133,
+      "distance": 343,
+      "radius": 44,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 103,
+      "to": 137,
+      "distance": 316,
+      "radius": 31,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 103,
+      "to": 129,
+      "distance": 337,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 30,
+      "to": 95,
+      "distance": 827,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 30,
+      "to": 81,
+      "distance": 683,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 30,
+      "to": 140,
+      "distance": 353,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 30,
+      "to": 119,
+      "distance": 419,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 30,
+      "to": 145,
+      "distance": 863,
+      "radius": 44,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 155,
+      "to": 103,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 103,
+      "to": 155,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 155,
+      "to": 30,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 30,
+      "to": 155,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 73,
+      "to": 81,
+      "distance": 499,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 73,
+      "to": 76,
+      "distance": 182,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 73,
+      "to": 55,
+      "distance": 469,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 73,
+      "to": 119,
+      "distance": 969,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 45,
+      "to": 92,
+      "distance": 285,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 45,
+      "to": 57,
+      "distance": 292,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 45,
+      "to": 56,
+      "distance": 553,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 70,
+      "to": 43,
+      "distance": 170,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 70,
+      "to": 54,
+      "distance": 161,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 36,
+      "to": 43,
+      "distance": 324,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 36,
+      "to": 47,
+      "distance": 253,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 36,
+      "to": 72,
+      "distance": 216,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 36,
+      "to": 134,
+      "distance": 485,
+      "radius": 24,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 47,
+      "to": 36,
+      "distance": 253,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 47,
+      "to": 72,
+      "distance": 165,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 47,
+      "to": 127,
+      "distance": 531,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 72,
+      "to": 43,
+      "distance": 338,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 72,
+      "to": 36,
+      "distance": 216,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 72,
+      "to": 47,
+      "distance": 165,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 71,
+      "to": 99,
+      "distance": 121,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 71,
+      "to": 89,
+      "distance": 270,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 71,
+      "to": 69,
+      "distance": 348,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 71,
+      "to": 138,
+      "distance": 220,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 102,
+      "to": 99,
+      "distance": 177,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 102,
+      "to": 67,
+      "distance": 350,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 102,
+      "to": 69,
+      "distance": 317,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 69,
+      "to": 99,
+      "distance": 384,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 69,
+      "to": 67,
+      "distance": 170,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 69,
+      "to": 71,
+      "distance": 348,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 69,
+      "to": 102,
+      "distance": 317,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 62,
+      "to": 49,
+      "distance": 190,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 62,
+      "to": 82,
+      "distance": 203,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 62,
+      "to": 132,
+      "distance": 401,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 82,
+      "to": 52,
+      "distance": 183,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 82,
+      "to": 62,
+      "distance": 203,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 82,
+      "to": 132,
+      "distance": 297,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 80,
+      "to": 52,
+      "distance": 402,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 80,
+      "to": 128,
+      "distance": 588,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 80,
+      "to": 96,
+      "distance": 359,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 96,
+      "to": 52,
+      "distance": 268,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 96,
+      "to": 80,
+      "distance": 359,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 63,
+      "to": 42,
+      "distance": 208,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 63,
+      "to": 75,
+      "distance": 174,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 63,
+      "to": 111,
+      "distance": 288,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 63,
+      "to": 110,
+      "distance": 406,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 111,
+      "to": 42,
+      "distance": 311,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 111,
+      "to": 77,
+      "distance": 400,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 111,
+      "to": 63,
+      "distance": 288,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 111,
+      "to": 110,
+      "distance": 298,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 110,
+      "to": 77,
+      "distance": 241,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 110,
+      "to": 63,
+      "distance": 406,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 110,
+      "to": 111,
+      "distance": 298,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 39,
+      "to": 14,
+      "distance": 89,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 39,
+      "to": 113,
+      "distance": 512,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 39,
+      "to": 65,
+      "distance": 263,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 136,
+      "to": 16,
+      "distance": 207,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 38,
+      "to": 60,
+      "distance": 172,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 38,
+      "to": 13,
+      "distance": 683,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 78,
+      "to": 44,
+      "distance": 212,
+      "radius": 44,
+      "height": 65,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 78,
+      "to": 41,
+      "distance": 192,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 61,
+      "to": 37,
+      "distance": 62,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 64,
+      "to": 58,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 64,
+      "to": 21,
+      "distance": 466,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 64,
+      "to": 9,
+      "distance": 156,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 58,
+      "to": 64,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 58,
+      "to": 142,
+      "distance": 222,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 58,
+      "to": 121,
+      "distance": 94,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 58,
+      "to": 126,
+      "distance": 184,
+      "radius": 31,
+      "height": 52,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 58,
+      "to": 147,
+      "distance": 188,
+      "radius": 24,
+      "height": 65,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 154,
+      "to": 87,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 154,
+      "to": 163,
+      "distance": 161,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 87,
+      "to": 154,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 87,
+      "to": 33,
+      "distance": 150,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 114,
+      "to": 85,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 114,
+      "to": 148,
+      "distance": 176,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 114,
+      "to": 149,
+      "distance": 88,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 114,
+      "to": 150,
+      "distance": 86,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 85,
+      "to": 114,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 85,
+      "to": 18,
+      "distance": 161,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 66,
+      "to": 83,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 66,
+      "to": 15,
+      "distance": 464,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 66,
+      "to": 2,
+      "distance": 158,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 83,
+      "to": 66,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 83,
+      "to": 157,
+      "distance": 293,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 83,
+      "to": 122,
+      "distance": 74,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 83,
+      "to": 101,
+      "distance": 115,
+      "radius": 70,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 158,
+      "to": 142,
+      "distance": 47,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 157,
+      "to": 83,
+      "distance": 293,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 157,
+      "to": 101,
+      "distance": 180,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 160,
+      "to": 93,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 160,
+      "to": 35,
+      "distance": 246,
+      "radius": 57,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 93,
+      "to": 160,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 93,
+      "to": 16,
+      "distance": 347,
+      "radius": 70,
+      "height": 54,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 156,
+      "to": 68,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 156,
+      "to": 29,
+      "distance": 293,
+      "radius": 57,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 68,
+      "to": 156,
+      "distance": 100,
+      "radius": 150,
+      "height": 150,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 68,
+      "to": 37,
+      "distance": 329,
+      "radius": 44,
+      "height": 65,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 68,
+      "to": 41,
+      "distance": 331,
+      "radius": 70,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 35,
+      "to": 20,
+      "distance": 293,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 35,
+      "to": 160,
+      "distance": 246,
+      "radius": 57,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 35,
+      "to": 84,
+      "distance": 524,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 35,
+      "to": 27,
+      "distance": 336,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 35,
+      "to": 40,
+      "distance": 353,
+      "radius": 57,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 35,
+      "to": 53,
+      "distance": 380,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 29,
+      "to": 25,
+      "distance": 328,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 29,
+      "to": 31,
+      "distance": 495,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 29,
+      "to": 156,
+      "distance": 293,
+      "radius": 57,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 29,
+      "to": 8,
+      "distance": 326,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 29,
+      "to": 32,
+      "distance": 372,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 29,
+      "to": 17,
+      "distance": 354,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 51,
+      "to": 94,
+      "distance": 365,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 51,
+      "to": 50,
+      "distance": 40,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 98,
+      "to": 93,
+      "distance": 131,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 98,
+      "to": 113,
+      "distance": 224,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 98,
+      "to": 65,
+      "distance": 272,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 98,
+      "to": 79,
+      "distance": 176,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 84,
+      "to": 48,
+      "distance": 167,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 84,
+      "to": 35,
+      "distance": 524,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 84,
+      "to": 10,
+      "distance": 355,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 22,
+      "to": 13,
+      "distance": 564,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 22,
+      "to": 48,
+      "distance": 124,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 22,
+      "to": 27,
+      "distance": 590,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 22,
+      "to": 40,
+      "distance": 660,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 22,
+      "to": 53,
+      "distance": 512,
+      "radius": 57,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 22,
+      "to": 23,
+      "distance": 230,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 22,
+      "to": 10,
+      "distance": 158,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 5,
+      "to": 13,
+      "distance": 270,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 5,
+      "to": 15,
+      "distance": 199,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 5,
+      "to": 2,
+      "distance": 426,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 5,
+      "to": 18,
+      "distance": 376,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 5,
+      "to": 19,
+      "distance": 129,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 5,
+      "to": 23,
+      "distance": 567,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 37,
+      "to": 61,
+      "distance": 62,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 37,
+      "to": 68,
+      "distance": 329,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 37,
+      "to": 94,
+      "distance": 342,
+      "radius": 24,
+      "height": 65,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 37,
+      "to": 74,
+      "distance": 400,
+      "radius": 37,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 37,
+      "to": 41,
+      "distance": 118,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 127,
+      "to": 143,
+      "distance": 504,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 127,
+      "to": 47,
+      "distance": 531,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 97,
+      "to": 105,
+      "distance": 31,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 97,
+      "to": 112,
+      "distance": 296,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 1,
+      "to": 60,
+      "distance": 337,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 1,
+      "to": 92,
+      "distance": 365,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 1,
+      "to": 59,
+      "distance": 648,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 1,
+      "to": 56,
+      "distance": 335,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 152,
+      "to": 97,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 97,
+      "to": 152,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 152,
+      "to": 1,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 1,
+      "to": 152,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 14,
+      "to": 39,
+      "distance": 89,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 14,
+      "to": 16,
+      "distance": 70,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 14,
+      "to": 113,
+      "distance": 457,
+      "radius": 37,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 0,
+      "to": 57,
+      "distance": 389,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 0,
+      "to": 118,
+      "distance": 403,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 151,
+      "to": 14,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 14,
+      "to": 151,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 151,
+      "to": 0,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 0,
+      "to": 151,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 159,
+      "to": 86,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 86,
+      "to": 159,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 159,
+      "to": 4,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 4,
+      "to": 159,
+      "distance": 500,
+      "radius": 60,
+      "height": 60,
+      "flags": 32,
+      "flagNames": [
+        "special"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 86,
+      "to": 103,
+      "distance": 60,
+      "radius": 70,
+      "height": 58,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 86,
+      "to": 30,
+      "distance": 776,
+      "radius": 70,
+      "height": 58,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 86,
+      "to": 133,
+      "distance": 352,
+      "radius": 31,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 86,
+      "to": 137,
+      "distance": 349,
+      "radius": 37,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 4,
+      "to": 81,
+      "distance": 309,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 4,
+      "to": 76,
+      "distance": 644,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 4,
+      "to": 119,
+      "distance": 505,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 4,
+      "to": 30,
+      "distance": 564,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 4,
+      "to": 73,
+      "distance": 626,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 8,
+      "to": 25,
+      "distance": 647,
+      "radius": 70,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 8,
+      "to": 26,
+      "distance": 501,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 8,
+      "to": 31,
+      "distance": 332,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 8,
+      "to": 29,
+      "distance": 326,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 8,
+      "to": 32,
+      "distance": 84,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 8,
+      "to": 17,
+      "distance": 97,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 8,
+      "to": 9,
+      "distance": 952,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 6,
+      "to": 3,
+      "distance": 671,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 6,
+      "to": 25,
+      "distance": 341,
+      "radius": 70,
+      "height": 58,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 6,
+      "to": 21,
+      "distance": 261,
+      "radius": 24,
+      "height": 58,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 6,
+      "to": 17,
+      "distance": 994,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 6,
+      "to": 9,
+      "distance": 69,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 6,
+      "to": 33,
+      "distance": 73,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 6,
+      "to": 28,
+      "distance": 325,
+      "radius": 57,
+      "height": 65,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 21,
+      "to": 25,
+      "distance": 402,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 21,
+      "to": 64,
+      "distance": 466,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 21,
+      "to": 6,
+      "distance": 261,
+      "radius": 24,
+      "height": 58,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 21,
+      "to": 9,
+      "distance": 316,
+      "radius": 31,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 21,
+      "to": 33,
+      "distance": 208,
+      "radius": 18,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 21,
+      "to": 28,
+      "distance": 86,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 32,
+      "to": 25,
+      "distance": 699,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 32,
+      "to": 26,
+      "distance": 430,
+      "radius": 57,
+      "height": 54,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 32,
+      "to": 34,
+      "distance": 301,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 32,
+      "to": 31,
+      "distance": 255,
+      "radius": 31,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 32,
+      "to": 29,
+      "distance": 372,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 32,
+      "to": 8,
+      "distance": 84,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 32,
+      "to": 12,
+      "distance": 551,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 17,
+      "to": 29,
+      "distance": 354,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 17,
+      "to": 8,
+      "distance": 97,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 17,
+      "to": 6,
+      "distance": 994,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 9,
+      "to": 25,
+      "distance": 306,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 9,
+      "to": 64,
+      "distance": 156,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 9,
+      "to": 8,
+      "distance": 952,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 9,
+      "to": 6,
+      "distance": 69,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 9,
+      "to": 21,
+      "distance": 316,
+      "radius": 31,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 33,
+      "to": 87,
+      "distance": 150,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 33,
+      "to": 6,
+      "distance": 73,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 33,
+      "to": 21,
+      "distance": 208,
+      "radius": 18,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 33,
+      "to": 28,
+      "distance": 283,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 28,
+      "to": 3,
+      "distance": 364,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 28,
+      "to": 6,
+      "distance": 325,
+      "radius": 57,
+      "height": 65,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 28,
+      "to": 21,
+      "distance": 86,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 28,
+      "to": 33,
+      "distance": 283,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 28,
+      "to": 24,
+      "distance": 679,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 24,
+      "to": 3,
+      "distance": 331,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 24,
+      "to": 26,
+      "distance": 228,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 24,
+      "to": 34,
+      "distance": 251,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 24,
+      "to": 28,
+      "distance": 679,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 24,
+      "to": 12,
+      "distance": 91,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 12,
+      "to": 26,
+      "distance": 167,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 12,
+      "to": 34,
+      "distance": 251,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 12,
+      "to": 32,
+      "distance": 551,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 12,
+      "to": 24,
+      "distance": 91,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 133,
+      "to": 103,
+      "distance": 343,
+      "radius": 44,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 133,
+      "to": 86,
+      "distance": 352,
+      "radius": 31,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 133,
+      "to": 129,
+      "distance": 85,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 137,
+      "to": 103,
+      "distance": 316,
+      "radius": 31,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 137,
+      "to": 86,
+      "distance": 349,
+      "radius": 37,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 137,
+      "to": 129,
+      "distance": 70,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 142,
+      "to": 58,
+      "distance": 222,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 142,
+      "to": 158,
+      "distance": 47,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 142,
+      "to": 121,
+      "distance": 153,
+      "radius": 18,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 121,
+      "to": 58,
+      "distance": 94,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 121,
+      "to": 142,
+      "distance": 153,
+      "radius": 18,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 121,
+      "to": 126,
+      "distance": 198,
+      "radius": 37,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 121,
+      "to": 147,
+      "distance": 108,
+      "radius": 37,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 88,
+      "to": 91,
+      "distance": 312,
+      "radius": 70,
+      "height": 54,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 88,
+      "to": 108,
+      "distance": 333,
+      "radius": 70,
+      "height": 54,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 88,
+      "to": 109,
+      "distance": 88,
+      "radius": 70,
+      "height": 54,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 88,
+      "to": 141,
+      "distance": 750,
+      "radius": 70,
+      "height": 54,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 44,
+      "to": 78,
+      "distance": 212,
+      "radius": 44,
+      "height": 65,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 44,
+      "to": 68,
+      "distance": 231,
+      "radius": 57,
+      "height": 58,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 44,
+      "to": 50,
+      "distance": 169,
+      "radius": 57,
+      "height": 58,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 44,
+      "to": 41,
+      "distance": 244,
+      "radius": 57,
+      "height": 58,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 94,
+      "to": 78,
+      "distance": 535,
+      "radius": 57,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 94,
+      "to": 51,
+      "distance": 365,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 94,
+      "to": 37,
+      "distance": 342,
+      "radius": 24,
+      "height": 65,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 94,
+      "to": 74,
+      "distance": 60,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 94,
+      "to": 41,
+      "distance": 402,
+      "radius": 44,
+      "height": 58,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 74,
+      "to": 37,
+      "distance": 400,
+      "radius": 37,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 74,
+      "to": 94,
+      "distance": 60,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 74,
+      "to": 50,
+      "distance": 329,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 74,
+      "to": 41,
+      "distance": 454,
+      "radius": 63,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 50,
+      "to": 68,
+      "distance": 188,
+      "radius": 70,
+      "height": 63,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 50,
+      "to": 51,
+      "distance": 40,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 50,
+      "to": 44,
+      "distance": 169,
+      "radius": 57,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 50,
+      "to": 74,
+      "distance": 329,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 41,
+      "to": 78,
+      "distance": 192,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 41,
+      "to": 68,
+      "distance": 331,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 41,
+      "to": 51,
+      "distance": 416,
+      "radius": 70,
+      "height": 54,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 41,
+      "to": 37,
+      "distance": 118,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 41,
+      "to": 44,
+      "distance": 244,
+      "radius": 63,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 41,
+      "to": 94,
+      "distance": 402,
+      "radius": 44,
+      "height": 58,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 16,
+      "to": 136,
+      "distance": 207,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 16,
+      "to": 93,
+      "distance": 347,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 16,
+      "to": 14,
+      "distance": 70,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 16,
+      "to": 106,
+      "distance": 354,
+      "radius": 18,
+      "height": 39,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 16,
+      "to": 113,
+      "distance": 388,
+      "radius": 37,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 16,
+      "to": 65,
+      "distance": 265,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 122,
+      "to": 83,
+      "distance": 74,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 122,
+      "to": 101,
+      "distance": 92,
+      "radius": 70,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 122,
+      "to": 100,
+      "distance": 128,
+      "radius": 18,
+      "height": 61,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 122,
+      "to": 125,
+      "distance": 231,
+      "radius": 24,
+      "height": 65,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 15,
+      "to": 20,
+      "distance": 492,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 15,
+      "to": 66,
+      "distance": 464,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 15,
+      "to": 5,
+      "distance": 199,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 15,
+      "to": 2,
+      "distance": 314,
+      "radius": 31,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 15,
+      "to": 18,
+      "distance": 217,
+      "radius": 18,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 15,
+      "to": 11,
+      "distance": 261,
+      "radius": 24,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 15,
+      "to": 19,
+      "distance": 72,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 101,
+      "to": 83,
+      "distance": 115,
+      "radius": 70,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 101,
+      "to": 157,
+      "distance": 180,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 101,
+      "to": 122,
+      "distance": 92,
+      "radius": 70,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 101,
+      "to": 100,
+      "distance": 148,
+      "radius": 24,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 101,
+      "to": 125,
+      "distance": 163,
+      "radius": 31,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 106,
+      "to": 16,
+      "distance": 354,
+      "radius": 18,
+      "height": 39,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 106,
+      "to": 113,
+      "distance": 50,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 113,
+      "to": 39,
+      "distance": 512,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 113,
+      "to": 98,
+      "distance": 224,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 113,
+      "to": 14,
+      "distance": 457,
+      "radius": 37,
+      "height": 56,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 113,
+      "to": 16,
+      "distance": 388,
+      "radius": 37,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 113,
+      "to": 106,
+      "distance": 50,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 65,
+      "to": 39,
+      "distance": 263,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 65,
+      "to": 93,
+      "distance": 227,
+      "radius": 70,
+      "height": 48,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 65,
+      "to": 16,
+      "distance": 265,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 65,
+      "to": 79,
+      "distance": 160,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 79,
+      "to": 93,
+      "distance": 189,
+      "radius": 70,
+      "height": 48,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 79,
+      "to": 98,
+      "distance": 176,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 79,
+      "to": 65,
+      "distance": 160,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 27,
+      "to": 48,
+      "distance": 528,
+      "radius": 31,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 27,
+      "to": 35,
+      "distance": 336,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 27,
+      "to": 22,
+      "distance": 590,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 27,
+      "to": 40,
+      "distance": 69,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 27,
+      "to": 53,
+      "distance": 92,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 27,
+      "to": 2,
+      "distance": 947,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 131,
+      "to": 135,
+      "distance": 133,
+      "radius": 63,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 131,
+      "to": 112,
+      "distance": 76,
+      "radius": 63,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 135,
+      "to": 131,
+      "distance": 133,
+      "radius": 57,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 135,
+      "to": 112,
+      "distance": 85,
+      "radius": 57,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 40,
+      "to": 48,
+      "distance": 596,
+      "radius": 24,
+      "height": 67,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 40,
+      "to": 35,
+      "distance": 353,
+      "radius": 57,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 40,
+      "to": 27,
+      "distance": 69,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 40,
+      "to": 11,
+      "distance": 974,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 53,
+      "to": 48,
+      "distance": 441,
+      "radius": 18,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 53,
+      "to": 35,
+      "distance": 380,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 53,
+      "to": 22,
+      "distance": 512,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 53,
+      "to": 27,
+      "distance": 92,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 53,
+      "to": 10,
+      "distance": 561,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 2,
+      "to": 20,
+      "distance": 378,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 2,
+      "to": 66,
+      "distance": 158,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 2,
+      "to": 5,
+      "distance": 426,
+      "radius": 31,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 2,
+      "to": 15,
+      "distance": 314,
+      "radius": 31,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 2,
+      "to": 27,
+      "distance": 947,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 2,
+      "to": 11,
+      "distance": 65,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 2,
+      "to": 19,
+      "distance": 358,
+      "radius": 70,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 18,
+      "to": 13,
+      "distance": 643,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 18,
+      "to": 20,
+      "distance": 462,
+      "radius": 63,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 18,
+      "to": 85,
+      "distance": 161,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 18,
+      "to": 5,
+      "distance": 376,
+      "radius": 50,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 18,
+      "to": 15,
+      "distance": 217,
+      "radius": 18,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 18,
+      "to": 11,
+      "distance": 64,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 18,
+      "to": 19,
+      "distance": 278,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 11,
+      "to": 13,
+      "distance": 666,
+      "radius": 50,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 11,
+      "to": 20,
+      "distance": 417,
+      "radius": 50,
+      "height": 63,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 11,
+      "to": 15,
+      "distance": 261,
+      "radius": 24,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 11,
+      "to": 40,
+      "distance": 974,
+      "radius": 44,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 11,
+      "to": 2,
+      "distance": 65,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 11,
+      "to": 18,
+      "distance": 64,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 11,
+      "to": 19,
+      "distance": 313,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 19,
+      "to": 5,
+      "distance": 129,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 19,
+      "to": 15,
+      "distance": 72,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 19,
+      "to": 2,
+      "distance": 358,
+      "radius": 70,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 19,
+      "to": 18,
+      "distance": 278,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 19,
+      "to": 11,
+      "distance": 313,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 19,
+      "to": 23,
+      "distance": 687,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 23,
+      "to": 13,
+      "distance": 335,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 23,
+      "to": 48,
+      "distance": 330,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 23,
+      "to": 22,
+      "distance": 230,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 23,
+      "to": 5,
+      "distance": 567,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 23,
+      "to": 19,
+      "distance": 687,
+      "radius": 57,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 23,
+      "to": 10,
+      "distance": 78,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 10,
+      "to": 48,
+      "distance": 270,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 10,
+      "to": 84,
+      "distance": 355,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 10,
+      "to": 22,
+      "distance": 158,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 10,
+      "to": 53,
+      "distance": 561,
+      "radius": 50,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 10,
+      "to": 23,
+      "distance": 78,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 129,
+      "to": 103,
+      "distance": 337,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 129,
+      "to": 133,
+      "distance": 85,
+      "radius": 70,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 129,
+      "to": 137,
+      "distance": 70,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 112,
+      "to": 97,
+      "distance": 296,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 112,
+      "to": 131,
+      "distance": 76,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 112,
+      "to": 135,
+      "distance": 85,
+      "radius": 70,
+      "height": 54,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 148,
+      "to": 114,
+      "distance": 176,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 148,
+      "to": 149,
+      "distance": 193,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 148,
+      "to": 150,
+      "distance": 192,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 163,
+      "to": 154,
+      "distance": 161,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 130,
+      "to": 42,
+      "distance": 272,
+      "radius": 31,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 130,
+      "to": 75,
+      "distance": 381,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 130,
+      "to": 123,
+      "distance": 309,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 132,
+      "to": 52,
+      "distance": 372,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 132,
+      "to": 49,
+      "distance": 423,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 132,
+      "to": 62,
+      "distance": 401,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 132,
+      "to": 82,
+      "distance": 297,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 138,
+      "to": 89,
+      "distance": 341,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 138,
+      "to": 71,
+      "distance": 220,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 134,
+      "to": 43,
+      "distance": 310,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 134,
+      "to": 54,
+      "distance": 326,
+      "radius": 70,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 134,
+      "to": 36,
+      "distance": 485,
+      "radius": 18,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 100,
+      "to": 122,
+      "distance": 128,
+      "radius": 18,
+      "height": 70,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 100,
+      "to": 101,
+      "distance": 148,
+      "radius": 24,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 100,
+      "to": 162,
+      "distance": 137,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 125,
+      "to": 122,
+      "distance": 231,
+      "radius": 24,
+      "height": 65,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 125,
+      "to": 101,
+      "distance": 163,
+      "radius": 31,
+      "height": 52,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 125,
+      "to": 164,
+      "distance": 157,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 164,
+      "to": 125,
+      "distance": 157,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 162,
+      "to": 100,
+      "distance": 137,
+      "radius": 37,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 149,
+      "to": 114,
+      "distance": 88,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 149,
+      "to": 148,
+      "distance": 193,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 150,
+      "to": 114,
+      "distance": 86,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 150,
+      "to": 148,
+      "distance": 192,
+      "radius": 70,
+      "height": 61,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 126,
+      "to": 58,
+      "distance": 184,
+      "radius": 24,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 126,
+      "to": 121,
+      "distance": 198,
+      "radius": 37,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 126,
+      "to": 165,
+      "distance": 159,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 126,
+      "to": 147,
+      "distance": 298,
+      "radius": 44,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 165,
+      "to": 126,
+      "distance": 159,
+      "radius": 31,
+      "height": 70,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 147,
+      "to": 121,
+      "distance": 108,
+      "radius": 37,
+      "height": 48,
+      "flags": 9,
+      "flagNames": [
+        "walk",
+        "jump"
+      ],
+      "synthesized": false
+    },
+    {
+      "from": 147,
+      "to": 126,
+      "distance": 298,
+      "radius": 44,
+      "height": 48,
+      "flags": 1,
+      "flagNames": [
+        "walk"
+      ],
+      "synthesized": false
+    }
+  ]
+}

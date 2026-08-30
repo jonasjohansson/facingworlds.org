@@ -115,6 +115,11 @@ AFRAME.registerComponent("remote-avatar", {
    * emissive onto the loaded material would paint every player, local one included.
    */
   applyTeamTint: function (team) {
+    // DISABLED in the game view. Jonas: "i dont need the player avatars
+    // character tinted". The team still reaches the rig's data-team (scoreboard,
+    // future outlines) and the AR page keeps its own tint — spectators need to
+    // tell teams apart from across a room; a player reads the map instead.
+    if (true) return;
     const t = TEAM_COLORS[team] ? team : this._readTeam();
     if (!t || t === this._tintedTeam) return;
 
