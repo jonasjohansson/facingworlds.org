@@ -107,16 +107,24 @@ const SVG_HEALTH =
   '<path class="ut-glyph-hi" d="M39 18h2v13h-2z"/>' +
   "</svg>";
 // Armour shield — HudElements1 tile (0,192,128,64), cols 84..123, rows 196..250,
-// a 40 x 55 texel heraldic shield. The INTERIOR is the box fill showing through
-// (atlas lum 66..110 against a 66 fill), so nothing is painted there: only the
-// 2-texel rim, the two tall bosses that read as a "II", and the chevron across
-// the bottom point. Same pre-composited alpha model as the cross.
+// a 40 x 55 texel heraldic shield. Read off the blown-up atlas, not remembered:
+// a bright 2-texel rim, a pointed top with a small notch, an INTERIOR that is
+// brighter than the box fill (mottled lum ~110..180 against the 66 fill — it is
+// not the fill showing through) carrying a faint eagle crest, and the brightest
+// band down the lower-right of the rim. Earlier drafts painted two tall "II"
+// bosses here; the atlas has no such thing. Same pre-composited alpha model as
+// the cross.
 const SVG_ARMOR =
   '<svg viewBox="0 0 40 55" aria-hidden="true">' +
-  '<path class="ut-glyph-rim" d="M0 1H19L22 0L39 1V36Q39 49 19 54Q0 49 0 36Z"/>' +
-  '<path class="ut-glyph-hi" d="M8 5h8v28H8z"/>' +
-  '<path class="ut-glyph-hi" d="M22 5h8v28h-8z"/>' +
-  '<path class="ut-glyph-face" d="M4 44h30l-3 4-11 3-11-3z"/>' +
+  // interior first so the rim overdraws its edge
+  '<path class="ut-glyph-face" d="M3 4H18L20 2L22 4H37V35Q37 47 20 52Q3 47 3 35Z"/>' +
+  // faint crest: spread wings and a body, darker than the face
+  '<path class="ut-glyph-dark" d="M20 14l-2 6-8-2 6 5-3 6 7-3 7 3-3-6 6-5-8 2Z" opacity=".55"/>' +
+  '<path class="ut-glyph-dark" d="M18 26h4v12h-4z" opacity=".45"/>' +
+  // rim
+  '<path class="ut-glyph-rim" fill-rule="evenodd" d="M0 2H18L20 0L22 2H40V36Q40 50 20 55Q0 50 0 36Z M3 4V35Q3 47 20 52Q37 47 37 35V4H22L20 2L18 4Z"/>' +
+  // brightest run of the rim, lower right (atlas cols 112..121, rows 228..246)
+  '<path class="ut-glyph-hi" d="M37 30v6q0 9-11 14l-1-2q10-4 10-12v-6z"/>' +
   "</svg>";
 // Ammo box glyph: HudElements1 (128,192,128,64), the bullets that sit on the
 // RIGHT of the tile. Measured off the atlas, not remembered: the ink bbox is
