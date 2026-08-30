@@ -103,6 +103,9 @@ function startServer() {
     const env = { ...process.env };
     env.PORT = String(PORT);
     env.BOTS_ENABLED = "1";
+    // The suite predates the human gate and drives bots with scripted sockets
+    // that come and go; gate semantics get their own dedicated test below.
+    env.BOTS_NEED_HUMAN = process.env.BOTS_TEST_NEED_HUMAN || "0";
     env.BOTS_MIN_PER_TEAM = String(MIN_PER_TEAM);
     env.BOTS_MAX = String(BOTS_MAX);
     env.BOTS_ROSTER_MS = String(ROSTER_MS);

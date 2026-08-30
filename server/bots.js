@@ -69,6 +69,11 @@ const envMs = (name, dflt) => {
 const BOTS_ENABLED = envFlag("BOTS_ENABLED", true);
 const BOTS_MIN_PER_TEAM = envInt("BOTS_MIN_PER_TEAM", 2);
 const BOTS_MAX = envInt("BOTS_MAX", 6);
+// Bots exist FOR humans: with nobody watching they would run matches for the
+// void (and keep the free-tier dyno busy doing it). On by default — an empty
+// server is empty until the first human arrives, and drains again when the
+// last one leaves. BOTS_NEED_HUMAN=0 restores always-on bots.
+const BOTS_NEED_HUMAN = envFlag("BOTS_NEED_HUMAN", true);
 
 // ---- movement ----
 // GROUND_SPEED mirrors GAME_CONFIG.MOVEMENT.GROUND_SPEED (9.4 m/s) — the speed a human
@@ -378,6 +383,14 @@ function createBots(ctx) {
     nextRosterAt = now + ROSTER_MS;
 
     const c = census();
+
+    // The human gate. Census only counts teamed players, so spectators (the AR
+    // view) do not summon bots — a match nobody can join is still a match for
+    // the void.
+    if (BOTS_NEED_HUMAN && c.red.humans + c.blue.humans === 0) {
+      if (roster.length) removeAll("last human left");
+      return;
+    }
 
     // 1. Humans push bots out. Every human on a side is one bot that side does not need,
     //    so this drains down to BOTS_MIN_PER_TEAM total per team — newest bot first.
