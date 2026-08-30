@@ -43,6 +43,37 @@ import { createGLTFLoader, loadFirstAvailable, disposeModel } from "./assets.js"
 // Resolved against THIS module's URL (src/ar/three/), not against the page.
 const SPECTATOR_CLIENT_URL = "../../shared/net/spectator-client.js";
 
+// TEAMS. The match is Capture the Flag and the single most important thing a
+// spectator has to read off a three-millimetre figure is which side it is on, so
+// team colour REPLACES the id-cycled palette for anyone the server has put on a
+// team. The palette survives only for a teamless player - which, in CTF, means a
+// player seen before their `hello`/`join` carried a team, or a server running a
+// mode without them.
+//
+// Applied as diffuse AND emissive together, from ar-config. Diffuse alone loses
+// the read whenever a figure is on the shadowed side of the rock; emissive alone
+// flattens the soldier into a glowing silhouette. Both, at the modest emissive
+// fraction in config, keeps a lit soldier that is unmistakably red or blue.
+const TEAMS = ["red", "blue"];
+
+// NAME LABELS, on or off, for the whole table.
+//
+// Module-level rather than per-table on purpose: this is a viewer's preference,
+// and it has to survive a SpectatorTable being rebuilt underneath them - which
+// happens on a scene teardown and rebuild, not just on a reload. Session-scoped by
+// construction: a reload starts from `true` again, which is the right default
+// because a table full of anonymous figures is not obviously readable.
+//
+// The toggle itself is a tap on the AR canvas, wired in scene.js - the canvas is
+// the one surface with nothing else on it, so a tap there cannot mean anything
+// else.
+let labelsVisible = true;
+
+/** Whether name labels are currently shown. */
+export function labelsAreVisible() {
+  return labelsVisible;
+}
+
 export class SpectatorTable {
   /**
    * @param {THREE.Object3D} worldGroup node whose local space is game world space
@@ -73,6 +104,33 @@ export class SpectatorTable {
     this.deadColor = new THREE.Color(cfg.deadColor);
     this.palette = cfg.colors.map((hex) => new THREE.Color(hex));
     this.nextColor = 0;
+
+    // Parsed once. setStyle() takes CSS rgb() through three's colour management,
+    // which is what every other colour on this page goes through.
+    this.teamColors = {};
+    for (const team of TEAMS) {
+      const css = (cfg.teamColors && cfg.teamColors[team]) || "#888888";
+      this.teamColors[team] = new THREE.Color().setStyle(css);
+    }
+    this.teamEmissive = typeof cfg.teamEmissive === "number" ? cfg.teamEmissive : 0.42;
+    this.black = new THREE.Color(0x000000);
+
+    // CTF. The table owns the socket, so the match messages land here first and
+    // are relayed to whoever cares - the flags in the scene, and the HUD. Both are
+    // set by scene.js; either being unset is fine and simply means nobody is
+    // drawing that part.
+    this.onFlagState = null; // (flag) => void, one flag's authoritative state
+    this.onMatchState = null; // (match) => void, { scores, capLimit, state, winner }
+    this.match = { scores: { red: 0, blue: 0 }, capLimit: 0, state: "playing", winner: null };
+
+    // The roster line in the HUD. Coalesced rather than pushed per change - one
+    // `hello` announces a whole lobby, and each of those is a name AND a team AND
+    // a spawn - and NOT driven off the render loop: figures only move while the
+    // marker is tracked, but the HUD is on screen either way, so a roster that
+    // waited for update() would freeze the moment the print left frame.
+    this.onRosterChange = null;
+    this.rosterDirty = false;
+    this.rosterTimer = null;
 
     // Muzzle flash. A camera-facing quad, additive and
     // unlit, so it reads as a light source rather than a lit surface. One
@@ -153,7 +211,7 @@ export class SpectatorTable {
       return;
     }
 
-    const skinned = this._buildSkinned(entry.aliveColor);
+    const skinned = this._buildSkinned();
     if (!skinned) {
       return;
     }
@@ -165,6 +223,9 @@ export class SpectatorTable {
     entry.tilt.add(skinned.root);
 
     entry.skinned = skinned;
+    // The clone's materials are fresh and untinted; give them this player's
+    // team colour before the next frame draws them white.
+    this._applyTint(entry);
     // The model animates its own footfalls; the sine bob was standing in
     // for exactly that and now fights it.
     entry.tilt.position.y = 0;
@@ -174,7 +235,7 @@ export class SpectatorTable {
    * Clone the loaded model for one player and wire up its clips.
    * Returns null if anything is missing, so the caller keeps its capsule.
    */
-  _buildSkinned(color) {
+  _buildSkinned() {
     if (!this.model) return null;
 
     const cfg = AR_CONFIG.avatar;
@@ -190,10 +251,15 @@ export class SpectatorTable {
       obj.castShadow = true;
       obj.receiveShadow = false;
       const src = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      // A FRESH material per mesh per player. The shared glTF material is never
+      // touched and never assigned: mutating it would repaint every figure on
+      // the table the colour of whichever player was tinted last. The texture is
+      // reused (it is immutable and shared on purpose); the colour and emissive
+      // that carry the team are per-clone, and _applyTint writes them.
       const mat = new THREE.MeshLambertMaterial({
-        color: color.clone(),
+        color: 0xffffff,
+        emissive: 0x000000,
         map: src && src.map ? src.map : null,
-        skinning: true,
       });
       obj.material = mat;
       materials.push(mat);
@@ -280,6 +346,28 @@ export class SpectatorTable {
             this._setLabel(entry, name);
           }
         },
+        // --- capture the flag ---
+        // The socket lives here, so the match arrives here and is handed on. The
+        // table itself only uses `team`; the flags and the HUD are the consumers,
+        // and both are optional.
+        onCtf: (ctf) => this._applyCtf(ctf),
+        onFlag: (flag) => this._applyFlag(flag),
+        onScore: (scores) => {
+          this.match.scores = { red: scores.red || 0, blue: scores.blue || 0 };
+          this._emitMatch();
+        },
+        onTeam: (id, team) => {
+          const entry = this.players.get(id);
+          if (entry) {
+            this._setTeam(entry, team);
+          }
+        },
+        onMatchEnd: (m) => {
+          this.match.state = "ended";
+          this.match.winner = m.winner || null;
+          if (m.scores) this.match.scores = { red: m.scores.red || 0, blue: m.scores.blue || 0 };
+          this._emitMatch();
+        },
         onFire: (id) => {
           const entry = this.players.get(id);
           if (entry) entry.flashUntil = AR_CONFIG.avatar.flash.fadeMs;
@@ -317,6 +405,148 @@ export class SpectatorTable {
     if (this.onStatusChange) {
       this.onStatusChange(state, this.players.size);
     }
+  }
+
+  // --- capture the flag ---------------------------------------------------------
+
+  /**
+   * A wholesale replacement of the match: `hello` on connect, `match-reset` after
+   * a decided one. Both carry a full publicCtf(), so nothing has to be reconciled
+   * against what was on screen a moment ago - which is the point, because after a
+   * reconnect the player ids are new and after a reset the scores are not.
+   */
+  _applyCtf(ctf) {
+    if (!ctf) return;
+    this.match = {
+      scores: { red: (ctf.scores && ctf.scores.red) || 0, blue: (ctf.scores && ctf.scores.blue) || 0 },
+      capLimit: ctf.capLimit || 0,
+      state: ctf.state || "playing",
+      winner: ctf.winner || null,
+    };
+    for (const flag of ctf.flags || []) {
+      this._applyFlag(flag);
+    }
+    this._emitMatch();
+  }
+
+  /**
+   * One flag's authoritative state, from `hello.ctf.flags` or from a `flag`
+   * broadcast - the same shape either way (publicFlag), which is why there is one
+   * code path.
+   *
+   * `carrier` is also mirrored onto the player entries, because the figure and the
+   * flag are two halves of the same fact and a roster row wants to say who has it.
+   */
+  _applyFlag(flag) {
+    if (!flag || !flag.team) return;
+
+    const carrier = flag.state === "carried" ? flag.carrier || null : null;
+    let changed = false;
+    for (const entry of this.players.values()) {
+      const holds = entry.id === carrier ? flag.team : entry.flag === flag.team ? null : entry.flag;
+      if (holds !== entry.flag) {
+        entry.flag = holds;
+        changed = true;
+      }
+    }
+    if (changed) this._touchRoster();
+
+    if (this.onFlagState) {
+      this.onFlagState(flag);
+    }
+  }
+
+  _emitMatch() {
+    this._touchRoster();
+    if (this.onMatchState) {
+      this.onMatchState(this.match);
+    }
+  }
+
+  /**
+   * The node a carried flag rides on: the figure's own group, INSIDE the avatar
+   * scale, so a flag parented here is inflated by exactly as much as the soldier
+   * holding it and its carry offset is quoted in the same game-units-before-scale
+   * everything else on the figure is. Returns null for a player who has no figure
+   * yet, and the caller retries - a `flag` naming a carrier can beat that
+   * carrier's own `join` onto the wire.
+   *
+   * @param {string} id
+   * @returns {THREE.Object3D|null}
+   */
+  carrierNode(id) {
+    const entry = this.players.get(id);
+    return entry ? entry.carry : null;
+  }
+
+  /**
+   * Something in the roster changed. Coalesced onto a timeout rather than pushed
+   * immediately: a single `hello` adds every player and names and teams each of
+   * them, and every one of those would otherwise be its own DOM rebuild.
+   */
+  _touchRoster() {
+    this.rosterDirty = true;
+    if (this.rosterTimer || !this.onRosterChange) {
+      return;
+    }
+    this.rosterTimer = setTimeout(() => {
+      this.rosterTimer = null;
+      if (this.disposed || !this.rosterDirty || !this.onRosterChange) {
+        return;
+      }
+      this.rosterDirty = false;
+      this.onRosterChange(this.roster());
+    }, 0);
+  }
+
+  /** Whether name labels are currently shown. */
+  get labelsVisible() {
+    return labelsVisible;
+  }
+
+  /**
+   * Show or hide every name label at once.
+   *
+   * Sprite `visible`, not a material swap and not a removal: it takes the sprite
+   * out of the render list and nothing else, so toggling costs nothing, keeps
+   * every canvas and texture alive, and a figure that joins while labels are off
+   * comes up hidden (see _setLabel).
+   */
+  setLabelsVisible(visible) {
+    labelsVisible = !!visible;
+    for (const entry of this.players.values()) {
+      if (entry.label) {
+        entry.label.visible = labelsVisible;
+      }
+    }
+    return labelsVisible;
+  }
+
+  /** @returns {boolean} the new state */
+  toggleLabels() {
+    return this.setLabelsVisible(!labelsVisible);
+  }
+
+  /** The HUD's roster line. Newest state, cheapest possible shape. */
+  roster() {
+    const rows = [];
+    for (const entry of this.players.values()) {
+      rows.push({
+        id: entry.id,
+        name: entry.name || "player",
+        team: entry.team,
+        alive: entry.alive,
+        flag: entry.flag,
+      });
+    }
+    // Teams together, then by name, so the list does not reshuffle every join.
+    rows.sort((a, b) => {
+      const ta = TEAMS.indexOf(a.team);
+      const tb = TEAMS.indexOf(b.team);
+      if (ta !== tb) return ta - tb;
+      return a.name.localeCompare(b.name);
+    });
+    return rows;
   }
 
   // --- per-frame ----------------------------------------------------------------
@@ -467,6 +697,15 @@ export class SpectatorTable {
     if (player.name) {
       this._setLabel(entry, player.name);
     }
+    // Team before anything else that paints: a figure must never be seen in the
+    // palette colour for a frame and then flip sides.
+    if (player.team !== undefined) {
+      this._setTeam(entry, player.team);
+    }
+    if (player.flag !== undefined && player.flag !== entry.flag) {
+      entry.flag = player.flag || null;
+      this._touchRoster();
+    }
     if (typeof player.hp === "number") {
       this._setAlive(entry, player.hp > 0);
     }
@@ -516,6 +755,17 @@ export class SpectatorTable {
     figure.scale.setScalar(cfg.scale);
     figure.add(tilt);
 
+    // Where a carried flag hangs. On `figure`, not on `tilt`: `tilt` is what death
+    // rotates flat, and a flag is taken off a body the instant it falls (the server
+    // broadcasts the drop BEFORE the death), so a flag must never be along for that
+    // rotation. Inside `figure` it is inside the avatar scale, so the offset below
+    // is in the same game-units-before-scale as every other prop on the figure and
+    // the flag is inflated by exactly as much as the soldier carrying it.
+    const carryCfg = (AR_CONFIG.ctf && AR_CONFIG.ctf.carryOffset) || { x: 0, y: 1.15, z: 0.32 };
+    const carry = new THREE.Group();
+    carry.position.set(carryCfg.x, carryCfg.y, carryCfg.z);
+    figure.add(carry);
+
     const group = new THREE.Group();
     group.add(figure);
     // Hidden until a pose arrives, so nobody flashes at the map origin.
@@ -527,8 +777,14 @@ export class SpectatorTable {
       group,
       figure,
       tilt,
+      carry,
       material,
       aliveColor: color,
+      // null until the server says otherwise, which is one message away: `hello`
+      // and `join` both carry it.
+      team: null,
+      // The team COLOUR of the flag this player is carrying, or null.
+      flag: null,
       label: null,
       labelTexture: null,
       labelCanvas: null,
@@ -547,6 +803,7 @@ export class SpectatorTable {
     };
 
     this._upgradeToModel(entry);
+    this._touchRoster();
 
     return entry;
   }
@@ -558,6 +815,7 @@ export class SpectatorTable {
     }
     this.players.delete(id);
     this._disposePlayer(entry);
+    this._touchRoster();
     this._setStatus(this.status);
   }
 
@@ -596,6 +854,14 @@ export class SpectatorTable {
     entry.label = null;
     entry.labelTexture = null;
     entry.labelCanvas = null;
+    // A flag parented to `carry` is NOT ours to dispose - the flags module owns
+    // it, and the server drops a leaver's flag (a `flag` broadcast) before it
+    // announces the leave, so by now it has already been re-parented to the world.
+    // Detaching anything still here keeps a stale figure from taking a live flag
+    // out of the scene with it; flags.js re-attaches on its next frame.
+    for (const child of [...entry.carry.children]) {
+      this.worldGroup.add(child);
+    }
     entry.group.clear();
     entry.tilt.clear();
     entry.figure.clear();
@@ -612,16 +878,89 @@ export class SpectatorTable {
     // Dead reads three ways at once, because one cue is not enough at this size:
     // the figure lies down, goes dark red, and turns translucent.
     entry.tilt.rotation.x = alive ? 0 : -Math.PI / 2;
-    entry.material.color.copy(alive ? entry.aliveColor : this.deadColor);
-    entry.material.transparent = !alive;
-    entry.material.opacity = alive ? 1 : 0.45;
-    entry.material.needsUpdate = true;
+    this._applyTint(entry);
 
     if (entry.label) {
       entry.label.material.opacity = alive ? 1 : 0.4;
     }
     if (!alive) {
       entry.tilt.position.y = 0;
+    }
+    this._touchRoster();
+  }
+
+  /**
+   * Which side this figure is on. `null` clears it back to the id-cycled palette,
+   * which is what network.js does to a client on disconnect and what a non-team
+   * server would send.
+   */
+  _setTeam(entry, team) {
+    const next = team === "red" || team === "blue" ? team : null;
+    if (entry.team === next) {
+      return;
+    }
+    entry.team = next;
+    this._applyTint(entry);
+
+    // The name plate is outlined in the figure's own colour, so it is now wrong.
+    // Clearing the cached name is what makes _setLabel redraw rather than
+    // early-return on "same name".
+    if (entry.name) {
+      const name = entry.name;
+      entry.name = "";
+      this._setLabel(entry, name);
+    }
+    this._touchRoster();
+  }
+
+  /** The one place a figure's colour is decided. Team first, palette as fallback. */
+  teamColor(entry) {
+    return (entry.team && this.teamColors[entry.team]) || entry.aliveColor;
+  }
+
+  /**
+   * Paint one figure: capsule and, if it has been upgraded, every material on its
+   * skinned clone. Those materials were built fresh per player in _buildSkinned -
+   * the glTF's own materials are never assigned and never mutated, so tinting one
+   * figure cannot repaint the table.
+   *
+   * Colour and emissive are plain uniforms, so none of this needs a shader
+   * recompile. `transparent` DOES, which is why it is written only when it
+   * actually flips, and only on the capsule - a dying skinned figure reads from
+   * lying down and going dark red without paying a recompile on a phone.
+   */
+  _applyTint(entry) {
+    const alive = entry.alive;
+    const base = this.teamColor(entry);
+
+    if (!this._emissiveScratch) {
+      this._emissiveScratch = new THREE.Color();
+    }
+    const emissive = this._emissiveScratch;
+    if (alive && entry.team) {
+      emissive.copy(base).multiplyScalar(this.teamEmissive);
+    } else {
+      emissive.copy(this.black);
+    }
+
+    const capsule = entry.material;
+    capsule.color.copy(alive ? base : this.deadColor);
+    if (capsule.emissive) {
+      capsule.emissive.copy(emissive);
+    }
+    capsule.opacity = alive ? 1 : 0.45;
+    if (capsule.transparent !== !alive) {
+      capsule.transparent = !alive;
+      capsule.needsUpdate = true;
+    }
+
+    if (entry.skinned) {
+      for (const mat of entry.skinned.materials) {
+        mat.color.copy(alive ? base : this.deadColor);
+        if (mat.emissive) {
+          mat.emissive.copy(emissive);
+        }
+      }
     }
   }
 
@@ -638,7 +977,7 @@ export class SpectatorTable {
       entry.labelCanvas.width = 256;
       entry.labelCanvas.height = 64;
     }
-    drawLabel(entry.labelCanvas, name, `#${entry.aliveColor.getHexString()}`);
+    drawLabel(entry.labelCanvas, name, `#${this.teamColor(entry).getHexString()}`);
 
     if (!entry.labelTexture) {
       entry.labelTexture = new THREE.CanvasTexture(entry.labelCanvas);
@@ -662,6 +1001,8 @@ export class SpectatorTable {
       sprite.scale.set(cfg.labelWidth, cfg.labelWidth / 4, 1);
       sprite.position.y = cfg.labelHeight;
       sprite.material.opacity = entry.alive ? 1 : 0.4;
+      // A figure created while labels are off must not flash its name for a frame.
+      sprite.visible = labelsVisible;
       entry.figure.add(sprite);
       entry.label = sprite;
     }
@@ -671,6 +1012,10 @@ export class SpectatorTable {
 
   dispose() {
     this.disposed = true;
+    if (this.rosterTimer) {
+      clearTimeout(this.rosterTimer);
+      this.rosterTimer = null;
+    }
     if (this.connection) {
       try {
         this.connection.close();

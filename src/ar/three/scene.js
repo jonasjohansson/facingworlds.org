@@ -6,6 +6,7 @@ import { createLighting } from "./lighting.js";
 import { createShadowCatcher } from "./shadow-catcher.js";
 import { Reveal } from "./reveal.js";
 import { SpectatorTable } from "./players.js";
+import { CtfFlags } from "./flags.js";
 
 // Everything that goes on the marker, and nothing about the AR session.
 //
@@ -23,6 +24,7 @@ import { SpectatorTable } from "./players.js";
 //          +- world        position = measured centring offset
 //             +- map       the glTF, untouched, at the identity
 //             +- players   live figures, at raw game-world coordinates
+//             +- flags     the two CTF flags and their stands, ditto
 //
 // `world` is GAME WORLD SPACE. The game places this same glTF at the identity (see
 // #world in index.html), so a pose from the server is written into `world` verbatim and
@@ -34,6 +36,8 @@ import { SpectatorTable } from "./players.js";
  * @param {object} [options]
  * @param {string|null} [options.spectatorUrl] null to skip the live connection
  * @param {(state: string, count: number) => void} [options.onSpectatorStatus]
+ * @param {(match: object) => void} [options.onMatchState] scores / cap limit / winner
+ * @param {(rows: object[]) => void} [options.onRoster] the player list, for the HUD
  */
 export async function buildScene(ar, options = {}) {
   const renderer = ar.renderer;
@@ -68,12 +72,33 @@ export async function buildScene(ar, options = {}) {
   // The table is wired before the map downloads, so a player who is already connected
   // appears the instant the marker is found rather than after the glTF lands.
   const table = new SpectatorTable(world);
+
+  // The flags live in the SAME node the figures do, for the same reason: it is
+  // game world space, so a position off the wire goes in verbatim. They also need
+  // the table itself, because a carried flag is parented to its carrier's figure.
+  const flags = new CtfFlags(world, table);
+
   if (options.onSpectatorStatus) {
     table.onStatusChange = options.onSpectatorStatus;
+  }
+  // Every CTF hook is wired BEFORE the socket opens: `hello` carries the whole
+  // match, and it is the first message on the wire.
+  table.onFlagState = (flag) => flags.apply(flag);
+  if (options.onMatchState) {
+    table.onMatchState = options.onMatchState;
+  }
+  if (options.onRoster) {
+    table.onRosterChange = options.onRoster;
   }
   if (options.spectatorUrl) {
     table.connect(options.spectatorUrl);
   }
+
+  // A tap on the view hides every name label, and another brings them back. The
+  // canvas is the only surface on this page with nothing on it, so a tap there
+  // cannot mean anything else - and binding to the canvas rather than to the
+  // document is what keeps it that way as soon as the HUD grows a control.
+  const labelTap = createCanvasTap(renderer.domElement, () => table.toggleLabels());
 
   const built = {
     stage,
@@ -82,10 +107,13 @@ export async function buildScene(ar, options = {}) {
     shadowCatcher,
     lighting,
     table,
+    flags,
     map: null,
     fit: null,
     dispose() {
+      labelTap.dispose();
       table.dispose();
+      flags.dispose();
       if (built.map) {
         built.map.removeFromParent();
         disposeModel(built.map);
@@ -151,6 +179,78 @@ export async function buildScene(ar, options = {}) {
   precompile(ar);
 
   return built;
+}
+
+// A tap on the AR canvas, and nothing else.
+//
+// THREE things this has to get right, all of them learned from taps on phones:
+//
+//  * It binds to the CANVAS, not to the document. Everything else on this page -
+//    the scan hint, the spectator chip, the score, the roster - lives in the HUD
+//    overlay, so a tap that lands on any of them is not a tap on the canvas and
+//    never reaches here. That stays true as the HUD grows, which a document-level
+//    handler with a blacklist would not. The `target` and control checks below are
+//    belt and braces for the day something is drawn INTO the canvas's box.
+//  * A drag is not a tap. Someone rotating their phone around the print, or
+//    pinching, moves their finger; a touch that travels more than TAP_SLOP px
+//    between touchstart and touchend is that, and is ignored.
+//  * A touch must not fire twice. Browsers follow a touchend with a synthetic
+//    click, so a handled touch suppresses the click that chases it.
+const TAP_SLOP = 10; // px between touchstart and touchend for a touch to be a tap
+const TAP_CLICK_SUPPRESS_MS = 700; // a synthetic click follows a touch by ~300ms
+
+function createCanvasTap(el, onTap) {
+  if (!el || typeof el.addEventListener !== "function") {
+    return { dispose() {} };
+  }
+
+  let start = null;
+  let handledTouchAt = 0;
+
+  // A control drawn over the canvas is never a tap on the view.
+  const isControl = (target) =>
+    !!(target && typeof target.closest === "function" && target.closest("button, a, input, select, textarea, [role='button']"));
+
+  const onClick = (event) => {
+    if (event.target !== el || isControl(event.target)) return;
+    if (performance.now() - handledTouchAt < TAP_CLICK_SUPPRESS_MS) return;
+    onTap();
+  };
+
+  const onTouchStart = (event) => {
+    const touch = event.changedTouches && event.changedTouches[0];
+    start = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+
+  const onTouchEnd = (event) => {
+    const touch = event.changedTouches && event.changedTouches[0];
+    const from = start;
+    start = null;
+    if (!from || !touch || event.target !== el || isControl(event.target)) return;
+    // More than one finger down is a pinch, which is a gesture, not a tap.
+    if (event.touches && event.touches.length > 0) return;
+    if (Math.hypot(touch.clientX - from.x, touch.clientY - from.y) > TAP_SLOP) return;
+    handledTouchAt = performance.now();
+    onTap();
+  };
+
+  const onTouchCancel = () => {
+    start = null;
+  };
+
+  el.addEventListener("click", onClick);
+  el.addEventListener("touchstart", onTouchStart, { passive: true });
+  el.addEventListener("touchend", onTouchEnd);
+  el.addEventListener("touchcancel", onTouchCancel, { passive: true });
+
+  return {
+    dispose() {
+      el.removeEventListener("click", onClick);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchCancel);
+    },
+  };
 }
 
 // Compile shaders up front. Otherwise the first tracked frame - the one where the user

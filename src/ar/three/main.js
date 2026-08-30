@@ -121,6 +121,10 @@ class FacingWorldsAR extends ARDemo {
     this.scene = await buildScene(ar, {
       spectatorUrl: getSpectatorUrl(),
       onSpectatorStatus: (state, count) => this.hud.setSpectatorStatus(state, count),
+      // The match. Both of these are pushed, never polled: the score changes on a
+      // capture and the roster on a join or a death, and neither is per-frame work.
+      onMatchState: (state) => this.hud.setMatch(state),
+      onRoster: (rows) => this.hud.setRoster(rows),
     });
 
     if (this.scene.error) {
@@ -156,6 +160,12 @@ class FacingWorldsAR extends ARDemo {
 
     this.scene.reveal.update(deltaMs);
     this.scene.table.update(deltaMs);
+    // After the table, on purpose: a carried flag is parented to its carrier's
+    // figure, so the figure has to have been moved for this frame before the
+    // flag decides whether it is still attached to the right one.
+    if (this.scene.flags) {
+      this.scene.flags.update(deltaMs);
+    }
   }
 
   setTracking(tracking) {

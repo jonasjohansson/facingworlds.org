@@ -173,6 +173,121 @@
         background: var(--warn);
       }
 
+      /* --- match: score line + team roster -----------------------------------
+         The reason a spectator is watching is Capture the Flag, so the score is
+         the one number that has to be readable without looking away from the
+         table. It sits under the connection chip; the roster hangs below it and
+         is the only place a name is legible at all - the 3D labels are three
+         millimetres tall on the print. */
+      #ar-match {
+        position: absolute;
+        top: calc(env(safe-area-inset-top, 0px) + 3rem);
+        left: 50%;
+        transform: translateX(-50%);
+        display: grid;
+        justify-items: center;
+        gap: 0.4rem;
+        max-width: min(88vw, 22rem);
+      }
+
+      #ar-match[hidden] {
+        display: none;
+      }
+
+      #ar-score {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(8, 12, 20, 0.66);
+        backdrop-filter: blur(6px);
+        font-variant-numeric: tabular-nums;
+        font-size: 0.95rem;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+
+      /* The two team colours, and the ONLY place they are written in CSS. They
+         match AR_CONFIG.avatar.teamColors, which is what tints the figures and
+         the flags in the scene - a HUD that disagreed with the table would be
+         worse than no HUD. */
+      #ar-score-red {
+        color: rgb(255, 92, 92);
+      }
+      #ar-score-blue {
+        color: rgb(92, 168, 255);
+      }
+      .score-dash {
+        color: var(--dim);
+      }
+      #ar-score-note {
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+
+      #ar-roster {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.25rem 0.35rem;
+      }
+
+      #ar-roster li {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.15rem 0.5rem 0.15rem 0.35rem;
+        border-radius: 999px;
+        background: rgba(8, 12, 20, 0.58);
+        font-size: 0.68rem;
+        letter-spacing: 0.03em;
+        max-width: 10rem;
+      }
+
+      #ar-roster li.is-dead {
+        opacity: 0.42;
+      }
+
+      #ar-roster .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex: 0 0 auto;
+        background: var(--dim);
+      }
+
+      #ar-roster li[data-team="red"] .dot {
+        background: rgb(239, 0, 0);
+      }
+      #ar-roster li[data-team="blue"] .dot {
+        background: rgb(0, 120, 239);
+      }
+
+      #ar-roster .who {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Somebody is carrying a flag. The single most interesting fact on screen. */
+      #ar-roster .carrying {
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      #ar-roster .carrying[data-flag="red"] {
+        color: rgb(255, 92, 92);
+      }
+      #ar-roster .carrying[data-flag="blue"] {
+        color: rgb(92, 168, 255);
+      }
+
       /* --- boot overlay: outside the viewport so encantar never touches it --- */
       #ar-boot {
         position: fixed;
@@ -295,6 +410,20 @@
           id="ar-spectator"
           data-state="offline">
           <span id="ar-spectator-text">offline</span>
+        </div>
+
+        <!-- The match. Hidden until the server has actually said there is one,
+             so a page pointed at a server with no CTF never shows a 0 - 0. -->
+        <div
+          id="ar-match"
+          hidden>
+          <div id="ar-score">
+            <span id="ar-score-red">0</span>
+            <span class="score-dash">&mdash;</span>
+            <span id="ar-score-blue">0</span>
+            <span id="ar-score-note"></span>
+          </div>
+          <ul id="ar-roster"></ul>
         </div>
       </div>
     </div>

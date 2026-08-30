@@ -32,10 +32,25 @@ function toPose(m) {
  *
  * @param {string} url  full ws:// or wss:// URL; `?spectate=1` is appended if absent.
  * @param {object} handlers  all optional:
- *   onHello(players), onJoin(player), onLeave(id), onPose(id, pose, serverTimeMs),
+ *   onHello(players, message), onJoin(player), onLeave(id), onPose(id, pose, serverTimeMs),
  *   onName(id, name), onSpawn(player), onRespawn(player), onDeath(id),
  *   onFire(id, serverTimeMs),
  *   onStatus(state) with state one of "connecting" | "online" | "offline".
+ *
+ *   Capture the Flag. The match is the reason a spectator view exists at all, so
+ *   these are first-class rather than something a consumer has to dig out of the
+ *   raw `hello`:
+ *   onCtf(ctf, reason)   the whole match state - { flags, scores, capLimit, state,
+ *                        winner, resetInMs } - with reason "hello" or "match-reset".
+ *                        Both are wholesale replacements: after a reconnect or a
+ *                        reset the teams are the same but nothing else is.
+ *   onFlag(flag)         one flag transition: { team, state, x, y, z, carrier,
+ *                        returnInMs, event, by, byName, byTeam }. `state` is one of
+ *                        "home" | "carried" | "dropped" and is the ONLY thing that
+ *                        ever moves a flag.
+ *   onScore(scores, msg) a capture: { red, blue }, plus { by, team } on msg.
+ *   onTeam(id, team)     a player changed sides (a resumed session stash).
+ *   onMatchEnd(msg)      { winner, scores, resetInMs }.
  * @returns {{ close: () => void, buffer: SnapshotBuffer }}
  */
 export function connectSpectator(url, handlers = {}) {
@@ -120,7 +135,11 @@ export function connectSpectator(url, handlers = {}) {
           buffer.clear();
           const players = m.players || [];
           players.forEach((p) => feed(p));
-          emit("onHello", players);
+          emit("onHello", players, m);
+          // The match arrives with the roster, not after it: a spectator that
+          // connects mid-game must see the flags where they actually are, which
+          // may be on somebody's back.
+          if (m.ctf) emit("onCtf", m.ctf, "hello");
           break;
         }
         case "join":
@@ -163,6 +182,27 @@ export function connectSpectator(url, handlers = {}) {
           // a spectator cannot know where a shot ended without re-tracing it.
           // Enough for a muzzle flash, which is what reads at table scale.
           emit("onFire", m.id, m.t);
+          break;
+        // ---- capture the flag ----
+        // One message type per flag transition, so there is exactly one code path
+        // and a late `flag` can never disagree with the state already held.
+        case "flag":
+          emit("onFlag", m);
+          break;
+        case "ctf-score":
+          emit("onScore", m.scores || { red: 0, blue: 0 }, m);
+          break;
+        case "team":
+          emit("onTeam", m.id, m.team);
+          break;
+        case "match-end":
+          emit("onMatchEnd", m);
+          break;
+        case "match-reset":
+          // Carries a full publicCtf(), so it is the same wholesale replacement
+          // `hello` is - flags home, scores zero. Nothing has to be reconciled.
+          if (m.ctf) emit("onCtf", m.ctf, "match-reset");
+          emit("onMatchReset", m);
           break;
         default:
           // hit / player-kill / highscore-update are not part of the spectator

@@ -221,16 +221,82 @@ export const AR_CONFIG = {
     height: 1.75,
     // Height of the name label above the figure's feet, in the same units.
     labelHeight: 2.6,
-    // Label quad width in game units. Names are unreadable if this is small and
-    // they smear across the map if it is large.
-    labelWidth: 3.6,
+    // Label quad width in game units. Halved from 3.6 after seeing it on the real
+    // print: at 3.6 a single name spanned an eighth of the whole map and two
+    // players standing together were a wall of text over the thing you came to
+    // look at. A name tag is an answer to "who is that", not signage - it only has
+    // to be readable when you lean in, and the figure's team colour is what reads
+    // from across the table. Tap the view to hide them entirely; see labelsVisible
+    // in src/ar/three/players.js.
+    labelWidth: 1.8,
     // Bob amplitude applied while a player is moving. Reads as motion at a size
     // where limbs never would.
     bob: 0.12,
     // Palette, cycled by player id. Bright and unlit-looking on purpose - these
-    // are map pins, not characters.
+    // are map pins, not characters. Only used for a player the server has NOT put
+    // on a team - in CTF everyone has one, so this is the fallback, not the norm.
     colors: ["#ff5a3c", "#37c7ff", "#ffd23f", "#7bff8f", "#c98bff", "#ff7ad9", "#8fd0ff", "#ffa14a"],
     deadColor: "#5a1f1f",
+
+    // Team tint. The match is Capture the Flag, so "which side is that figure on"
+    // is the single most important thing a spectator has to read, and at a few
+    // millimetres tall it has to be readable from colour alone.
+    //
+    // These are the two team colours as CSS rgb(), parsed through THREE.Color so
+    // they go through colour management like every other colour on the page.
+    // Applied as BOTH diffuse and emissive: diffuse alone loses the read whenever
+    // a figure is on the shadowed side of the rock, and emissive alone washes the
+    // soldier's own texture out.
+    teamColors: {
+      red: "rgb(239, 0, 0)",
+      blue: "rgb(0, 120, 239)",
+    },
+    // How much of the team colour is added as emissive. High enough to survive the
+    // rock's shadow, low enough that the model still reads as a soldier.
+    teamEmissive: 0.42,
+  },
+
+  // The two flags, and the score.
+  //
+  // Same primitives as the game's own flag (src/game/components/ctf-flag.js): a
+  // stand, a pole, a finial and a plane waved in the vertex shader. Deliberately
+  // NOT the same module - that one is an A-Frame component and this page has no
+  // A-Frame - so the construction is repeated in plain three here.
+  //
+  // Dimensions below are quoted in GAME UNITS BEFORE `scale`, exactly like the
+  // avatar props, and ride inside `scale` for the same reason: positions come off
+  // the wire in game world coordinates and go into the same node the map hangs
+  // from, but a life-sized flag on a table-sized rock is invisible.
+  //
+  // NO POINT LIGHT, on purpose. The game's flag carries one because a dropped flag
+  // out on the bridge has to be findable from the other tower; here the whole map
+  // is in frame at once, so the light would buy nothing - and three.js recompiles
+  // every material in the scene when the visible light count changes, which is a
+  // hitch on every take and every return, on a phone that is also running camera
+  // capture and image tracking. The cloth is emissive instead.
+  ctf: {
+    enabled: true,
+    // Inflation, matching the figures so a flag reads as something a figure could
+    // carry. Same number as avatar.scale; kept separate so it can be tuned alone.
+    scale: 9.34,
+    poleHeight: 2.4,
+    poleRadius: 0.035,
+    clothW: 1.1,
+    clothH: 0.7,
+    waveSpeed: 4.5,
+    waveAmp: 0.09,
+    // Emissive fraction of the team colour on the cloth, so a flag is legible
+    // against the map's bright metal without a light of its own.
+    clothEmissive: 0.55,
+    // Where a carried flag rides on its carrier, in game units before scale. The
+    // flag is parented to the carrier's figure, so this is inside that figure's
+    // own scale and does not need inflating.
+    carryOffset: { x: 0.0, y: 1.15, z: 0.32 },
+    carryTiltDeg: -35,
+    dropTiltDeg: 12,
+    // A dropped flag bobs, so "come and get this" reads from across the table.
+    bobHeight: 0.18,
+    bobSpeed: 2.2,
   },
 
   // Renderer budget. Everything here exists because this is a phone doing camera
