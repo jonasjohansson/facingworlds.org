@@ -47,23 +47,26 @@ const sessions = new Map(); // sessionKey -> {kills,name,expires} — score resu
 const claimedSessions = new Map(); // sessionKey -> live player id currently owning that key
 const spectators = new Map(); // ws -> spectator id (observers, never part of the game)
 
-// Weapon pickups. Positions are game-world coordinates and were measured against
-// the navmesh, not guessed — see PICKUP_SITES in src/game/config/game-config.js
-// for the client-side mirror that renders them.
+// Weapon pickups. Positions are game-world coordinates, measured against the
+// navmesh rather than guessed.
 //
-// The pedestal sits mid-bridge on purpose. UT's whole pickup grammar is that the
-// good item is in the dangerous place: on Face the bridge is the one spot both
-// towers can see, so taking it costs you cover.
+// One behind each tower rather than one contested pedestal mid-bridge: both
+// sides get their own, so the second Enforcer is something you arm yourself with
+// before crossing rather than a single prize that whoever spawns closest wins.
+//
+// Measured by raycasting the navmesh from above. The map is three regions along
+// x: the blue base (-48..-16), the bridge (-12..24, narrow, arching to y=6.3 at
+// its centre) and the red base (28..58). A downward ray finds each tower by the
+// y=30.4 hit on its roof — blue at x=-32, red at x=44 — so "behind the tower" is
+// further out than that on each side. Ground at both pedestals is y=-0.18, and
+// the item floats ~1 unit above it the way a UT pickup hovers.
 const pickups = new Map(); // id -> {id, type, x, y, z, availableAt}
 
 function definePickup(id, type, x, y, z) {
   pickups.set(id, { id, type, x, y, z, availableAt: 0 });
 }
-// Measured, not guessed: the navmesh centre is (4.78, -2.31) and a downward ray
-// there hits the walkable floor at y=6.17. The item floats 0.8 above that, the
-// way a UT pickup hovers. Probes at (0,0), (10,0) and (-10,0) miss the navmesh
-// entirely — the walkable surface across the middle really is just the bridge.
-definePickup("enforcer-bridge", "dual-enforcer", 4.78, 6.97, -2.31);
+definePickup("enforcer-blue", "dual-enforcer", -44, 0.82, 4);
+definePickup("enforcer-red", "dual-enforcer", 50, 0.87, -6);
 
 function pickupIsAvailable(p, now) {
   return p.availableAt <= now;

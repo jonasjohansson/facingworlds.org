@@ -331,15 +331,34 @@ AFRAME.registerComponent("first-person-weapon", {
       if (!this.leftWeapon && this.weapon) {
         const left = document.createElement("a-entity");
         left.setAttribute("gltf-model", this.data.weaponModel);
-        // Mirror of the right-hand gun. Copy the live position/scale rather than
-        // the schema defaults, because weapon-sway owns position and index.html
-        // sets its own scale — reading the schema would put it in the wrong place.
+
+        // The left gun is the right gun REFLECTED ACROSS THE SCREEN CENTRE, so
+        // everything is read off the real thing rather than from constants:
+        // index.html owns the position and scale, and weapon-sway owns position
+        // at runtime, so any number written here by hand goes stale.
+        //
+        // Position mirrors x and keeps y/z, which is what puts both guns at the
+        // same height and the same distance from the eye. An earlier version used
+        // its own offset constant and sat the two guns at different distances
+        // from centre.
         const p = this.weapon.object3D.position;
         const sc = this.weapon.object3D.scale;
-        left.setAttribute("position", `${-GAME_CONFIG.WEAPON.DUAL_OFFSET_X} ${p.y} ${p.z}`);
+        const r = this.weapon.object3D.rotation;
+        left.setAttribute("position", `${-p.x} ${p.y} ${p.z}`);
         left.setAttribute("scale", `${sc.x} ${sc.y} ${sc.z}`);
-        // Mirrored on Y so it reads as a left hand rather than a clone.
-        left.setAttribute("rotation", "0 180 0");
+        // Same orientation as the right gun. A previous attempt used
+        // rotation="0 180 0" thinking it mirrored the model — it does not, it
+        // spins the gun to face backwards, which is why it rendered as an
+        // unrecognisable slab. A true mirror would need a negative scale, and
+        // that inverts the normals and breaks the lighting, so both guns simply
+        // point the same way.
+        left.setAttribute("rotation", `${THREE.MathUtils.radToDeg(r.x)} ${THREE.MathUtils.radToDeg(r.y)} ${THREE.MathUtils.radToDeg(r.z)}`);
+
+        // Sway, with the same settings as the right gun, or the left one would
+        // hang rigid while the right breathes.
+        const sway = this.weapon.getAttribute("weapon-sway");
+        if (sway) left.setAttribute("weapon-sway", sway);
+
         this.el.appendChild(left);
         this.leftWeapon = left;
       }
@@ -582,6 +601,16 @@ AFRAME.registerComponent("first-person-weapon", {
         rot.x = rest.x - W.KICK_PITCH * k;
         rot.y = rest.y;
         rot.z = rest.z + (this._kickRoll || 0) * k;
+
+        // The left gun kicks too. Without this it hangs perfectly still while
+        // the right one recoils, which reads as the second gun being a prop
+        // rather than a weapon. Its roll is inverted so the pair kick outward
+        // from the centre instead of both leaning the same way.
+        if (this.dual && this.leftWeapon && this.leftWeapon.object3D) {
+          const lrot = this.leftWeapon.object3D.rotation;
+          lrot.x = rest.x - W.KICK_PITCH * k;
+          lrot.z = rest.z - (this._kickRoll || 0) * k;
+        }
       }
     }
 
