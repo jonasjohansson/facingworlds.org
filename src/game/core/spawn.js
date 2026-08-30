@@ -7,6 +7,17 @@ const RIG = "#rig";
 const ABOVE = 8;
 const LIFT = 0.05;
 
+// Module flag, set by the network layer the moment it applies the server's assigned
+// spawn (`hello.spawn`). This placement is only the OFFLINE / pre-hello position, and
+// it is async — the navmesh raycast can easily resolve after `hello` has already put
+// us behind our own tower. Rather than serialising the two (which cost every player a
+// navmesh wait before the socket was even opened), the loser simply stands down.
+let serverSpawnApplied = false;
+
+export function markServerSpawnApplied() {
+  serverSpawnApplied = true;
+}
+
 function meshReady(el) {
   return waitForModelLoaded(el);
 }
@@ -42,14 +53,17 @@ export async function placePlayerOnNavmesh() {
 
   const hit = hits[0].point.clone();
   hit.y += LIFT;
-  rigEl.setAttribute("position", `${hit.x} ${hit.y} ${hit.z}`);
+  // The server's spawn beat us here; moving the rig now would drag the player from
+  // their team base back to the middle of the map (in CTF: onto the open bridge).
+  // The navmesh constraint below still gets applied either way.
+  if (!serverSpawnApplied) rigEl.setAttribute("position", `${hit.x} ${hit.y} ${hit.z}`);
 
   // gentle snap so constraint doesn't fight our placement
   const cur = rigEl.getAttribute("navmesh-constraint") || {};
   const height = cur.height != null ? cur.height : 0.12;
   rigEl.setAttribute("navmesh-constraint", `navmesh:${NAV}; fall: 0.5; height: ${height}`);
 
-  console.log("[spawn] rig placed at", hit);
+  console.log(serverSpawnApplied ? "[spawn] server spawn already applied; kept rig in place" : "[spawn] rig placed at", hit);
 }
 
 export default placePlayerOnNavmesh;

@@ -40,10 +40,148 @@ const HIT_BURST = 4;
 const SESSION_TTL = 120000; // ms a disconnected player's score is held for resume
 const RESPAWN_DELAY = 1500;
 
+// ---- capture the flag ----
+// UT99 CTF rules, kept whole: one flag per base, touch the enemy flag to carry it, die
+// and it drops where you fell, touch your own DROPPED flag to send it home, and score
+// only by bringing the enemy flag to your own flag while yours is standing at home.
+// Every one of those decisions is made here; the client only ever asks (touchFlag),
+// exactly like takePickup. Knobs are env-overridable so the test can run a 2-capture
+// match with a 1.5s return timer instead of waiting 25 seconds for anything.
+const CTF_CAP_LIMIT = Number(process.env.CTF_CAP_LIMIT) || 3; // UT99 GoalTeamScore
+const CTF_AUTO_RETURN_MS = Number(process.env.CTF_AUTO_RETURN_MS) || 25000; // UT99 CTFFlag timer
+const CTF_MATCH_RESET_MS = Number(process.env.CTF_MATCH_RESET_MS) || 10000; // scoreboard dwell after a win
+const FLAG_RADIUS = Number(process.env.CTF_FLAG_RADIUS) || 2.0;
+// Same reasoning as PICKUP_CLAIM_SLACK: the touch is judged against the server's copy of
+// the player position, which lags the client's by up to a pose interval.
+const FLAG_CLAIM_SLACK = Number(process.env.CTF_FLAG_CLAIM_SLACK) || 2.5;
+const FLAG_MIN_INTERVAL = Number(process.env.CTF_FLAG_MIN_INTERVAL) || 150; // ms between honest touches
+const FLAG_BURST = Number(process.env.CTF_FLAG_BURST) || 3;
+
+// The flags stand on the tower ROOFS, as in UT99's CTF-Face. Measured from
+// assets-optimized/3d/navmesh.glb (not guessed): the walkable blue roof spans
+// x -34.9..-31.3 / z -2.4..2.0 and the red roof x 41.1..44.5 / z -7.0..-2.5, both at
+// y 30.42. These are the centroids, and the furthest walkable corner of either roof is
+// ~2.85 from its flag. The reach that has to cover that is the CLIENT's: it is the
+// tighter of the two gates, because a touch only ever happens when the client asks for
+// one and the server can only refuse. GAME_CONFIG.CTF.RADIUS (3.0) is what actually
+// decides whether a player standing on the roof edge can take the flag; FLAG_RADIUS +
+// FLAG_CLAIM_SLACK (4.5 here) is deliberately looser, so a client whose position the
+// server has not caught up with yet is not punished for the lag.
+const FLAG_HOMES = {
+  blue: { x: -33.2, y: 30.42, z: -0.2 },
+  red: { x: 42.8, y: 30.42, z: -4.7 },
+};
+
+// Team spawns: on the ground BEHIND each tower, between the tower and that base's
+// Enforcer pedestal, facing the bridge (forward in three is (-sin ry, 0, -cos ry), so
+// -PI/2 looks towards +x). y is the measured ground (-0.18) plus the same 0.05 lift the
+// client's navmesh placement uses. Four points a side, handed out round-robin with a
+// small jitter so two players joining together do not spawn inside each other.
+const SPAWN_JITTER = 1.0;
+const SPAWNS = {
+  blue: [
+    { x: -41, y: -0.13, z: -5, ry: -Math.PI / 2 },
+    { x: -41, y: -0.13, z: 5, ry: -Math.PI / 2 },
+    { x: -45, y: -0.13, z: 0, ry: -Math.PI / 2 },
+    { x: -38, y: -0.13, z: 8, ry: -Math.PI / 2 },
+  ],
+  red: [
+    { x: 50, y: -0.13, z: -1, ry: Math.PI / 2 },
+    { x: 50, y: -0.13, z: -11, ry: Math.PI / 2 },
+    { x: 54, y: -0.13, z: -6, ry: Math.PI / 2 },
+    { x: 47, y: -0.13, z: 2, ry: Math.PI / 2 },
+  ],
+};
+const spawnCursor = { red: 0, blue: 0 };
+
+// ---- map geometry, derived rather than guessed ----
+// The lowest navmesh polygon is at y = -0.18 (the pedestal ground the spawns sit on).
+const GROUND_Y = -0.18;
+// Below this the carrier was not standing anywhere — they were falling off the map, or
+// already under it. A flag left down there is a flag the match never gets back.
+const MAP_FLOOR_Y = -2;
+// Horizontal playfield, taken from the extents of the two flag stands and the eight team
+// spawns plus a generous margin. Every point anyone can legitimately walk, jump or fall
+// onto is inside this; a drop outside it is off the map.
+const MAP_MARGIN = 25;
+const MAP_BOUNDS = (() => {
+  const pts = [...Object.values(FLAG_HOMES), ...SPAWNS.red, ...SPAWNS.blue];
+  const xs = pts.map((p) => p.x);
+  const zs = pts.map((p) => p.z);
+  return {
+    minX: Math.min(...xs) - MAP_MARGIN,
+    maxX: Math.max(...xs) + MAP_MARGIN,
+    minZ: Math.min(...zs) - MAP_MARGIN,
+    maxZ: Math.max(...zs) + MAP_MARGIN,
+  };
+})();
+
+// The only surfaces above the ground that a flag can rest on are the two tower roofs
+// (y 30.42, the height the flag stands are measured at).
+const ROOF_Y = FLAG_HOMES.blue.y;
+// Half-extent of each roof around its FLAG_HOMES centroid. The measured walkable roofs
+// are ~3.6 x 4.4, so 8 is generous on every side without reaching anything else — the
+// nearest other geometry is thirty-odd units away across the bridge.
+const ROOF_HALF_EXTENT = 8;
+// Above this height nothing is walkable except those roofs, so a pose up here anywhere
+// else is a fly hack rather than a lag spike. Just over the roofs, to leave normal
+// jumping and the client's 0.05 navmesh lift alone.
+const ROOF_AIRSPACE_Y = 31;
+// A dodge-jump peaks well under this. Anything higher above a surface is not a hop.
+const JUMP_CLEARANCE = 4;
+
+function overATowerRoof(x, z) {
+  for (const h of [FLAG_HOMES.red, FLAG_HOMES.blue]) {
+    if (Math.abs(x - h.x) <= ROOF_HALF_EXTENT && Math.abs(z - h.z) <= ROOF_HALF_EXTENT) return true;
+  }
+  return false;
+}
+
+// "Is this a place a dropped flag could ever be picked up again?"
+function inPlayableSpace(x, y, z) {
+  if (y < MAP_FLOOR_Y) return false;
+  return x >= MAP_BOUNDS.minX && x <= MAP_BOUNDS.maxX && z >= MAP_BOUNDS.minZ && z <= MAP_BOUNDS.maxZ;
+}
+
+// Strip the jump off a drop: a carrier killed mid-air would otherwise leave the flag
+// hovering out of reach. Only the two known surfaces are snapped to, and only from within
+// jump range, so a death on the arching bridge (y up to 6.3, not a level we know) leaves
+// the flag exactly where the body was.
+function dropGroundY(y) {
+  let best = y;
+  let bestGap = Infinity;
+  for (const level of [GROUND_Y, ROOF_Y]) {
+    const gap = y - level;
+    if (gap >= 0 && gap <= JUMP_CLEARANCE && gap < bestGap) {
+      bestGap = gap;
+      best = level;
+    }
+  }
+  return best;
+}
+
+// One state machine per flag: home -> carried -> dropped -> home. `returnAt` is only
+// meaningful while dropped, `carrier` only while carried.
+const flags = {
+  red: { team: "red", home: FLAG_HOMES.red, state: "home", ...FLAG_HOMES.red, carrier: null, returnAt: 0 },
+  blue: { team: "blue", home: FLAG_HOMES.blue, state: "home", ...FLAG_HOMES.blue, carrier: null, returnAt: 0 },
+};
+const match = {
+  scores: { red: 0, blue: 0 },
+  capLimit: CTF_CAP_LIMIT,
+  state: "playing", // "playing" | "ended"
+  winner: null,
+  resetAt: 0,
+};
+// Balanced teams need a tiebreak when the sides are level; alternate rather than
+// randomise so two players joining back to back always land on opposite sides.
+let nextTieTeam = "red";
+const otherTeam = (t) => (t === "red" ? "blue" : "red");
+
 const players = new Map(); // id -> {id,name,hp,x,y,z,ry,kills,...private fields}
 const clients = new Map(); // ws -> id
 const lastPoseUpdate = new Map(); // id -> timestamp
-const sessions = new Map(); // sessionKey -> {kills,name,expires} — score resume across reconnects
+const sessions = new Map(); // sessionKey -> {kills,name,team,expires} — score/team resume across reconnects
 const claimedSessions = new Map(); // sessionKey -> live player id currently owning that key
 const spectators = new Map(); // ws -> spectator id (observers, never part of the game)
 
@@ -131,6 +269,34 @@ function publicPlayer(p) {
     speed: q2(p.speed || 0),
     animation: p.animation || { idle: 1, walk: 0, run: 0 },
     dual: !!p.dual,
+    team: p.team || null,
+    flag: p.flag || null, // the team colour of the flag this player is carrying
+  };
+}
+
+// The flag as everyone else is allowed to see it. Position means home when home, where
+// it fell when dropped, and the carrier's position at the moment of the take when
+// carried (the carrier's own pose stream is what actually moves it on screen).
+function publicFlag(f, now) {
+  return {
+    team: f.team,
+    state: f.state,
+    x: q2(f.x),
+    y: q2(f.y),
+    z: q2(f.z),
+    carrier: f.carrier,
+    returnInMs: f.state === "dropped" ? Math.max(0, f.returnAt - now) : 0,
+  };
+}
+
+function publicCtf(now) {
+  return {
+    flags: [publicFlag(flags.red, now), publicFlag(flags.blue, now)],
+    scores: { ...match.scores },
+    capLimit: match.capLimit,
+    state: match.state,
+    winner: match.winner,
+    resetInMs: match.state === "ended" ? Math.max(0, match.resetAt - now) : 0,
   };
 }
 
@@ -179,14 +345,44 @@ function releaseSession(key, id) {
   if (key && claimedSessions.get(key) === id) claimedSessions.delete(key);
 }
 
-function randomSpawn(p) {
-  p.x = (Math.random() * 2 - 1) * 5;
-  p.y = 0;
-  p.z = (Math.random() * 2 - 1) * 5;
+// Count the live sides. Never stored: a cached count and a Map that a socket error can
+// prune behind your back drift apart, and the drift is a permanently lopsided match.
+function teamCounts(excludeId) {
+  const counts = { red: 0, blue: 0 };
+  for (const p of players.values()) {
+    if (excludeId && p.id === excludeId) continue;
+    if (p.team === "red" || p.team === "blue") counts[p.team]++;
+  }
+  return counts;
+}
+
+// Smaller side on join, alternating on a tie. The tiebreak flips after EVERY join, not
+// only after a tie, so four players joining an empty server land red/blue/red/blue
+// instead of red/blue/blue/red. Nobody is ever moved after the fact — UT99 does not
+// switch you mid-match just because someone else left.
+function assignTeam() {
+  const counts = teamCounts();
+  const team = counts.red < counts.blue ? "red" : counts.blue < counts.red ? "blue" : nextTieTeam;
+  nextTieTeam = otherTeam(team);
+  return team;
+}
+
+// The old randomSpawn dropped players at (±5, 0, ±5) — dead centre of the bridge gap,
+// which is not on the navmesh at all. Spawns are team spawns now.
+function teamSpawn(p) {
+  const list = SPAWNS[p.team] || SPAWNS.blue;
+  const point = list[spawnCursor[p.team] % list.length];
+  spawnCursor[p.team] = (spawnCursor[p.team] + 1) % list.length;
+  p.x = clampWorld(point.x + (Math.random() * 2 - 1) * SPAWN_JITTER);
+  p.y = point.y;
+  p.z = clampWorld(point.z + (Math.random() * 2 - 1) * SPAWN_JITTER);
+  p.ry = point.ry;
+  // Spawning is a legitimate teleport — reset the plausibility baseline with it.
   p.lastX = p.x;
   p.lastY = p.y;
   p.lastZ = p.z;
   p.poseRejects = 0;
+  p.spawnTeam = p.team;
   return p;
 }
 
@@ -207,12 +403,17 @@ wss.on("connection", (ws, req) => {
     // A spectator is never in `players`, so it is never broadcast as a join, never in
     // highscore-update, and never targetable. It still sees the whole world: broadcast()
     // walks wss.clients, which includes this socket.
+    const specNow = Date.now();
     send(ws, {
       type: "hello",
       yourId: sid,
       spectator: true,
       players: [...players.values()].map(publicPlayer),
-      pickups: [...pickups.values()].map((p) => publicPickup(p, Date.now())),
+      pickups: [...pickups.values()].map((p) => publicPickup(p, specNow)),
+      // An observer belongs to neither side and gets no spawn, but it sees the whole
+      // match: the flags, the score and every later flag/ctf-score/match-* broadcast.
+      team: null,
+      ctf: publicCtf(specNow),
     });
     // Seed the scoreboard for this socket only — the players must learn nothing.
     send(ws, { type: "highscore-update", players: highscoreList() });
@@ -258,6 +459,11 @@ wss.on("connection", (ws, req) => {
     pendingHit: null, // one hit awaiting the fire message right behind it
     fireBucket: { tokens: FIRE_BURST, ts: Date.now() },
     hitBucket: { tokens: HIT_BURST, ts: Date.now() },
+    team: null, // assigned just below, fixed for the connection
+    flag: null, // "red"|"blue" while carrying that team's flag
+    spawnTeam: null, // the team the current spawn point was picked for
+    respawnTimer: null, // in-flight applyHit respawn, so a match reset can cancel it
+    flagBucket: { tokens: FLAG_BURST, ts: Date.now() },
     // last broadcast pose, for "did anything actually change" suppression
     bx: null,
     by: null,
@@ -265,15 +471,25 @@ wss.on("connection", (ws, req) => {
     bry: null,
     banim: "",
   };
-  randomSpawn(p);
+  // Team first: the spawn point depends on it, and so does everything in `hello`.
+  p.team = assignTeam();
+  teamSpawn(p);
   players.set(id, p);
 
+  const helloNow = Date.now();
   send(ws, {
     type: "hello",
     yourId: id,
     players: [...players.values()].map(publicPlayer),
-    pickups: [...pickups.values()].map((p) => publicPickup(p, Date.now())),
+    pickups: [...pickups.values()].map((pk) => publicPickup(pk, helloNow)),
+    team: p.team,
+    // The assigned team spawn. The client places its rig here BEFORE it sends `spawn`,
+    // so the pose loop starts from the same point the server is already judging against
+    // and the first pose is not read as a teleport.
+    spawn: { x: q2(p.x), y: q2(p.y), z: q2(p.z), ry: q3(p.ry) },
+    ctf: publicCtf(helloNow),
   });
+  console.log(`[server] ${p.name} joined the ${p.team} team`);
   broadcastExcept(ws, { type: "join", player: publicPlayer(p) });
   broadcastHighscore(); // Send initial highscore
 
@@ -304,6 +520,38 @@ wss.on("connection", (ws, req) => {
           const stash = resumable ? sessions.get(key) : null;
           if (stash && stash.expires > Date.now()) {
             me.kills = stash.kills;
+            // Your side survives a reconnect the way it does in UT99 — but never at the
+            // cost of a lopsided match, so the switch happens only while it keeps the two
+            // teams within one player of each other. The stash rides in on `setName`, one
+            // message after `hello` already announced a count-balanced team, so this can
+            // flip a client's team once, within a few ms of connecting. Clients are told
+            // with a `team` message rather than being left to guess.
+            if ((stash.team === "red" || stash.team === "blue") && stash.team !== me.team) {
+              const counts = teamCounts(id);
+              if (Math.abs(counts[stash.team] + 1 - counts[otherTeam(stash.team)]) <= 1) {
+                me.team = stash.team;
+                // The spawn point handed out in `hello` belongs to the side this player
+                // just left, so it has to be re-rolled. Normally the `spawn` handler does
+                // it: it sees me.spawnTeam !== me.team and picks a new one.
+                //
+                // me.spawned is FALSE here in every reachable ordering, so the two guards
+                // below never fire. The session token only ever rides in on the FIRST
+                // setName (the `if (!me.session)` above), the client sends that one from
+                // onopen, and it sends `spawn` only after it has received `hello` — a
+                // later message on the same ordered socket. There is no race: setName is
+                // always processed first. A second setName (a rename) cannot get here at
+                // all, because me.session is set by then.
+                //
+                // They are kept as explicit defence, not as a race fix: a client that
+                // spoke out of order, or a future caller that resumes a session on an
+                // already-spawned player, would otherwise leave that player standing in
+                // the enemy base until they died.
+                if (me.spawned) teamSpawn(me);
+                broadcast({ type: "team", id, team: me.team });
+                if (me.spawned) broadcast({ type: "respawn", player: publicPlayer(me) });
+                console.log(`[server] ${clean} resumed on the ${me.team} team`);
+              }
+            }
             sessions.delete(key);
             console.log(`[server] ${clean} resumed session with ${me.kills} kills`);
           } else if (!resumable) {
@@ -324,19 +572,19 @@ wss.on("connection", (ws, req) => {
       }
 
       case "spawn": {
-        // Honoured ONCE per connection. The client sends it immediately after the socket
-        // opens, to tell us where it actually stands. Accepting it again would hand any
-        // client a free full heal and an unchecked teleport to any coordinate, which
-        // would defeat both the server-side damage model and the pose plausibility cap
-        // below. Respawns are server-driven (see applyHit) and never come from here.
+        // Honoured ONCE per connection. The client sends it as soon as it has put its rig
+        // on the point `hello.spawn` gave it. Accepting it again would hand any client a
+        // free full heal and an unchecked teleport to any coordinate, which would defeat
+        // both the server-side damage model and the pose plausibility cap below. Respawns
+        // are server-driven (see applyHit) and never come from here.
         if (me.spawned) break;
         me.spawned = true;
-        if (m.position && isNum(m.position.x) && isNum(m.position.y) && isNum(m.position.z)) {
-          me.x = clampWorld(m.position.x);
-          me.y = clampWorld(m.position.y);
-          me.z = clampWorld(m.position.z);
-        }
-        if (isNum(m.ry)) me.ry = m.ry;
+        // m.position and m.ry are ignored: a client asserting its own position was always
+        // a free teleport, and the spawn is the server's to choose. The point was already
+        // picked at connection and shipped in `hello.spawn`; re-rolling it here would
+        // yank a rig that is standing exactly where both sides agree it should be. Only a
+        // team that changed underneath us (a session stash resumed in setName) earns one.
+        if (me.spawnTeam !== me.team) teamSpawn(me);
         me.hp = PLAYER_HP;
         // Spawning is a legitimate teleport — reset the plausibility baseline
         me.lastX = me.x;
@@ -352,6 +600,10 @@ wss.on("connection", (ws, req) => {
 
       case "pose": {
         const now = Date.now();
+        // Nothing has a position until the client has taken the spawn the server picked.
+        // Storing a pose before that would overwrite the point `hello.spawn` promised —
+        // and hand a client that never spawns a free position it was never given.
+        if (!me.spawned) return;
         const lastUpdate = lastPoseUpdate.get(id) || 0;
 
         // Throttle pose updates to prevent spam
@@ -364,6 +616,12 @@ wss.on("connection", (ws, req) => {
           ry = m.ry;
         if (!isNum(x) || !isNum(y) || !isNum(z) || !isNum(ry)) return;
         if (Math.abs(x) > WORLD_LIMIT || Math.abs(y) > WORLD_LIMIT || Math.abs(z) > WORLD_LIMIT) return;
+
+        // Ceiling. The speed cap below only limits how FAST you climb, so a patient
+        // cheater could walk up the sky a hundred units a second and sit above a base
+        // shooting down with nothing able to reach them. Above the tower roofs the only
+        // legal airspace is directly over one of the two roofs.
+        if (y > ROOF_AIRSPACE_Y && !overATowerRoof(x, z)) return;
 
         // Teleport check — cap the distance covered since the last accepted pose
         const dt = Math.min(1, Math.max(0.02, (now - (lastUpdate || now)) / 1000));
@@ -497,6 +755,79 @@ wss.on("connection", (ws, req) => {
         break;
       }
 
+      // "I am standing on this flag." The server works out what that MEANS — take the
+      // enemy's, return your own, or capture — from who is asking and what they carry.
+      // Refusals are silent, exactly like takePickup: a client that is out of position
+      // or out of turn simply sees nothing happen.
+      case "touchFlag": {
+        const now = Date.now();
+        // A decided match still lets people shoot it out; it just stops scoring.
+        if (match.state !== "playing") break;
+        if (!me.spawned || me.hp <= 0) break; // a corpse does not touch
+        if (!takeToken(me.flagBucket, now, FLAG_MIN_INTERVAL, FLAG_BURST)) break;
+
+        // Exact string match, never a bare `flags[m.team]` lookup: m.team is
+        // attacker-controlled, and "__proto__"/"constructor" would otherwise hand back a
+        // truthy object whose undefined coordinates make the distance check NaN — which
+        // is not greater than the reach, so it would pass.
+        if (m.team !== "red" && m.team !== "blue") break;
+        const f = flags[m.team];
+        if (f.state === "carried") break;
+
+        // Judged in 3D against the SERVER's copy of the position — the flags stand 30
+        // units up on the tower roofs, and a 2D check would let the whole base touch them.
+        const fdx = me.x - f.x;
+        const fdy = me.y - f.y;
+        const fdz = me.z - f.z;
+        const freach = FLAG_RADIUS + FLAG_CLAIM_SLACK;
+        if (fdx * fdx + fdy * fdy + fdz * fdz > freach * freach) break;
+
+        if (f.team !== me.team) {
+          // Enemy flag, home or dropped: carry it. One flag to a carrier.
+          if (me.flag) break;
+          f.state = "carried";
+          f.carrier = me.id;
+          f.returnAt = 0;
+          f.x = me.x;
+          f.y = me.y;
+          f.z = me.z;
+          me.flag = f.team;
+          broadcastFlag(f, "taken", me);
+          console.log(`[server] ${me.name} took the ${f.team} flag`);
+          break;
+        }
+
+        // Own flag, lying where its carrier fell: send it home. Works while carrying the
+        // enemy flag too — in UT99 you can return your own and cap on the same run.
+        if (f.state === "dropped") {
+          returnFlag(f, me);
+          break;
+        }
+
+        // Own flag, at home. That is a capture if and only if I am carrying the enemy's;
+        // otherwise touching your own flag stand does nothing at all.
+        if (!me.flag) break;
+        const carried = flags[me.flag];
+        // me.flag and flags[].carrier are two halves of the same fact, and a bug (or a
+        // race between a drop and a capture) that lets them disagree must not mint a
+        // point — a flag that is home, dropped, or on someone else's back is not mine to
+        // score. Clear the stale half and refuse.
+        if (!carried || carried.carrier !== me.id || carried.state !== "carried") {
+          me.flag = null;
+          break;
+        }
+        me.flag = null;
+        sendFlagHome(carried);
+        match.scores[me.team]++;
+        broadcastFlag(carried, "captured", me);
+        broadcast({ type: "ctf-score", scores: { ...match.scores }, by: me.id, team: me.team });
+        console.log(
+          `[server] ${me.name} captured the ${carried.team} flag (red ${match.scores.red} - blue ${match.scores.blue})`
+        );
+        if (match.scores[me.team] >= match.capLimit) endMatch(me.team);
+        break;
+      }
+
       case "clientHit": {
         const now = Date.now();
         if (!canHit(me, m.victimId)) break;
@@ -526,9 +857,21 @@ wss.on("connection", (ws, req) => {
     // An isolated key (`token#<playerId>`) contains a per-connection id that no future
     // connection can ever present, so stashing under it is a write nothing can read —
     // skip it rather than parking dead entries in `sessions` for the whole TTL.
+    // Leaving with the flag does not take it out of the match — it falls where you stood
+    // and the auto-return timer starts, the same as dying with it.
+    dropFlag(me, "disconnected");
+    if (me && me.respawnTimer) {
+      clearTimeout(me.respawnTimer);
+      me.respawnTimer = null;
+    }
     if (me && me.session) {
       if (me.sessionResumable) {
-        sessions.set(me.session, { kills: me.kills || 0, name: me.name, expires: Date.now() + SESSION_TTL });
+        sessions.set(me.session, {
+          kills: me.kills || 0,
+          name: me.name,
+          team: me.team,
+          expires: Date.now() + SESSION_TTL,
+        });
       }
       releaseSession(me.session, id);
     }
@@ -549,7 +892,7 @@ wss.on("connection", (ws, req) => {
 // claim: a timer per claim would have to be cancelled on shutdown and could fire
 // against a pickup that was redefined underneath it. A 500ms sweep is well inside
 // the resolution anyone can perceive on a 20s respawn.
-const pickupSweep = setInterval(() => {
+const worldSweep = setInterval(() => {
   const now = Date.now();
   for (const p of pickups.values()) {
     // availableAt of 0 means "has always been available" — nothing to announce.
@@ -557,8 +900,32 @@ const pickupSweep = setInterval(() => {
     p.availableAt = 0;
     broadcast({ type: "pickup-respawn", id: p.id });
   }
+  // A dropped flag nobody reached goes home on its own. Without this a flag shot off a
+  // ledge, or dropped by the last player on a side, would take the match with it.
+  for (const f of [flags.red, flags.blue]) {
+    // A carrier can leave `players` without the close handler ever running its drop —
+    // a socket error, a heartbeat reap, an exception between the two. The flag would
+    // then sit in "carried" behind a player nobody can shoot, forever: no drop, no
+    // return timer, no second half of the match. Drop it where it stands instead.
+    if (f.state === "carried" && !players.has(f.carrier)) {
+      const orphan = f.carrier;
+      f.carrier = null;
+      if (inPlayableSpace(f.x, f.y, f.z)) {
+        f.state = "dropped";
+        f.y = dropGroundY(f.y);
+        f.returnAt = now + CTF_AUTO_RETURN_MS;
+        broadcastFlag(f, "dropped", null);
+        console.log(`[server] the ${f.team} flag dropped — carrier ${orphan} is gone`);
+      } else {
+        returnFlag(f, null);
+      }
+      continue;
+    }
+    if (f.state === "dropped" && now >= f.returnAt) returnFlag(f, null);
+  }
+  if (match.state === "ended" && now >= match.resetAt) resetMatch();
 }, 500);
-pickupSweep.unref && pickupSweep.unref();
+worldSweep.unref && worldSweep.unref();
 
 const heartbeat = setInterval(() => {
   for (const ws of wss.clients) {
@@ -606,6 +973,10 @@ function applyHit(shooter, victim) {
   broadcast({ type: "hit", victimId: victim.id, victimName: victim.name, by: shooter.id, hp: victim.hp });
   if (victim.hp > 0) return;
 
+  // The flag falls before the body: clients see `flag` then `death`, so the drop is
+  // already on screen when the kill message lands rather than a beat behind it.
+  dropFlag(victim, `killed by ${shooter.name}`);
+
   // Award kill to attacker
   shooter.kills++;
   console.log(`[server] ${shooter.name} killed ${victim.name} (${shooter.kills} kills)`);
@@ -614,14 +985,19 @@ function applyHit(shooter, victim) {
   broadcast({ type: "player-kill", killerId: shooter.id, victimId: victim.id });
   broadcastHighscore(); // Broadcast updated highscore
 
-  setTimeout(() => {
+  // Held so a match reset (or a second death) can cancel it — a stale timer firing into
+  // a fresh match teleports a player who is already standing on a new spawn.
+  if (victim.respawnTimer) clearTimeout(victim.respawnTimer);
+  victim.respawnTimer = setTimeout(() => {
     const v = players.get(victim.id);
     if (!v) return;
+    v.respawnTimer = null;
     v.hp = PLAYER_HP;
     // The second Enforcer does not survive you. Dying costs the pickup, which is
     // what makes holding the bridge mean something.
     v.dual = false;
-    randomSpawn(v);
+    v.flag = null;
+    teamSpawn(v);
     v.animation = { idle: 1, walk: 0, run: 0 };
     v.speed = 0;
     v.shots.length = 0;
@@ -650,6 +1026,7 @@ function highscoreList() {
     id: player.id,
     name: player.name,
     kills: player.kills || 0,
+    team: player.team || null,
   }));
 }
 
@@ -658,4 +1035,120 @@ function broadcastHighscore() {
     type: "highscore-update",
     players: highscoreList(),
   });
+}
+
+// ---- flag transitions ----
+// One message type for every transition, so a client has exactly one code path to write
+// and a late `flag` can never disagree with the state it already has.
+function broadcastFlag(f, event, by) {
+  broadcast({
+    type: "flag",
+    ...publicFlag(f, Date.now()),
+    event,
+    by: by ? by.id : null,
+    byName: by ? by.name : null,
+    byTeam: by ? by.team : null,
+  });
+}
+
+function sendFlagHome(f) {
+  f.state = "home";
+  f.x = f.home.x;
+  f.y = f.home.y;
+  f.z = f.home.z;
+  f.carrier = null;
+  f.returnAt = 0;
+}
+
+// `by` is the player who touched it, or null for the auto-return timer.
+function returnFlag(f, by) {
+  sendFlagHome(f);
+  broadcastFlag(f, "returned", by);
+  console.log(`[server] the ${f.team} flag was returned${by ? ` by ${by.name}` : " (timed out)"}`);
+}
+
+// Called when a carrier dies and when one disconnects. The flag lands on the carrier's
+// last accepted pose, which is a position the server itself validated.
+function dropFlag(p, reason) {
+  if (!p || !p.flag) return;
+  const f = flags[p.flag];
+  p.flag = null;
+  // Defensive: if the flag has already moved on (a capture racing a death), leave it be
+  // rather than dragging it back out of its new state.
+  if (!f || f.carrier !== p.id) return;
+  const dx = clampWorld(p.x);
+  const dy = clampWorld(p.y);
+  const dz = clampWorld(p.z);
+  f.carrier = null;
+  // Dying in the void takes the flag with you otherwise. Face is two towers over a
+  // bottomless drop, so "killed while falling" is an ordinary way to die here, and a
+  // flag dropped at y = -180 (or out past the pedestals) is one nobody can ever touch
+  // again — the match would stall until the auto-return timer bailed it out, and any
+  // carrier could stall it deliberately by jumping off. Send it home instead.
+  if (!inPlayableSpace(dx, dy, dz)) {
+    returnFlag(f, null);
+    console.log(`[server] ${p.name} took the ${f.team} flag out of the world (${reason}) — returned`);
+    return;
+  }
+  f.state = "dropped";
+  f.x = dx;
+  // Not mid-air: a carrier shot at the top of a jump would leave the flag hovering.
+  f.y = dropGroundY(dy);
+  f.z = dz;
+  f.returnAt = Date.now() + CTF_AUTO_RETURN_MS;
+  broadcastFlag(f, "dropped", p);
+  console.log(`[server] ${p.name} dropped the ${f.team} flag (${reason})`);
+}
+
+function endMatch(winner) {
+  match.state = "ended";
+  match.winner = winner;
+  match.resetAt = Date.now() + CTF_MATCH_RESET_MS;
+  broadcast({ type: "match-end", winner, scores: { ...match.scores }, resetInMs: CTF_MATCH_RESET_MS });
+  console.log(`[server] match over — ${winner} team wins ${match.scores.red}-${match.scores.blue}`);
+}
+
+// A full restart: flags home, scores and frags to zero, and the session stashes wiped of
+// kills too, so a player who reconnects mid-next-match does not resume a dead score.
+function resetMatch() {
+  match.scores = { red: 0, blue: 0 };
+  match.state = "playing";
+  match.winner = null;
+  match.resetAt = 0;
+  // Hand the spawn points out from the top again, and let the next tie start red, so the
+  // new match begins from exactly the state a freshly started server would be in.
+  spawnCursor.red = 0;
+  spawnCursor.blue = 0;
+  nextTieTeam = "red";
+  for (const p of players.values()) {
+    p.flag = null;
+    p.kills = 0;
+    // A kill a second before the reset has a respawn timer in flight. Left alone it fires
+    // into the new match and yanks a player who is already standing at a fresh spawn —
+    // and it would hand them a second spawn point off the cursor we just rewound.
+    if (p.respawnTimer) {
+      clearTimeout(p.respawnTimer);
+      p.respawnTimer = null;
+    }
+    // Everyone starts the new match alive, unarmed and at their own base: a corpse that
+    // was waiting on that cancelled timer must not stay dead forever, and carrying the
+    // second Enforcer across a reset would be a free head start.
+    p.hp = PLAYER_HP;
+    p.dual = false;
+    p.animation = { idle: 1, walk: 0, run: 0 };
+    p.speed = 0;
+    p.shots.length = 0;
+    p.pendingHit = null;
+    teamSpawn(p);
+    broadcast({ type: "respawn", player: publicPlayer(p) });
+    broadcast({ type: "loadout", id: p.id, dual: false });
+  }
+  for (const stash of sessions.values()) stash.kills = 0;
+  for (const f of [flags.red, flags.blue]) {
+    sendFlagHome(f);
+    broadcastFlag(f, "reset", null);
+  }
+  broadcast({ type: "match-reset", ctf: publicCtf(Date.now()) });
+  broadcastHighscore();
+  console.log("[server] match reset");
 }

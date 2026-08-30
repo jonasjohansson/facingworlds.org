@@ -4,6 +4,7 @@ import { createEuler } from "../utils/three-helpers.js";
 import { getWebSocketUrl, log } from "../utils/environment.js";
 import { handleError, wrapAsync } from "../utils/error-handler.js";
 import { GAME_CONFIG } from "../config/game-config.js";
+import { markServerSpawnApplied } from "../core/spawn.js";
 
 const BULLET_SPEED = GAME_CONFIG.BULLET.SPEED;
 
@@ -18,6 +19,9 @@ export function startNetwork() {
     myId = null;
   let scene = null;
   let me = null;
+  // CTF: the team the server put us on. Null until `hello` (and for spectators).
+  // It is only ever set from a server message — the client never picks a side.
+  let myTeam = null;
   const remotes = new Map();
 
   // reconnect state
@@ -43,6 +47,12 @@ export function startNetwork() {
     // The pickup system asks; the server answers. A refusal is simply silence.
     scene.addEventListener("request-pickup", (e) => {
       if (e.detail && e.detail.id) send({ type: "takePickup", id: e.detail.id });
+    });
+    // Same contract as the pickups: the flag system asks when you are standing on a
+    // flag, the server decides what that means (take / return / capture) and answers
+    // with a `flag` message. A refusal is silence.
+    scene.addEventListener("request-flag-touch", (e) => {
+      if (e.detail && e.detail.team) send({ type: "touchFlag", team: e.detail.team });
     });
     scene.addEventListener("local-hit", onLocalHit);
     scene.addEventListener("change-name", onNameChange);
@@ -155,18 +165,9 @@ export function startNetwork() {
       // IT counted for us before the drop — the client no longer declares a score.
       send({ type: "setName", name: getPersistentName(), session: getSessionToken() });
 
-      // Also request to spawn with current position
-      const rig = document.querySelector("#rig");
-      if (rig) {
-        const pos = rig.object3D.position;
-        send({
-          type: "spawn",
-          position: { x: q2(pos.x), y: q2(pos.y), z: q2(pos.z) },
-          ry: q3(rig.object3D.rotation.y),
-        });
-      } else {
-        send({ type: "spawn" });
-      }
+      // `spawn` is NOT sent here any more. The server assigns a team spawn point and
+      // hands it back in `hello`; sending from there lets us stand on that point first
+      // so the pose loop's first sample starts where the server thinks we are.
     };
     sock.onmessage = (e) => {
       if (stale()) return;
@@ -183,12 +184,26 @@ export function startNetwork() {
             me.classList.add("avatar");
             me.dataset.playerId = myId;
           }
+          // The rig carries it too: the flag system reads #rig's dataset to answer
+          // "is this flag mine" before `player-join` has told it our id.
+          const myRig = document.querySelector("#rig");
+          if (myRig) setDataAttribute(myRig, "playerId", myId);
+
+          // The server picked our side before it picked our spawn; everything below
+          // (rig tint, HUD colours, "is this flag mine") reads from this.
+          setLocalTeam(m.team || null);
+
+          // Stand on the assigned team spawn BEFORE announcing the spawn, so the
+          // first pose the server sees is within a step of where it put us.
+          if (m.spawn) applyLocalSpawn(m.spawn);
+          if (!m.spectator) sendSpawn();
 
           // Emit local player join event for highscore
           scene.emit("player-join", {
             id: myId,
             name: getPersistentName(), // Use persistent name
             kills: getPersistentScore(),
+            team: myTeam,
             isLocal: true,
           });
 
@@ -200,6 +215,10 @@ export function startNetwork() {
           // why the system replaces its items wholesale rather than merging: after
           // a drop the ids are the same but availability may not be.
           scene.emit("pickups-init", { pickups: m.pickups || [] });
+
+          // Same wholesale-replace contract for the match: on a reconnect this is
+          // the one path that rebuilds both flags and the score from scratch.
+          if (m.ctf) scene.emit("ctf-init", { ...m.ctf, myTeam });
           break;
         }
         case "join":
@@ -208,6 +227,7 @@ export function startNetwork() {
           scene.emit("player-join", {
             id: m.player.id,
             name: m.player.name,
+            team: m.player.team || null,
             isLocal: false,
           });
           break;
@@ -229,7 +249,14 @@ export function startNetwork() {
         }
         case "spawn": {
           const p = m.player;
-          if (p && p.id !== myId) {
+          if (!p) break;
+          if (p.id === myId) {
+            // The server no longer honours the position we asked for — it puts us on a
+            // team spawn behind our own tower — so our own broadcast is the one place
+            // that tells us where we actually are. Ignoring it (as this used to) left
+            // the rig wherever the offline placement dropped it.
+            applyLocalSpawn(p);
+          } else {
             let e = remotes.get(p.id) || spawnRemote(p);
             setPose(e, p);
           }
@@ -282,12 +309,12 @@ export function startNetwork() {
           if (p) {
             let targetEntity;
             if (p.id === myId) {
-              // Local player — reset HP and move rig to spawn position
+              // Local player — reset HP and move rig to spawn position. Same job as
+              // the `spawn` handler, and the respawn payload carries `ry` too, so it
+              // goes through applyLocalSpawn rather than writing the position alone
+              // and leaving us facing whatever way we happened to die.
               targetEntity = me;
-              const rig = document.querySelector("#rig");
-              if (rig && p.x !== undefined && p.z !== undefined) {
-                rig.setAttribute("position", `${p.x} ${p.y || 0} ${p.z}`);
-              }
+              applyLocalSpawn(p);
             } else {
               // Remote player - find the soldier entity inside the remote rig
               const rig = remotes.get(p.id);
@@ -330,6 +357,69 @@ export function startNetwork() {
           break;
         }
 
+        // ---- CTF ----
+        // The server owns every one of these; the client only relays them onto the
+        // scene under the names the flag system and the HUD listen for.
+        case "team": {
+          // Sent when the session stash moves a player to the side they had before
+          // the drop, which can land a moment after `hello`. Both listeners must
+          // tolerate hearing about their own team twice.
+          if (m.id === myId) setLocalTeam(m.team || null);
+          else {
+            const rig = remotes.get(m.id);
+            if (rig && m.team) setDataAttribute(rig, "team", m.team);
+          }
+          scene.emit("player-team", { id: m.id, team: m.team || null });
+          break;
+        }
+
+        case "flag": {
+          scene.emit("flag-update", {
+            team: m.team,
+            state: m.state,
+            x: m.x,
+            y: m.y,
+            z: m.z,
+            carrier: m.carrier ?? null,
+            returnInMs: m.returnInMs || 0,
+            event: m.event,
+            by: m.by ?? null,
+            byName: m.byName ?? null,
+            byTeam: m.byTeam ?? null,
+            isMine: m.carrier != null && m.carrier === myId,
+            myTeam,
+          });
+          break;
+        }
+
+        case "ctf-score": {
+          scene.emit("ctf-score", {
+            scores: m.scores || { red: 0, blue: 0 },
+            by: m.by ?? null,
+            team: m.team,
+            myTeam,
+          });
+          break;
+        }
+
+        case "match-end": {
+          scene.emit("match-end", {
+            winner: m.winner,
+            scores: m.scores || { red: 0, blue: 0 },
+            resetInMs: m.resetInMs || 0,
+            myTeam,
+          });
+          break;
+        }
+
+        case "match-reset": {
+          // One reset path: ctf-init rebuilds the flags and the score exactly as it
+          // does on connect, then match-reset tells the HUD to drop the end card.
+          if (m.ctf) scene.emit("ctf-init", { ...m.ctf, myTeam });
+          scene.emit("match-reset", { ...(m.ctf || {}), myTeam });
+          break;
+        }
+
         case "death": {
           // (optional: FX when someone dies)
           break;
@@ -359,6 +449,14 @@ export function startNetwork() {
       if (stale()) return;
       clearRemotes();
       myId = null;
+      const oldRig = document.querySelector("#rig");
+      if (oldRig) delete oldRig.dataset.playerId;
+      // The next connection assigns a team from scratch; holding the old one would
+      // colour the HUD for a side we may not be on any more. It has to go through
+      // setLocalTeam rather than just clearing the variable: the flag system drops
+      // both flags on `local-team` with a null team, and the rig / document tint
+      // has to come off with it.
+      setLocalTeam(null);
       if (!closedByUs) scheduleReconnect();
     };
     sock.onerror = (error) => {
@@ -406,10 +504,17 @@ export function startNetwork() {
       if (!myId || !rig) return;
       const o = rig.object3D;
 
-      // Get current position and rotation
+      // Get current position and rotation. The rig itself never leaves the
+      // navmesh — a jump is ut-jump raising the rig's CHILDREN by `offset` — so
+      // sampling o.position.y alone sends a pose that never jumps, and remote
+      // players glide along the ground while the local one is in the air. Add
+      // the hop back in here; it is well under the buffer's 20 m teleport
+      // threshold, so remotes interpolate the arc instead of snapping.
+      const jump = rig.components["ut-jump"];
+      const hop = jump && jump.airborne ? jump.offset : 0;
       const currentPosition = {
         x: o.position.x,
-        y: o.position.y,
+        y: o.position.y + hop,
         z: o.position.z,
       };
       const currentRotation = o.rotation.y;
@@ -465,6 +570,63 @@ export function startNetwork() {
       lastPosition = { ...currentPosition };
       lastRotation = currentRotation;
     }, 50); // Higher frequency for smoother updates
+  }
+
+  // ---- CTF helpers ----
+  //
+  // The team is a server fact with three consumers: the rig (so remote-avatar and
+  // character can tint), the document element (the `html[data-team="red"|"blue"]`
+  // rules in styles.css have always been there with nothing to switch them), and
+  // the scene event the HUD listens on.
+  function setLocalTeam(team) {
+    myTeam = team || null;
+    const rig = document.querySelector("#rig");
+    // Clearing the team has to clear the rig's data-team as well, or the tint
+    // survives the disconnect and the next session starts wearing the old side's
+    // colour until a `team` message happens to overwrite it.
+    if (rig) {
+      if (myTeam) setDataAttribute(rig, "team", myTeam);
+      else delete rig.dataset.team;
+    }
+    try {
+      if (myTeam) document.documentElement.dataset.team = myTeam;
+      else delete document.documentElement.dataset.team;
+    } catch {
+      /* dataset is always there in a browser; never worth throwing over a colour */
+    }
+    if (scene) scene.emit("local-team", { team: myTeam });
+  }
+
+  // Both the assigned spawn in `hello` and our own `spawn` broadcast carry {x,y,z,ry};
+  // moving the rig is the same job either way.
+  function applyLocalSpawn(p) {
+    const rig = document.querySelector("#rig");
+    if (!rig || !p || p.x === undefined || p.z === undefined) return;
+    // `p.y || 0` read a legitimate ground-level spawn as a missing one. Ground IS 0
+    // on plenty of this map, so test for the value being absent, not falsy.
+    const y = p.y === undefined || p.y === null ? 0 : p.y;
+    rig.setAttribute("position", `${p.x} ${y} ${p.z}`);
+    if (typeof p.ry === "number") rig.object3D.rotation.y = p.ry;
+    // From here the offline navmesh placement must not move us again: the server
+    // owns the spawn point, and its raycast may still be in flight.
+    markServerSpawnApplied();
+  }
+
+  // Sent from the `hello` handler once the rig is standing on the assigned point.
+  // The server ignores the position now — it seats us on a team spawn — but sending
+  // where we believe we are keeps the message honest and works against an older server.
+  function sendSpawn() {
+    const rig = document.querySelector("#rig");
+    if (!rig) {
+      send({ type: "spawn" });
+      return;
+    }
+    const pos = rig.object3D.position;
+    send({
+      type: "spawn",
+      position: { x: q2(pos.x), y: q2(pos.y), z: q2(pos.z) },
+      ry: q3(rig.object3D.rotation.y),
+    });
   }
 
   // ---- scene event handlers ----
@@ -532,6 +694,9 @@ export function startNetwork() {
     });
     addClass(rig, "avatar");
     setDataAttribute(rig, "playerId", p.id);
+    // remote-avatar tints from this on model-loaded; it is set before the rig enters
+    // the scene so the model can never load ahead of knowing its side.
+    if (p.team) setDataAttribute(rig, "team", p.team);
 
     // Set initial position if provided
     if (p.x !== undefined && p.y !== undefined && p.z !== undefined) {
@@ -560,6 +725,7 @@ export function startNetwork() {
     soldier.addEventListener("componentinitialized", onInit);
 
     requestAnimationFrame(() => setPose(rig, p));
+    if (p.team) scene.emit("player-team", { id: p.id, team: p.team });
     return rig;
   }
 

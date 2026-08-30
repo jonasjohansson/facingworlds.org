@@ -12,9 +12,22 @@
 // one already fixed. This component owns only the A-Frame side: the animation mixer,
 // the residual visual smoothing, and writing the result onto the rig.
 import { SnapshotBuffer, lerpYaw } from "../../shared/net/interpolation.js";
+import { GAME_CONFIG } from "../config/game-config.js";
 
 // One buffer per component, so it tracks exactly one entity.
 const SELF = "self";
+
+// ---- team tint ----------------------------------------------------------------
+// In CTF you have to read friend from foe at Facing Worlds' distances — across the
+// bridge that is 40+ metres of the same soldier model. GAME_CONFIG.TEAMS carries the
+// palette; the fallbacks below keep this component standalone-safe if it is ever
+// loaded without that block (it then still tints, rather than silently doing nothing).
+const TEAM_CFG = GAME_CONFIG.TEAMS || {};
+const TEAM_COLORS = {
+  red: TEAM_CFG.RED || "#ff3a22",
+  blue: TEAM_CFG.BLUE || "#2f86ff",
+};
+const EMISSIVE_STRENGTH = typeof TEAM_CFG.EMISSIVE_STRENGTH === "number" ? TEAM_CFG.EMISSIVE_STRENGTH : 0.45;
 
 AFRAME.registerComponent("remote-avatar", {
   schema: {
@@ -52,9 +65,95 @@ AFRAME.registerComponent("remote-avatar", {
     this.target = { Idle: 1, Walk: 0, Run: 0 };
     this.clock = new AFRAME.THREE.Clock();
 
+    // ---- team tint ----
+    // Materials we swapped in, so remove() can put the originals back and dispose ours.
+    this._tinted = [];
+    this._tintedTeam = null;
+
     // Wait for GLTF model to load
-    this._onModelLoaded = () => this.setupAnimations();
+    this._onModelLoaded = () => {
+      this.setupAnimations();
+      // The rig already carries data-team when the team was known at spawnRemote time
+      // (hello/join); if it was not, the scene event below fills it in later.
+      this.applyTeamTint();
+    };
     this.el.addEventListener("model-loaded", this._onModelLoaded);
+
+    // The team can arrive AFTER the model: the server assigns by headcount at connect
+    // and may switch a returning player to their stashed team on setName, which it
+    // announces as a `team` message. network.js relays that as `player-team`.
+    this._scene = this.el.sceneEl || document.querySelector("a-scene");
+    this._onPlayerTeam = (e) => {
+      const d = e && e.detail;
+      if (!d || !d.id || !d.team) return;
+      const rig = this.el.parentElement;
+      if (!rig || rig.dataset.playerId !== String(d.id)) return;
+      // Mirror it onto the rig so anything reading data-team later agrees, no matter
+      // whether the event or spawnRemote got here first.
+      rig.dataset.team = d.team;
+      this.applyTeamTint(d.team);
+    };
+    if (this._scene) this._scene.addEventListener("player-team", this._onPlayerTeam);
+  },
+
+  /** The team this avatar belongs to, or null while it is still unknown. */
+  _readTeam: function () {
+    const rig = this.el.parentElement;
+    const team = (rig && rig.dataset && rig.dataset.team) || this.el.dataset.team || "";
+    return TEAM_COLORS[team] ? team : null;
+  },
+
+  /**
+   * Tint every mesh of this avatar with its team colour.
+   *
+   * EMISSIVE, not a diffuse multiply: each base is already lit by a saturated light of
+   * its own team's colour, so a red soldier tinted on the albedo disappears against the
+   * red base. Emissive adds on top of the lighting and stays readable from the far tower.
+   * The albedo map is kept — this is a tint, not a repaint.
+   *
+   * Materials are cloned per avatar because the soldier GLTF is one shared asset; writing
+   * emissive onto the loaded material would paint every player, local one included.
+   */
+  applyTeamTint: function (team) {
+    const t = TEAM_COLORS[team] ? team : this._readTeam();
+    if (!t || t === this._tintedTeam) return;
+
+    const mesh = this.el.getObject3D("mesh");
+    if (!mesh) return; // model-loaded will call us again
+
+    this.clearTeamTint();
+
+    const color = new AFRAME.THREE.Color(TEAM_COLORS[t]);
+    mesh.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      const isArray = Array.isArray(o.material);
+      const originals = isArray ? o.material : [o.material];
+      const clones = originals.map((m) => {
+        const c = m.clone();
+        // MeshBasicMaterial and friends have no emissive channel; leave those alone.
+        if (c.emissive) {
+          c.emissive.copy(color);
+          c.emissiveIntensity = EMISSIVE_STRENGTH;
+        }
+        return c;
+      });
+      this._tinted.push({ mesh: o, original: o.material, clones });
+      o.material = isArray ? clones : clones[0];
+    });
+
+    this._tintedTeam = t;
+  },
+
+  /** Restore the asset's own materials and dispose the clones we made. */
+  clearTeamTint: function () {
+    for (let i = 0; i < this._tinted.length; i++) {
+      const rec = this._tinted[i];
+      // The originals belong to the shared GLTF asset — restore, never dispose.
+      rec.mesh.material = rec.original;
+      for (let j = 0; j < rec.clones.length; j++) rec.clones[j].dispose();
+    }
+    this._tinted.length = 0;
+    this._tintedTeam = null;
   },
 
   update: function () {
@@ -228,6 +327,8 @@ AFRAME.registerComponent("remote-avatar", {
 
   remove: function () {
     this.el.removeEventListener("model-loaded", this._onModelLoaded);
+    if (this._scene && this._onPlayerTeam) this._scene.removeEventListener("player-team", this._onPlayerTeam);
+    this.clearTeamTint();
     this.buffer.clear();
     if (this.mixer) {
       this.mixer.stopAllAction();

@@ -29,6 +29,10 @@ import "../components/space-environment.js";
 import "../components/earth-sphere.js";
 import "../components/first-person-weapon.js";
 import "../components/weapon-pickup.js";
+// Capture the Flag. Registers the "ctf-flag" system + "ctf-flag-item" component; the
+// system spawns both flags from the server's `ctf-init` payload, so nothing in
+// index.html references it and dropping this import silently removes CTF entirely.
+import "../components/ctf-flag.js";
 import "../components/weapon-sway.js";
 import "../components/invisible-to-player.js";
 import "../components/remote-avatar.js";
@@ -88,15 +92,34 @@ document.addEventListener("DOMContentLoaded", () => {
       rig.setAttribute("ut-jump", "");
     };
 
+    // Each step is guarded on its own so a failure in one does not cost us the others —
+    // in particular, a navmesh that never loads must not also mean playing alone.
     const spawn = () => {
       try {
         applyMovement();
-        // place player rig onto the navmesh center
-        placePlayerOnNavmesh();
-        // start networking after scene + soldier exist
+      } catch (error) {
+        handleError(error, "Game initialization (movement)");
+      }
+
+      try {
+        // Connect first. The socket is the slow, remote thing and nothing local needs
+        // to finish before it opens; waiting on the navmesh here delayed every join by
+        // however long #navmesh took to load (and forever, if it never fired).
         startNetwork();
       } catch (error) {
-        handleError(error, "Game initialization");
+        handleError(error, "Game initialization (network)");
+      }
+
+      try {
+        // Then the OFFLINE / pre-hello placement, in parallel. In CTF the server owns
+        // the spawn point and hands it back in `hello.spawn` (the team base behind our
+        // own tower); whichever of the two lands second used to win, which could drag
+        // the player from their base to the middle of the map. It is settled inside
+        // spawn.js instead: applyLocalSpawn marks the server spawn as applied, and this
+        // placement then leaves the rig where it is rather than being ordered around it.
+        placePlayerOnNavmesh().catch((error) => handleError(error, "Game initialization (spawn placement)"));
+      } catch (error) {
+        handleError(error, "Game initialization (spawn placement)");
       }
     };
 

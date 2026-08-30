@@ -101,6 +101,39 @@ export const GAME_CONFIG = {
     CLAIM_INTERVAL: 400, // ms
   },
 
+  // Capture the Flag. As with the pickups, the server owns the flags — where they
+  // are, who carries them and what a touch means. Everything here is how they LOOK
+  // and how often the client is allowed to ask.
+  CTF: {
+    // Client-side touch gate, and the TIGHTER of the two: a touch only happens when
+    // the client asks, and the server's 4.5 (FLAG_RADIUS + FLAG_CLAIM_SLACK) can only
+    // refuse. 2.0 left the outer corners of the tower roofs — ~2.85 from the flag —
+    // unable to claim it at all.
+    RADIUS: 3.0,
+    CLAIM_INTERVAL: 400, // ms between "I am standing on it" requests, as PICKUP does
+    RED: "#ff3a22",
+    BLUE: "#2f86ff",
+    RED_GLOW: "#ff6b56",
+    BLUE_GLOW: "#7cb6ff",
+    POLE_HEIGHT: 2.4,
+    CLOTH_W: 1.1,
+    CLOTH_H: 0.7,
+    WAVE_SPEED: 4.5,
+    WAVE_AMP: 0.09,
+    // Where the flag rides on a carrier's back, in rig space before the yaw is applied.
+    CARRY_OFFSET: { x: 0, y: 1.15, z: 0.32 },
+    CARRY_TILT_DEG: -35,
+    DROP_TILT_DEG: 12,
+  },
+
+  // Team identity. Both bases are already lit hard red and blue, so a diffuse tint on
+  // an avatar washes out under the matching light — the tint is emissive instead.
+  TEAMS: {
+    RED: "#ff3a22",
+    BLUE: "#2f86ff",
+    EMISSIVE_STRENGTH: 0.45,
+  },
+
   WEAPON: {
     FIRE_RATE: 4, // shots per second
     // Dual Enforcers: UT99's second-Enforcer pickup. Same gun twice, fired
