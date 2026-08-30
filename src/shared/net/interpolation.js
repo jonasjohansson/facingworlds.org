@@ -21,8 +21,15 @@ const DEFAULT_MAX_BUFFER = 32;
 const HISTORY_MS = 1000;
 // Teleport detection: anything faster than this (u/s), with a floor for tiny gaps,
 // is a respawn rather than movement.
+//
+// TELEPORT_SPEED is a SPEED and does not scale with the map: the fastest legitimate
+// motion is a fall off a tower, and although the towers went from 30 m to 71 m with the
+// world scale, terminal speed only grows as sqrt — 36.8 -> 56.3 m/s, still well under 150.
+// TELEPORT_MIN_DISTANCE is a pure DISTANCE and does: at the old 20 a legitimate long fall
+// or lag catch-up on the scaled map would clear the floor and snap instead of
+// interpolating. 47 is 20 x WORLD_SCALE (src/shared/map-transform.js).
 const TELEPORT_SPEED = 150;
-const TELEPORT_MIN_DISTANCE = 20;
+const TELEPORT_MIN_DISTANCE = 47;
 // How fast the clock-offset estimate follows a slower sample (per arrival).
 const CLOCK_TRACK = 0.01;
 

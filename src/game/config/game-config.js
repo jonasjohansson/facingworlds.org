@@ -22,7 +22,10 @@ export const GAME_CONFIG = {
     // / 16.667. ut-controls bypasses it for keyboard and touch, but gamepad and trackpad
     // still run through it, so it is kept in step with the UT99 ground speed.
     MOVEMENT_SPEED: 0.563,
-    SPAWN_HEIGHT_ABOVE: 8,
+    // How far above the navmesh bbox the placement raycast starts. World-anchored, so
+    // x WORLD_SCALE (see src/shared/map-transform.js); spawn.js carries the same number.
+    SPAWN_HEIGHT_ABOVE: 18.68,
+    // z-fighting epsilon in renderer units, NOT a world distance. Unchanged by the scale.
     SPAWN_LIFT: 0.05,
   },
 
@@ -30,9 +33,17 @@ export const GAME_CONFIG = {
   //
   // SCALE, MEASURED IN THE RUNNING SCENE (not assumed):
   //   soldier model bounding box  1.85 x 1.83 x 0.44   -> 1 scene unit = 1 metre
-  //   navmesh bounding box      110.2 x 30.6 x 40.8 m  -> the playable rock is 110 m long
+  //   navmesh bounding box     257.4 x 71.5 x 95.3 m   -> the playable rock is 257 m long
   //   camera (eye) height        1.4 m above the rig origin
   // A UT99 pawn is 78 UU tall, so 1.83 m / 78 UU = 0.0235 m per UU.
+  //
+  // The map used to measure 110.2 x 30.6 x 40.8, because the fan model of CTF-Face was
+  // authored at 0.010062 m/UU — 43% of the scale this rig is built for. Everything in this
+  // MOVEMENT block was already right; it was the world that was small. The x2.33552
+  // correction is baked into the .glb files (src/shared/map-transform.js), so 1 scene unit
+  // is still 1 metre and not one number below changes. The towers are 71 m tall now, the
+  // tower-to-tower run is 176 m, and at GROUND_SPEED that is the ~19 s flag run CTF-Face
+  // is supposed to have.
   MOVEMENT: {
     UU_TO_METRES: 0.0235,
     // GroundSpeed 400 UU/s. The stock rig ran 6.67 m/s straight and 9.43 m/s on a
@@ -66,13 +77,16 @@ export const GAME_CONFIG = {
   },
 
   // Camera settings
+  // The THIRD_PERSON radii and FIRST_PERSON_HEIGHT are player-anchored — how far the
+  // camera sits from the avatar — so they did not move with the world scale.
   CAMERA: {
     FIRST_PERSON_HEIGHT: 1.8,
     THIRD_PERSON_RADIUS: 6,
     THIRD_PERSON_MIN_RADIUS: 3,
     THIRD_PERSON_MAX_RADIUS: 15,
     THIRD_PERSON_POLAR: 15,
-    OVERHEAD_HEIGHT: 40,
+    // World-anchored: it has to clear the towers, which are now 76.9 units tall. x k.
+    OVERHEAD_HEIGHT: 93.42,
   },
 
   // Bullet settings — SPEED is still used by the network layer as the direction scale
@@ -89,13 +103,16 @@ export const GAME_CONFIG = {
   // holds them (see server/server.js) — this is only how they LOOK. Positions
   // arrive from the server, so nothing here needs to agree with it.
   PICKUP: {
-    RADIUS: 3.0, // must match PICKUP_RADIUS server-side; the client only predicts
+    RADIUS: 7.01, // x k — must match PICKUP_RADIUS server-side; the client only predicts
     SPIN_SPEED: 1.1, // radians/sec
-    BOB_HEIGHT: 0.22, // units
+    BOB_HEIGHT: 0.22, // units — prop-sized, read against the player, so NOT scaled
     BOB_SPEED: 2.0, // radians/sec
     GLOW_COLOR: "#ffd07a",
-    GLOW_INTENSITY: 2.2,
-    GLOW_RANGE: 7,
+    // x k alongside GLOW_RANGE: A-Frame's light component defaults point-light decay to 1,
+    // so illumination falls off as 1/d and a light that reaches 2.34x further has to be
+    // 2.34x brighter to leave the lit pedestal looking the same.
+    GLOW_INTENSITY: 5.14,
+    GLOW_RANGE: 16.35, // x k — this has to reach the pedestal it is sitting on
     // How often the client may ask for a pickup it is standing on. The server
     // refuses anything it should, so this only stops us shouting at it.
     CLAIM_INTERVAL: 400, // ms
@@ -106,15 +123,20 @@ export const GAME_CONFIG = {
   // and how often the client is allowed to ask.
   CTF: {
     // Client-side touch gate, and the TIGHTER of the two: a touch only happens when
-    // the client asks, and the server's 4.5 (FLAG_RADIUS + FLAG_CLAIM_SLACK) can only
-    // refuse. 2.0 left the outer corners of the tower roofs — ~2.85 from the flag —
-    // unable to claim it at all.
-    RADIUS: 3.0,
+    // the client asks, and the server's 7.17 (FLAG_RADIUS + FLAG_CLAIM_SLACK) can only
+    // refuse. It was sized as 3.0 x k against the tower roofs, back when the flags stood
+    // up there and the furthest walkable corner was ~6.66 out. The flags are on their
+    // ground-level plinths now (src/shared/map-actors.js, FLAG_HOMES), which is open
+    // floor rather than a ledge, so the same reach is if anything more generous than it
+    // was — a player who can see the stand can take the flag.
+    RADIUS: 7.01,
     CLAIM_INTERVAL: 400, // ms between "I am standing on it" requests, as PICKUP does
     RED: "#ff3a22",
     BLUE: "#2f86ff",
     RED_GLOW: "#ff6b56",
     BLUE_GLOW: "#7cb6ff",
+    // Flag PROP dimensions: a flag is something a player picks up and carries on their
+    // back, so it is sized against the avatar and did NOT scale with the map.
     POLE_HEIGHT: 2.4,
     CLOTH_W: 1.1,
     CLOTH_H: 0.7,
@@ -141,7 +163,11 @@ export const GAME_CONFIG = {
     DUAL_FIRE_RATE: 8,
     DUAL_SPREAD_MULTIPLIER: 1.9, // accuracy is what you trade for the rate
     DUAL_OFFSET_X: 0.42, // how far the second gun sits to the other side
-    MAX_RANGE: 500, // metres a trace travels before it is called a miss
+    // Metres a trace travels before it is called a miss. The map's full diagonal at world
+    // scale is 298 m, so this covers everything reachable with a third to spare. It is
+    // held EQUAL to the server's MAX_HIT_RANGE rather than scaled to 500 * k = 1168: a
+    // client trace longer than the server's gate just produces hits the server refuses.
+    MAX_RANGE: 400,
     SPREAD: 0.006, // tangent of the cone half-angle applied per shot
     // Camera kick, in radians. A fraction of each kick is recovered so the aim drifts up
     // under sustained fire the way UT99's does, without walking off to the ceiling.
@@ -195,8 +221,8 @@ export const GAME_CONFIG = {
   // Target settings
   TARGETS: {
     COUNT: 25,
-    RADIUS_MIN: 6,
-    RADIUS_MAX: 18,
+    RADIUS_MIN: 14.01, // x k
+    RADIUS_MAX: 42.04, // x k
     HIT_POINTS: 10,
   },
 

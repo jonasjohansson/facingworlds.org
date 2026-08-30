@@ -100,6 +100,8 @@ AFRAME.registerComponent("weapon-pickup-item", {
   },
 
   buildVisual() {
+    if (this.data.type === "health") return this.buildHealthVisual();
+
     // The weapon itself, floating. Same model the player carries — this is the
     // whole point of the dual Enforcer: no new art, and what you see on the
     // pedestal is literally what you pick up.
@@ -124,6 +126,42 @@ AFRAME.registerComponent("weapon-pickup-item", {
     this.glow = glow;
   },
 
+  /**
+   * The MedBox: a small white-crossed box, built from primitives.
+   *
+   * Deliberately NO point light, unlike the Enforcer pedestals. There are eight of
+   * these (CTF-Face's own MedBox positions, four in each tower base) against two
+   * Enforcers, and a point light is not free — three.js recompiles and re-runs the
+   * lighting loop in every material in the scene for each one, so eight more would be
+   * paid for by every surface on the map whether or not anyone is near a MedBox. The
+   * cross is MeshBasic with toneMapped off instead, which the bloom pass lifts on its
+   * own: the same trick the flag stand's ring uses, for the same reason.
+   *
+   * Prop-sized against the PLAYER who runs into it, so none of these dimensions moved
+   * with the world scale.
+   */
+  buildHealthVisual() {
+    const group = new THREE.Group();
+    this._disposables = [];
+
+    const boxGeo = new THREE.BoxGeometry(0.36, 0.26, 0.26);
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0xdfe4ea, roughness: 0.65, metalness: 0.05 });
+    group.add(new THREE.Mesh(boxGeo, boxMat));
+
+    // One cross, two bars, drawn just proud of the lid so it never z-fights it.
+    const crossMat = new THREE.MeshBasicMaterial({ color: 0xff2f3a, toneMapped: false });
+    const barGeo = new THREE.BoxGeometry(0.2, 0.02, 0.06);
+    for (const ry of [0, Math.PI / 2]) {
+      const bar = new THREE.Mesh(barGeo, crossMat);
+      bar.position.y = 0.135;
+      bar.rotation.y = ry;
+      group.add(bar);
+    }
+
+    this.el.setObject3D("medbox", group);
+    this._disposables.push(boxGeo, boxMat, barGeo, crossMat);
+  },
+
   tick(time, dtMs) {
     const dt = dtMs / 1000;
     const obj = this.el.object3D;
@@ -140,5 +178,16 @@ AFRAME.registerComponent("weapon-pickup-item", {
   remove() {
     const sys = this.el.sceneEl.systems["weapon-pickup"];
     if (sys && sys._driver === this) sys._driver = null;
+    // The gltf pickups are entities and go with the node; the MedBox is raw three.js
+    // built here, so its geometries and materials are ours to free. reset() tears the
+    // whole set down on every reconnect, so leaking here would leak per reconnect.
+    // Guarded on _disposables rather than called blind: removeObject3D warns for a key
+    // that was never set, and that would be every Enforcer, every rebuild.
+    if (!this._disposables) return;
+    this.el.removeObject3D("medbox");
+    for (const d of this._disposables) {
+      if (d && typeof d.dispose === "function") d.dispose();
+    }
+    this._disposables = null;
   },
 });

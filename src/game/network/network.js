@@ -255,7 +255,9 @@ export function startNetwork() {
             // team spawn behind our own tower — so our own broadcast is the one place
             // that tells us where we actually are. Ignoring it (as this used to) left
             // the rig wherever the offline placement dropped it.
-            applyLocalSpawn(p);
+            // But a server that DOES honour it just hands our own request back; that is
+            // not a spawn assignment, and must not stand down the navmesh placement.
+            applyLocalSpawn(p, { authoritative: !isEchoOfRequestedSpawn(p) });
           } else {
             let e = remotes.get(p.id) || spawnRemote(p);
             setPose(e, p);
@@ -300,6 +302,23 @@ export function startNetwork() {
                 scene.emit("local-kill", { victimId: m.victimId, victimName });
               }
             }
+          }
+          break;
+        }
+
+        // Server-authoritative HEALING, from a health pickup. Deliberately not folded
+        // into "hit": health.js reads any decrease as damage and flashes the screen for
+        // it, so a heal arriving on the damage channel would be shown as being shot.
+        case "health": {
+          let targetEntity;
+          if (m.id === myId) {
+            targetEntity = me;
+          } else {
+            const rig = remotes.get(m.id);
+            targetEntity = rig ? rig.querySelector("[remote-avatar]") : null;
+          }
+          if (targetEntity && targetEntity.components.health) {
+            targetEntity.emit("sethp", { hp: m.hp });
           }
           break;
         }
@@ -597,9 +616,34 @@ export function startNetwork() {
     if (scene) scene.emit("local-team", { team: myTeam });
   }
 
+  // The position our last `sendSpawn()` asked for, quantised exactly as it went out.
+  // A server that honours the request (the "older server" case below) echoes it
+  // straight back to us, and that echo is NOT a server-assigned spawn: treating it
+  // as one permanently suppresses the offline navmesh placement (spawn.js) and
+  // strands the rig wherever it happened to be — at the origin, in mid-air, on a
+  // first join where `hello` carried no spawn.
+  let requestedSpawn = null;
+
+  // Tolerance is one unit of the 2-decimal quantisation we send, so a re-quantised
+  // round trip still reads as an echo while a real team spawn (tens of metres away)
+  // never does.
+  const SPAWN_ECHO_EPS = 0.02;
+
+  function isEchoOfRequestedSpawn(p) {
+    if (!requestedSpawn) return false;
+    const y = p.y === undefined || p.y === null ? 0 : p.y;
+    return (
+      Math.abs(p.x - requestedSpawn.x) <= SPAWN_ECHO_EPS &&
+      Math.abs(y - requestedSpawn.y) <= SPAWN_ECHO_EPS &&
+      Math.abs(p.z - requestedSpawn.z) <= SPAWN_ECHO_EPS
+    );
+  }
+
   // Both the assigned spawn in `hello` and our own `spawn` broadcast carry {x,y,z,ry};
-  // moving the rig is the same job either way.
-  function applyLocalSpawn(p) {
+  // moving the rig is the same job either way. `authoritative` says whether the point
+  // was chosen by the server (and so may stand down the offline navmesh placement) or
+  // is merely our own request coming back to us.
+  function applyLocalSpawn(p, { authoritative = true } = {}) {
     const rig = document.querySelector("#rig");
     if (!rig || !p || p.x === undefined || p.z === undefined) return;
     // `p.y || 0` read a legitimate ground-level spawn as a missing one. Ground IS 0
@@ -608,8 +652,9 @@ export function startNetwork() {
     rig.setAttribute("position", `${p.x} ${y} ${p.z}`);
     if (typeof p.ry === "number") rig.object3D.rotation.y = p.ry;
     // From here the offline navmesh placement must not move us again: the server
-    // owns the spawn point, and its raycast may still be in flight.
-    markServerSpawnApplied();
+    // owns the spawn point, and its raycast may still be in flight. Only a genuinely
+    // server-chosen point earns that — see `requestedSpawn` above.
+    if (authoritative) markServerSpawnApplied();
   }
 
   // Sent from the `hello` handler once the rig is standing on the assigned point.
@@ -618,13 +663,16 @@ export function startNetwork() {
   function sendSpawn() {
     const rig = document.querySelector("#rig");
     if (!rig) {
+      requestedSpawn = null;
       send({ type: "spawn" });
       return;
     }
     const pos = rig.object3D.position;
+    const position = { x: q2(pos.x), y: q2(pos.y), z: q2(pos.z) };
+    requestedSpawn = position;
     send({
       type: "spawn",
-      position: { x: q2(pos.x), y: q2(pos.y), z: q2(pos.z) },
+      position,
       ry: q3(rig.object3D.rotation.y),
     });
   }

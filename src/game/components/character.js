@@ -1,5 +1,5 @@
 // character.js — Animation-only follower for a navmesh-driven rig.
-// Put movement-controls + navmesh-constraint on the parent rig.
+// Put movement-controls (with constrainToNavMesh) on the parent rig.
 // The character entity stays at (0,0,0) under the rig and only animates & faces motion.
 import { GAME_CONFIG } from "../config/game-config.js";
 import { createVector3, createQuaternion, createClock } from "../utils/three-helpers.js";

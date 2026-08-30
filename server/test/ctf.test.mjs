@@ -20,6 +20,13 @@ import path from "node:path";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
+// The SAME generated table the server reads, not a hand-copied set of literals. This file
+// used to restate FLAG_HOMES, SPAWNS and the pickup positions as numbers, and every time
+// the map moved there were three copies to remember. src/shared/map-actors.js is the ESM
+// half of what scripts/gen-map-actors.mjs writes; server/map-actors.js is the CommonJS
+// half the server requires; one run writes both. Importing it here means this suite
+// cannot pass against a server standing somewhere else on the map.
+import { FLAG_HOMES, SPAWNS, TOWER_ROOFS, BODY_ARMOR, MED_BOXES } from "../../src/shared/map-actors.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_JS = path.join(HERE, "..", "server.js");
@@ -35,12 +42,18 @@ const CAP_LIMIT = 2;
 const AUTO_RETURN_MS = 1500;
 const MATCH_RESET_MS = 1200;
 
-// Must match FLAG_HOMES in server.js — measured from the navmesh, on the tower roofs.
+// CTF-Face's own FlagBase0 / FlagBase1, at the FOOT of each tower — the roofs are sniper
+// decks and never held the flags. `ry`/`ut` are stripped because several assertions below
+// are deepEqual against a flag's broadcast {x, y, z}, and the server strips them too.
 const HOMES = {
-  blue: { x: -33.2, y: 30.42, z: -0.2 },
-  red: { x: 42.8, y: 30.42, z: -4.7 },
+  blue: { x: FLAG_HOMES.blue.x, y: FLAG_HOMES.blue.y, z: FLAG_HOMES.blue.z },
+  red: { x: FLAG_HOMES.red.x, y: FLAG_HOMES.red.y, z: FLAG_HOMES.red.z },
 };
 
+// Unchanged by the world scale: MAX_POSE_SPEED (100 u/s) and POSE_SLACK (6) are a speed
+// and a lag allowance, and neither moved when the map grew — so the per-hop budget is
+// still ~106 units. What DID change is how many hops a trip takes, and `teleport` below
+// already derives that from the distance.
 const POSE_GAP_MS = 1060; // > 1s so dt clamps to 1 and the hop budget is the full ~106u
 const MAX_HOP = 90; // stay comfortably inside 106u
 
@@ -384,7 +397,7 @@ test("a spectator gets team null, the CTF world, and the broadcast stream", asyn
 
 test("touching a flag from across the map does nothing", async () => {
   const from = spec.mark();
-  red2.send({ type: "touchFlag", team: "blue" }); // enemy flag, but ~90 units away
+  red2.send({ type: "touchFlag", team: "blue" }); // enemy flag, but ~200 units away
   await expectNone(spec, (m) => m.type === "flag", { from, what: "flag message for an out-of-range touch" });
 });
 
@@ -408,7 +421,7 @@ test("enemy touch takes the flag and every client is told, with the documented f
   assert.equal(msg.byTeam, "blue");
   assert.equal(msg.returnInMs, 0);
   assert.ok(near(msg.x, HOMES.red.x), `flag x ${msg.x} is not where the carrier stood`);
-  assert.ok(near(msg.y, HOMES.red.y), `flag y ${msg.y} is not roof height`);
+  assert.ok(near(msg.y, HOMES.red.y), `flag y ${msg.y} is not the red plinth`);
   assert.ok(near(msg.z, HOMES.red.z), `flag z ${msg.z} is not where the carrier stood`);
 
   // Not just the spectator: all four players see the same transition.
@@ -653,28 +666,24 @@ test("disconnecting with the flag drops it rather than taking it out of the matc
 // the tests above left behind, so each one starts by settling the world (flags home,
 // nobody mid-respawn) rather than assuming.
 
-// Mirrors SPAWNS in server.js: four points a side, handed out round-robin with up to
-// SPAWN_JITTER of jitter on x and z. The two clusters are ~90 units apart, so "which
-// team's spawn is this?" is never a close call.
-const SPAWN_POINTS = {
-  blue: [
-    { x: -41, y: -0.13, z: -5 },
-    { x: -41, y: -0.13, z: 5 },
-    { x: -45, y: -0.13, z: 0 },
-    { x: -38, y: -0.13, z: 8 },
-  ],
-  red: [
-    { x: 50, y: -0.13, z: -1 },
-    { x: 50, y: -0.13, z: -11 },
-    { x: 54, y: -0.13, z: -6 },
-    { x: 47, y: -0.13, z: 2 },
-  ],
-};
+// All twenty of CTF-Face's PlayerStarts, ten a side, handed out round-robin with up to
+// SPAWN_JITTER of jitter on x and z. The two clusters are ~190 units apart along x, so
+// "which team's spawn is this?" is never a close call. SPAWN_JITTER is sized against the
+// player capsule, not the map, so it is the one number here that is still a literal.
+const SPAWN_POINTS = SPAWNS;
 const SPAWN_JITTER = 1.0;
-// The two Enforcer pedestals, one behind each tower (definePickup in server.js).
+// The two Enforcer pedestals — on the tower ROOFS, where the original puts its Body Armor
+// (definePickup in server.js). Picked the same way the server picks them, by which roof
+// each one is nearest to, so a swapped pair in the table would fail here rather than
+// silently testing the wrong pedestal.
+const nearestArmor = (team) => {
+  const c = TOWER_ROOFS[team];
+  const d2 = (a) => (a.x - c.x) ** 2 + (a.z - c.z) ** 2;
+  return BODY_ARMOR.reduce((best, a) => (d2(a) < d2(best) ? a : best));
+};
 const PEDESTALS = {
-  red: { id: "enforcer-red", x: 50, y: 0.87, z: -6 },
-  blue: { id: "enforcer-blue", x: -44, y: 0.82, z: 4 },
+  red: { id: "enforcer-red", ...nearestArmor("red") },
+  blue: { id: "enforcer-blue", ...nearestArmor("blue") },
 };
 const other = (t) => (t === "red" ? "blue" : "red");
 
@@ -817,9 +826,10 @@ test("two clients touching the same flag in one tick take it exactly once", asyn
 
 test("a carrier killed under the map sends the flag home rather than dropping it into the void", async () => {
   // Face is two towers over a bottomless drop, so dying while falling is ordinary here.
-  // A flag dropped at y = -50 is a flag nobody could ever touch again.
-  await teleport(racer, { x: HOMES.blue.x, y: -50, z: HOMES.blue.z });
-  assert.ok(near(racer.pos.y, -50, 0.01), `the carrier is at y ${racer.pos.y}, not under the map`);
+  // A flag dropped at y = -116.78 (the old -50, x world scale) is a flag nobody could ever
+  // touch again: the world mesh itself bottoms out at -33.1 and MAP_FLOOR_Y is -4.67.
+  await teleport(racer, { x: HOMES.blue.x, y: -116.78, z: HOMES.blue.z });
+  assert.ok(near(racer.pos.y, -116.78, 0.01), `the carrier is at y ${racer.pos.y}, not under the map`);
 
   const from = await killPlayer(blue2, racer);
   const returned = await waitFor(spec, isFlag("blue", "returned"), { from, what: "the void-drop return" });
@@ -865,7 +875,7 @@ test("the flag touch rate limiter refuses a burst, then lets the take through", 
   await settle();
   await teleport(loser, HOMES.blue);
 
-  // Drain the bucket (3 tokens, one back every 150ms) with touches of our OWN flag, 90
+  // Drain the bucket (3 tokens, one back every 150ms) with touches of our OWN flag, ~200
   // units away: no-ops that still cost a token, because the limiter runs before the team
   // and distance checks. The take that follows is refused for the rate limit alone.
   const from = spec.mark();
@@ -895,16 +905,18 @@ test("the flag touch rate limiter refuses a burst, then lets the take through", 
 
 test("a pose above the roofs is rejected away from a tower and accepted over one", async () => {
   await settle();
-  // Mid-map, on the bridge, at a height the server has no complaint about.
-  await teleport(blue2, { x: 4, y: 3, z: 0 });
+  // Mid-map, on the bridge, at a height the server has no complaint about. (The old
+  // (4, 3, 0) x world scale.)
+  await teleport(blue2, { x: 9.34, y: 7.01, z: 0 });
 
-  // y = 40 out here is nowhere near either roof (both are 33+ units away in x), so it is a
-  // fly hack rather than a lag spike: above ROOF_AIRSPACE_Y the only legal airspace is
-  // directly over a tower. The hop itself is only ~37 units, well inside the speed cap, so
-  // the plausibility check has no reason to touch it.
+  // y = 93.42 out here is nowhere near either roof (both are 86+ units away in x, against a
+  // ROOF_HALF_EXTENT.x of 19.03), so it is a fly hack rather than a lag spike: above
+  // ROOF_AIRSPACE_Y (72.55) the only legal airspace is directly over a tower. The hop
+  // itself is ~86 units, still inside the ~106-unit speed cap, so the plausibility check
+  // has no reason to touch it.
   await sleep(POSE_GAP_MS - (Date.now() - blue2.lastPoseAt));
   const from = spec.mark();
-  blue2.send({ type: "pose", x: 4.5, y: 40, z: 0.5, ry: 0, speed: 0 });
+  blue2.send({ type: "pose", x: 10.51, y: 93.42, z: 1.17, ry: 0, speed: 0 });
   blue2.lastPoseAt = Date.now();
   await expectNone(spec, (m) => m.type === "pose" && m.id === blue2.id, {
     ms: 600,
@@ -914,13 +926,25 @@ test("a pose above the roofs is rejected away from a tower and accepted over one
 
   const stillDown = await worldSnapshot();
   const row = stillDown.players.find((p) => p.id === blue2.id);
-  assert.ok(near(row.y, 3, 0.02), `the rejected pose moved the player to y ${row.y}`);
+  assert.ok(near(row.y, 7.01, 0.02), `the rejected pose moved the player to y ${row.y}`);
 
   // The same height directly over the blue roof is legal — a player really can stand up
-  // there, and the rule must not ground them.
-  await poseTo(blue2, HOMES.blue.x, 40, HOMES.blue.z);
+  // there, and the rule must not ground them. TOWER_ROOFS, not HOMES: the flags came down
+  // to ground level, so the flag home is no longer a point above a tower and using it here
+  // would only pass by accident. `teleport` rather than a single `poseTo` because the
+  // bridge and the blue roof are ~121 units apart, more than one hop's ~106-unit budget;
+  // the intermediate stop sits at y ~50, below ROOF_AIRSPACE_Y, so it is legal wherever it
+  // lands.
+  await teleport(blue2, { x: TOWER_ROOFS.blue.x, y: 93.42, z: TOWER_ROOFS.blue.z });
   const up = await worldSnapshot();
-  assert.ok(near(up.players.find((p) => p.id === blue2.id).y, 40, 0.02), "a pose over a roof was rejected");
+  assert.ok(near(up.players.find((p) => p.id === blue2.id).y, 93.42, 0.02), "a pose over a roof was rejected");
+
+  // Stand back down ON the roof deck before leaving. A trip from here to the other tower
+  // takes two hops, and the midpoint of a hop that starts 22 units ABOVE the roofs is
+  // itself above ROOF_AIRSPACE_Y but nowhere near either tower — i.e. the very fly hack
+  // this test just proved the server refuses. Leaving the player parked up in the legal
+  // column would make the next test's teleport fail for a correct reason.
+  await poseTo(blue2, TOWER_ROOFS.blue.x, TOWER_ROOFS.blue.y, TOWER_ROOFS.blue.z);
 });
 
 test("a resumed session restores the team, spawns on that side, and keeps the server's kills", async () => {
@@ -1152,9 +1176,12 @@ test("a carrier whose socket is terminated without a close handshake does not ke
 });
 
 // A dropped flag has to be somewhere a player could stand — the drop is only useful if
-// someone can reach it. Both roofs are at y 30.42 and the ground is around 0.
+// someone can reach it. Both roof decks are at y 71.06, the flag plinths and the ground
+// are around 0, and the map's derived bounds are x -151.4..176.6 / z -100.9..84.0. Every
+// bound here is looser than all of that on purpose: it is a "did the flag end up
+// somewhere absurd" net, not a restatement of MAP_BOUNDS.
 function inPlayableReach(f) {
-  return Math.abs(f.x) <= 80 && Math.abs(f.z) <= 60 && f.y > -20 && f.y <= 32;
+  return Math.abs(f.x) <= 186.84 && Math.abs(f.z) <= 140.13 && f.y > -46.71 && f.y <= 74.74;
 }
 
 test("a capture attempt after the carried flag went home by another path scores nothing", async () => {
@@ -1229,4 +1256,76 @@ test("a capture attempt after the carried flag went home by another path scores 
   // halves together, and the one place they can diverge (the sweep's orphaned-carrier
   // branch) has already removed the player from `players`, so they can never ask again.
   // It stays in the server as explicit defence, not as a fix for a reachable race.
+});
+
+// ================================================================ health pickups
+//
+// The MedBoxes are the one pickup type that changes a number the rest of the game reads
+// (hp), so the rules that keep it honest are worth pinning: it heals by a fixed amount, it
+// does not overheal, and a player who is already full walks past it rather than banking
+// its respawn. Run last, because taking a pickup puts it on a 20-second respawn and this
+// leaves two of the eight down.
+const nearestPair = (list) => {
+  let best = null;
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const d = Math.hypot(list[i].x - list[j].x, list[i].z - list[j].z);
+      if (!best || d < best.d) best = { d, a: list[i], b: list[j] };
+    }
+  }
+  return best;
+};
+
+test("a MedBox heals by a fixed amount, does not overheal, and is refused at full health", async () => {
+  await settle();
+
+  // Two MedBoxes from the same alcove, close enough that one standing spot reaches both —
+  // the server judges the claim in 3D against PICKUP_RADIUS + PICKUP_CLAIM_SLACK (9.51).
+  const { d, a: box1, b: box2 } = nearestPair(MED_BOXES.filter((b) => b.x < 0));
+  assert.ok(d < 9, `the closest blue MedBox pair is ${q2(d)} apart, too far to test from one spot`);
+  const stand = { x: (box1.x + box2.x) / 2, y: box1.y - 1, z: (box1.z + box2.z) / 2 };
+  await teleport(blue2, stand);
+
+  const patient = blue2;
+  const id1 = `medbox-${box1.name}`;
+  const id2 = `medbox-${box2.name}`;
+
+  // Full health: the item stays standing. This runs FIRST, while every box is still
+  // available, so a refusal here cannot be the respawn timer wearing a disguise.
+  const before = await worldSnapshot();
+  assert.equal(before.players.find((p) => p.id === patient.id).hp, 100, "the patient did not start full");
+  let from = spec.mark();
+  patient.send({ type: "takePickup", id: id1 });
+  await expectNone(spec, (m) => m.type === "pickup-taken" && m.id === id1, {
+    from,
+    what: "a MedBox taken by a player who is already at full health",
+  });
+  const untouched = (await worldSnapshot()).pickups.find((p) => p.id === id1);
+  assert.equal(untouched.available, true, "the refused MedBox was put on a respawn anyway");
+
+  // Now take some damage and try again.
+  const hurtTo = await hurt(red1, patient, 2);
+  assert.equal(hurtTo, 60, `two hits of the server's fixed 20 should leave 60, got ${hurtTo}`);
+
+  from = spec.mark();
+  patient.send({ type: "takePickup", id: id1 });
+  const healed = await waitFor(spec, (m) => m.type === "health" && m.id === patient.id, {
+    from,
+    what: "the health broadcast for the first MedBox",
+  });
+  assert.equal(healed.hp, 80, "a MedBox is worth 20");
+  await waitFor(spec, (m) => m.type === "pickup-taken" && m.id === id1, { from, what: "the first MedBox being taken" });
+
+  // The second one caps at 100 rather than overhealing past it.
+  from = spec.mark();
+  patient.send({ type: "takePickup", id: id2 });
+  const capped = await waitFor(spec, (m) => m.type === "health" && m.id === patient.id, {
+    from,
+    what: "the health broadcast for the second MedBox",
+  });
+  assert.equal(capped.hp, 100, "80 + 20 must clamp at 100, not overheal");
+
+  // And the server's own copy agrees — the broadcast is not the only place hp moved.
+  const after = await worldSnapshot();
+  assert.equal(after.players.find((p) => p.id === patient.id).hp, 100);
 });

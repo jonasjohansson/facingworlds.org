@@ -354,7 +354,8 @@ export class SpectatorTable {
       //
       // It goes on `tilt`, INSIDE the figure's scale, not on `figure` itself. On
       // `figure` the amplitude would be in raw game units - 0.12 of them, which after
-      // the map's 0.0198 fit scale is under a fifth of a millimetre on the print.
+      // the map's 0.0123 fit scale (3.2 marker units over a 259-unit footprint) is well
+      // under a millimetre on the print.
       // Inside the scale it is 0.12 against a 1.75-unit body: ~7% of the figure's own
       // height, which is what "a bob" is supposed to mean.
       const speed = pose.speed || 0;

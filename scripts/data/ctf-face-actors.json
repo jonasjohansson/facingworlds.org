@@ -1,0 +1,789 @@
+{
+ "$comment": [
+  "CTF-Face (UT99) actor coordinates, in Unreal Units, as placed in the original level.",
+  "Coordinates and class names only - no Epic art, geometry, sounds or text. This is the",
+  "input to scripts/gen-map-actors.mjs, which converts it to scene metres via",
+  "src/shared/map-transform.js and writes the generated modules. Regenerate with:",
+  "  node scripts/gen-map-actors.mjs"
+ ],
+ "map": "CTF-Face",
+ "units": "Unreal Units; location.z is UP (UT is Z-up, X-forward, Y-right)",
+ "flagBases": [
+  {
+   "class": "FlagBase",
+   "name": "FlagBase0",
+   "location": {
+    "x": 6488.14,
+    "y": 438.625,
+    "z": -1956.936
+   },
+   "yawDeg": 182.81,
+   "Team": 0
+  },
+  {
+   "class": "FlagBase",
+   "name": "FlagBase1",
+   "location": {
+    "x": -1013.432,
+    "y": -592.112,
+    "z": -1968.936
+   },
+   "yawDeg": 184.88,
+   "Team": 1
+  }
+ ],
+ "playerStarts": [
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart0",
+   "location": {
+    "x": 6181.343,
+    "y": 1059.246,
+    "z": -1973.887
+   },
+   "yawDeg": 193.27,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart12",
+   "location": {
+    "x": 6874.405,
+    "y": 927.779,
+    "z": -1973.887
+   },
+   "yawDeg": 179.52,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart18",
+   "location": {
+    "x": 7212.405,
+    "y": -1336.221,
+    "z": -1983.887
+   },
+   "yawDeg": 179.52,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart19",
+   "location": {
+    "x": 7009.405,
+    "y": -1320.221,
+    "z": -1983.887
+   },
+   "yawDeg": 179.52,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart2",
+   "location": {
+    "x": 6835.405,
+    "y": -1379.221,
+    "z": -1983.887
+   },
+   "yawDeg": 179.52,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart20",
+   "location": {
+    "x": 6441.405,
+    "y": -1299.221,
+    "z": -1983.887
+   },
+   "yawDeg": 179.52,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart21",
+   "location": {
+    "x": 6661.405,
+    "y": -1583.221,
+    "z": -1983.887
+   },
+   "yawDeg": 179.52,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart22",
+   "location": {
+    "x": 6790.405,
+    "y": 1118.779,
+    "z": -1973.887
+   },
+   "yawDeg": 179.52,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart23",
+   "location": {
+    "x": 6563.405,
+    "y": 940.779,
+    "z": -1973.887
+   },
+   "yawDeg": 179.52,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart24",
+   "location": {
+    "x": 6389.405,
+    "y": 1182.779,
+    "z": -1973.887
+   },
+   "yawDeg": 179.52,
+   "TeamNumber": 0
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart1",
+   "location": {
+    "x": -1774.666,
+    "y": 1191.519,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart10",
+   "location": {
+    "x": -1686.666,
+    "y": -1158.481,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart11",
+   "location": {
+    "x": -1592.666,
+    "y": -1308.481,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart13",
+   "location": {
+    "x": -1302.666,
+    "y": -1179.481,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart4",
+   "location": {
+    "x": -1360.666,
+    "y": 1315.519,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart5",
+   "location": {
+    "x": -1137.666,
+    "y": 1195.519,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart6",
+   "location": {
+    "x": -1243.666,
+    "y": -1339.481,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart7",
+   "location": {
+    "x": -1281.666,
+    "y": 1113.519,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart8",
+   "location": {
+    "x": -1627.666,
+    "y": -1052.481,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  },
+  {
+   "class": "PlayerStart",
+   "name": "PlayerStart9",
+   "location": {
+    "x": -1619.666,
+    "y": 1120.519,
+    "z": -1995.106
+   },
+   "yawDeg": 352.09,
+   "TeamNumber": 1
+  }
+ ],
+ "pickups": [
+  {
+   "class": "BulletBox",
+   "name": "BulletBox0",
+   "location": {
+    "x": 5801.653,
+    "y": -176.169,
+    "z": -482.899
+   },
+   "yawDeg": 44.82
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox1",
+   "location": {
+    "x": 6461.299,
+    "y": -324.199,
+    "z": 1058.11
+   },
+   "yawDeg": 46.36
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox10",
+   "location": {
+    "x": -311.492,
+    "y": 146.934,
+    "z": -501.898
+   },
+   "yawDeg": 321.81
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox11",
+   "location": {
+    "x": -324.333,
+    "y": -156.694,
+    "z": -501.9
+   },
+   "yawDeg": 44.3
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox12",
+   "location": {
+    "x": -406.382,
+    "y": -112.188,
+    "z": -1013.901
+   }
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox13",
+   "location": {
+    "x": -404.994,
+    "y": 105.019,
+    "z": -1013.896
+   }
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox14",
+   "location": {
+    "x": 5911.757,
+    "y": -317.349,
+    "z": -477.901
+   }
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox15",
+   "location": {
+    "x": 5752.726,
+    "y": -320.569,
+    "z": -477.902
+   },
+   "yawDeg": 281.51
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox16",
+   "location": {
+    "x": 5913.093,
+    "y": -18.801,
+    "z": -477.899
+   },
+   "yawDeg": 294.43
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox2",
+   "location": {
+    "x": 6625.671,
+    "y": 22.124,
+    "z": 1058.107
+   },
+   "yawDeg": 336.97
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox3",
+   "location": {
+    "x": 6686.263,
+    "y": 16.762,
+    "z": 1058.104
+   },
+   "yawDeg": 38.19
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox4",
+   "location": {
+    "x": -474.729,
+    "y": -2.678,
+    "z": -506.897
+   }
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox5",
+   "location": {
+    "x": -1127.313,
+    "y": -225.538,
+    "z": 1034.093
+   }
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox6",
+   "location": {
+    "x": -1176.617,
+    "y": -215.767,
+    "z": 1034.106
+   },
+   "yawDeg": 30.5
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox7",
+   "location": {
+    "x": -1062.221,
+    "y": 164.298,
+    "z": 1034.088
+   },
+   "yawDeg": 328.89
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox8",
+   "location": {
+    "x": -461.848,
+    "y": -150.95,
+    "z": -501.902
+   }
+  },
+  {
+   "class": "BulletBox",
+   "name": "BulletBox9",
+   "location": {
+    "x": -468.086,
+    "y": 160.397,
+    "z": -501.898
+   }
+  },
+  {
+   "class": "HealthPack",
+   "name": "HealthPack0",
+   "location": {
+    "x": 2673.035,
+    "y": -164.552,
+    "z": -1416.168
+   },
+   "yawDeg": 352.18
+  },
+  {
+   "class": "MedBox",
+   "name": "MedBox0",
+   "location": {
+    "x": 6271.231,
+    "y": -610.012,
+    "z": -2008.9
+   }
+  },
+  {
+   "class": "MedBox",
+   "name": "MedBox1",
+   "location": {
+    "x": 6274.158,
+    "y": -518.532,
+    "z": -2008.9
+   }
+  },
+  {
+   "class": "MedBox",
+   "name": "MedBox2",
+   "location": {
+    "x": 6261.663,
+    "y": 160.747,
+    "z": -2009.9
+   }
+  },
+  {
+   "class": "MedBox",
+   "name": "MedBox3",
+   "location": {
+    "x": 6263.589,
+    "y": 252.228,
+    "z": -2009.9
+   }
+  },
+  {
+   "class": "MedBox",
+   "name": "MedBox4",
+   "location": {
+    "x": -810.169,
+    "y": 443.695,
+    "z": -2039.911
+   }
+  },
+  {
+   "class": "MedBox",
+   "name": "MedBox5",
+   "location": {
+    "x": -810.443,
+    "y": 364.778,
+    "z": -2039.911
+   }
+  },
+  {
+   "class": "MedBox",
+   "name": "MedBox6",
+   "location": {
+    "x": -799.136,
+    "y": -322.613,
+    "z": -2039.911
+   }
+  },
+  {
+   "class": "MedBox",
+   "name": "MedBox7",
+   "location": {
+    "x": -799.411,
+    "y": -401.531,
+    "z": -2039.911
+   }
+  },
+  {
+   "class": "RocketPack",
+   "name": "RocketPack0",
+   "location": {
+    "x": 6859.646,
+    "y": 188.132,
+    "z": -2002.905
+   },
+   "yawDeg": 286.35
+  },
+  {
+   "class": "RocketPack",
+   "name": "RocketPack1",
+   "location": {
+    "x": 6967.813,
+    "y": 88.562,
+    "z": -2002.908
+   },
+   "yawDeg": 41.53
+  },
+  {
+   "class": "RocketPack",
+   "name": "RocketPack2",
+   "location": {
+    "x": 6146.726,
+    "y": -94.78,
+    "z": -1371.896
+   },
+   "yawDeg": 58.27
+  },
+  {
+   "class": "RocketPack",
+   "name": "RocketPack3",
+   "location": {
+    "x": 6144.482,
+    "y": -261.495,
+    "z": -1371.896
+   },
+   "yawDeg": 279.49
+  },
+  {
+   "class": "RocketPack",
+   "name": "RocketPack4",
+   "location": {
+    "x": -715.463,
+    "y": -64.214,
+    "z": -1395.897
+   },
+   "yawDeg": 66.4
+  },
+  {
+   "class": "RocketPack",
+   "name": "RocketPack5",
+   "location": {
+    "x": -720.229,
+    "y": 69.541,
+    "z": -1395.895
+   },
+   "yawDeg": 325.42
+  },
+  {
+   "class": "RocketPack",
+   "name": "RocketPack6",
+   "location": {
+    "x": -1496.215,
+    "y": -243.266,
+    "z": -2030.031
+   }
+  },
+  {
+   "class": "RocketPack",
+   "name": "RocketPack7",
+   "location": {
+    "x": -1382.37,
+    "y": -351.077,
+    "z": -2032.923
+   }
+  },
+  {
+   "class": "ShockCore",
+   "name": "ShockCore0",
+   "location": {
+    "x": 6546.729,
+    "y": -774.65,
+    "z": -1994.895
+   },
+   "yawDeg": 295.22
+  },
+  {
+   "class": "ShockCore",
+   "name": "ShockCore1",
+   "location": {
+    "x": 6403.203,
+    "y": -773.073,
+    "z": -1994.897
+   }
+  },
+  {
+   "class": "ShockCore",
+   "name": "ShockCore2",
+   "location": {
+    "x": -1087.123,
+    "y": 607.832,
+    "z": -2025.897
+   }
+  },
+  {
+   "class": "ShockCore",
+   "name": "ShockCore3",
+   "location": {
+    "x": -957.644,
+    "y": 608.652,
+    "z": -2025.893
+   }
+  },
+  {
+   "class": "ShockRifle",
+   "name": "ShockRifle0",
+   "location": {
+    "x": 6476.979,
+    "y": -776.602,
+    "z": -2008.894
+   }
+  },
+  {
+   "class": "ShockRifle",
+   "name": "ShockRifle1",
+   "location": {
+    "x": -1021.921,
+    "y": 607.518,
+    "z": -2039.897
+   }
+  },
+  {
+   "class": "SniperRifle",
+   "name": "SniperRifle0",
+   "location": {
+    "x": 5944.099,
+    "y": -121.848,
+    "z": -461.902
+   },
+   "yawDeg": 0.0
+  },
+  {
+   "class": "SniperRifle",
+   "name": "SniperRifle1",
+   "location": {
+    "x": 6271.781,
+    "y": -170.456,
+    "z": 1070.101
+   },
+   "yawDeg": 0.0
+  },
+  {
+   "class": "SniperRifle",
+   "name": "SniperRifle2",
+   "location": {
+    "x": -853.825,
+    "y": -0.241,
+    "z": 1040.094
+   },
+   "yawDeg": 0.0
+  },
+  {
+   "class": "SniperRifle",
+   "name": "SniperRifle3",
+   "location": {
+    "x": -547.951,
+    "y": -56.653,
+    "z": -493.897
+   },
+   "yawDeg": 0.0
+  },
+  {
+   "class": "SniperRifle",
+   "name": "SniperRifle4",
+   "location": {
+    "x": 6958.344,
+    "y": 668.221,
+    "z": -2010.049
+   },
+   "yawDeg": 0.0
+  },
+  {
+   "class": "SniperRifle",
+   "name": "SniperRifle5",
+   "location": {
+    "x": -1478.951,
+    "y": 844.288,
+    "z": -2038.914
+   },
+   "yawDeg": 0.0
+  },
+  {
+   "class": "UDamage",
+   "name": "UDamage2",
+   "location": {
+    "x": 6154.202,
+    "y": -179.625,
+    "z": -1331.91
+   }
+  },
+  {
+   "class": "UDamage",
+   "name": "UDamage3",
+   "location": {
+    "x": -672.464,
+    "y": -0.825,
+    "z": -1377.892
+   }
+  },
+  {
+   "class": "UT_Eightball",
+   "name": "UT_Eightball0",
+   "location": {
+    "x": 6893.891,
+    "y": 137.631,
+    "z": -2004.9
+   }
+  },
+  {
+   "class": "UT_Eightball",
+   "name": "UT_Eightball3",
+   "location": {
+    "x": -1449.478,
+    "y": -289.37,
+    "z": -2029.908
+   }
+  },
+  {
+   "class": "WarheadLauncher",
+   "name": "WarheadLauncher1",
+   "location": {
+    "x": -233.514,
+    "y": 1.859,
+    "z": -989.896
+   }
+  },
+  {
+   "class": "WarheadLauncher",
+   "name": "WarheadLauncher2",
+   "location": {
+    "x": 5692.936,
+    "y": -168.094,
+    "z": -974.9
+   }
+  },
+  {
+   "class": "armor2",
+   "name": "armor2",
+   "location": {
+    "x": 6630.104,
+    "y": -308.106,
+    "z": 1079.093
+   },
+   "yawDeg": 89.56
+  },
+  {
+   "class": "armor2",
+   "name": "armor3",
+   "location": {
+    "x": -1222.92,
+    "y": 158.101,
+    "z": 1054.109
+   },
+   "yawDeg": 269.91
+  },
+  {
+   "class": "ripper",
+   "name": "ripper0",
+   "location": {
+    "x": 6956.979,
+    "y": -1027.576,
+    "z": -2011.048
+   }
+  },
+  {
+   "class": "ripper",
+   "name": "ripper1",
+   "location": {
+    "x": -1503.709,
+    "y": -869.967,
+    "z": -2039.957
+   }
+  }
+ ]
+}

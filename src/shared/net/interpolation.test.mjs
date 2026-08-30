@@ -195,7 +195,7 @@ group("fast-but-legal movement is not mistaken for a teleport");
   // 14 units in 100ms = 140 u/s, under the 150 u/s ceiling (a tower fall).
   clock.t = 100;
   ok("a 140 u/s move inserts", buf.push("p1", pose(0, -14, 0), 100) === "insert");
-  // 3 units in 10ms = 300 u/s, but under the 20-unit floor for tiny gaps.
+  // 3 units in 10ms = 300 u/s, but under the 47-unit floor for tiny gaps.
   clock.t = 110;
   ok("a small hop inside the distance floor inserts", buf.push("p1", pose(3, -14, 0), 110) === "insert");
   ok("both were kept", buf.tracks.get("p1").snaps.length === 3);

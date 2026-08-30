@@ -159,17 +159,66 @@ The browser code stays dependency-free; this is a build-time tool only.
 For each asset the game actually loads, in order:
 
 1. `copy` — normalize to a self-contained `.glb` (pulls the map's three external PNGs in).
-2. `prune` + `dedup` — drop unused nodes/materials/accessors, merge duplicates.
-3. `resize` — cap texture edge length (pistol 4096 → 2048, avatar → 1024).
-4. **Texture codec, in two passes.** Colour maps are perceptual and take lossy
+2. **World scale** — `FacingWorlds_tex_5.glb` and `navmesh.glb` only. See below.
+3. `prune` + `dedup` — drop unused nodes/materials/accessors, merge duplicates.
+4. `resize` — cap texture edge length (pistol 4096 → 2048, avatar → 1024).
+5. **Texture codec, in two passes.** Colour maps are perceptual and take lossy
    compression well. Normal and ORM maps are *data* — the shader reads their
    channels as vectors and scalars, so artifacts show up as shading noise. They
    get the gentler setting.
-5. **Geometry compression** — Draco by default.
+6. **Geometry compression** — Draco by default.
 
-Useful flags: `--codec=webp|ktx2|none`, `--geometry=draco|meshopt|none`,
-`--quality` (colour, default 90), `--data-quality` (normal/ORM, default 95),
-`--near-lossless`, `--out=<dir>`, `--only=<substr>`.
+Useful flags: `--world-scale=<k>`, `--codec=webp|ktx2|none`,
+`--geometry=draco|meshopt|none`, `--quality` (colour, default 90),
+`--data-quality` (normal/ORM, default 95), `--near-lossless`, `--out=<dir>`,
+`--only=<substr>`.
+
+### The world scale, baked in (step 2)
+
+The fan model of CTF-Face is a faithful but *small* copy of the Unreal level: fitting
+222 CTF-Face actors against the navmesh puts it at **0.010062 m per Unreal Unit**, while
+the player rig is built at UT99 pawn scale, **0.0235 m/UU** (a 78 UU pawn against the
+1.83 m Soldier model — see `GAME_CONFIG.MOVEMENT`). The map was therefore 43% of the size
+every movement, jump and weapon number assumes: 30 m towers instead of 71 m, and an 8-second
+flag run instead of 19.
+
+`src/shared/map-transform.js` holds the correction — `WORLD_SCALE = 0.0235 / 0.010062 =
+**2.33552**` — as one exported constant, and this step multiplies the map's and the
+navmesh's **root node transforms** by it. For a uniform factor `k`, left-multiplying a
+node's world matrix `T·R·S` by `kI` is exactly `T(k·t)·R·(k·s)`, so scaling every scene
+root's translation and scale is an exact scale about the world origin whatever the
+hierarchy below looks like. (The step refuses to run if a root node's transform is
+animated, which would need the sampler outputs scaled too. Neither world asset has any
+animations.)
+
+**Why baked and not `scale="2.33552 2.33552 2.33552"` on `#world`?** Because
+`src/ar/config/ar-config.js` documents the contract *"the game places the map at the
+identity transform, so game world coordinates are IDENTICAL to map-model coordinates"*,
+and `src/ar/three/players.js` drops raw server pose coordinates straight into the
+map-model's node on the strength of it. An entity scale would break the AR spectator
+silently — every figure 2.34x too far out, floating off the rock. Baking keeps both pages
+reading the same asset. `#world` and `#navmesh` stay at identity, and they must stay equal
+to each other or the player floats or sinks.
+
+Everything else world-anchored — flag homes, spawns, pickups, map bounds, light positions
+and ranges, the shadow frustum, camera heights, trace ranges — is stored already-scaled in
+`server/server.js`, `index.html`, `src/game/config/game-config.js` and
+`server/test/ctf.test.mjs`. **Player**-anchored values (eye height, hitbox, speeds, jump,
+gravity, recoil, weapon offsets, flag and pickup prop sizes) were deliberately *not*
+scaled: the player did not change size, the world did.
+
+Resulting extents, both verified against the written `.glb`s:
+
+| | before | after |
+| --- | ---: | ---: |
+| map mesh | 111.1 × 47.1 × 41.6 | **259.4 × 110.0 × 97.2** |
+| navmesh | 110.2 × 30.6 × 40.8 | **257.4 × 71.5 × 95.3** |
+| tower roof height | 30.42 | **71.05** |
+| full diagonal | 127.4 | **298.1** |
+
+To re-check the fit, or to revise `k`, run with `--world-scale=<k>` (and change the
+constant in `src/shared/map-transform.js`, the mirrored one in `server/server.js`, and
+every scaled literal). `--world-scale=1` writes the assets unscaled.
 
 ### Measured results
 
@@ -178,11 +227,11 @@ bytes from `ls -l`, taken after the run that produced the committed files:
 
 | Asset | Before | After | Saved |
 | --- | ---: | ---: | ---: |
-| `3d/map/FacingWorlds_tex_5.gltf` (+ `.bin` + 3 PNGs) | 14,340,882 B (13.68 MB) | 3,173,168 B (3.03 MB) | −77.9% |
+| `3d/map/FacingWorlds_tex_5.gltf` (+ `.bin` + 3 PNGs) | 14,340,882 B (13.68 MB) | 3,174,340 B (3.03 MB) | −77.9% |
 | `3d/enforcer.glb` | 20,440,960 B (19.49 MB) | 556,280 B (543.2 KB) | −97.3% |
 | `3d/Soldier.glb` | 2,160,468 B (2.06 MB) | 962,132 B (939.6 KB) | −55.5% |
-| `3d/navmesh.gltf` | 45,132 B (44.1 KB) | 3,384 B (3.3 KB) | −92.5% |
-| **Total** | **36,987,442 B (35.27 MB)** | **4,694,964 B (4.48 MB)** | **−87.3%** |
+| `3d/navmesh.gltf` | 45,132 B (44.1 KB) | 4,136 B (4.0 KB) | −90.8% |
+| **Total** | **36,987,442 B (35.27 MB)** | **4,696,888 B (4.48 MB)** | **−87.3%** |
 
 `du -sh assets-optimized` reports **4.5M**.
 
@@ -193,9 +242,17 @@ Two things that had to survive the pipeline, and did:
   avatar's animations. `gltf-transform inspect` reports the same four clips in the same
   order before and after: `Idle, Run, TPose, Walk`.
 - **`navmesh.glb` topology.** 791 triangles before and after; the vertex count drops
-  2,373 → 853 only because `dedup` welds vertices that were duplicated per-face. Draco's
-  default 14-bit position quantization moves the bounding box by ~3 mm over a ~110-unit
-  map, which is far below anything `movement-controls` can resolve.
+  2,373 → 853 only because `dedup` welds vertices that were duplicated per-face.
+- **Draco quantization at world scale.** Draco quantizes positions over the mesh's own
+  bounding box, so scaling the world by `k` multiplies the quantization step by `k` too.
+  The default 14 bits gave ±3.4 mm over the old 110-unit map; over the scaled 259-unit map
+  it would give **±7.9 mm** — still sub-centimetre, but it eats most of the `0.01`-unit
+  coplanarity epsilon baked into the vendored `three-pathfinding` inside
+  `assets/libraries/aframe-extras.min.js`, which is world-anchored and did *not* scale.
+  The two world assets are therefore encoded with `ceil(log2 k) = 2` extra bits of position
+  precision (16-bit), giving **±2.0 mm on both the map and the navmesh** — better than the
+  ±3.4 mm the unscaled map shipped with. It costs 1.2 KB on the map and 0.7 KB on the
+  navmesh. The written bounding boxes match the analytically scaled ones to ≤1 mm.
 
 ### Why `enforcer.glb` was 20 MB
 

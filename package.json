@@ -11,6 +11,8 @@
     "server:tls": "SSL_CERT=$HOME/.local-certs/facingworlds/cert.pem SSL_KEY=$HOME/.local-certs/facingworlds/key.pem node server/server.js",
     "test": "node src/shared/net/interpolation.test.mjs",
     "test:ctf": "node --test server/test/ctf.test.mjs",
+    "gen:map-actors": "node scripts/gen-map-actors.mjs",
+    "gen:map-actors:check": "node scripts/gen-map-actors.mjs --check",
     "optimize:assets": "node scripts/optimize-assets.mjs",
     "optimize:assets:webp": "node scripts/optimize-assets.mjs --codec=webp",
     "optimize:assets:ktx2": "node scripts/optimize-assets.mjs --codec=ktx2",

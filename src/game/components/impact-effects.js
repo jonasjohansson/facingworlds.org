@@ -219,8 +219,10 @@ export function spawnTracer(sceneEl, from, to) {
   ensurePools(sceneEl);
   const E = GAME_CONFIG.EFFECTS;
 
+  // Degenerate-tracer guard, measured across map geometry, so x2.33552 with the world
+  // scale (src/shared/map-transform.js).
   const dist = _dir.copy(to).sub(from).length();
-  if (dist < 0.05) return;
+  if (dist < 0.12) return;
 
   const slot = nextSlot(state.tracers, "tracerIdx");
   slot.mesh.position.copy(from);
@@ -243,8 +245,14 @@ export function spawnImpact(sceneEl, point, normal, onPlayer) {
 
   _look.copy(point).add(normal);
 
+  // The three surface push-offs here (spark, impact light, decal) keep flat-on-flat
+  // geometry out of a z-fight with the wall it is stuck to. They are world distances and
+  // the map is 2.34x further away now, so all three are x world scale: 0.02 -> 0.05,
+  // 0.15 -> 0.35, 0.012 -> 0.03. The decal one is the tightest and is the first to break
+  // if the scale is revised. The SIZES (spark, decal, tracer radius) are bullet-hole
+  // sized — read against the player, not the map — so they stay.
   const spark = nextSlot(state.sparks, "sparkIdx");
-  spark.mesh.position.copy(point).addScaledVector(normal, 0.02);
+  spark.mesh.position.copy(point).addScaledVector(normal, 0.05);
   spark.mesh.lookAt(_look);
   spark.mesh.rotateZ(Math.random() * Math.PI * 2);
   spark.size = E.SPARK_SIZE * (0.75 + Math.random() * 0.5);
@@ -256,7 +264,7 @@ export function spawnImpact(sceneEl, point, normal, onPlayer) {
   spark.life = E.SPARK_LIFE;
 
   if (state.light) {
-    state.light.position.copy(point).addScaledVector(normal, 0.15);
+    state.light.position.copy(point).addScaledVector(normal, 0.35);
     state.light.color.setHex(onPlayer ? 0xff6655 : 0xffbb66);
     state.light.intensity = E.IMPACT_LIGHT_INTENSITY;
     state.lightLife = E.SPARK_LIFE;
@@ -266,7 +274,7 @@ export function spawnImpact(sceneEl, point, normal, onPlayer) {
   if (onPlayer) return;
 
   const decal = nextSlot(state.decals, "decalIdx");
-  decal.mesh.position.copy(point).addScaledVector(normal, 0.012);
+  decal.mesh.position.copy(point).addScaledVector(normal, 0.03);
   decal.mesh.lookAt(_look);
   decal.mesh.rotateZ(Math.random() * Math.PI * 2);
   decal.mesh.scale.setScalar(E.DECAL_SIZE * (0.8 + Math.random() * 0.4));

@@ -13,6 +13,14 @@
 // are therefore *identical* to map-model coordinates - which is exactly why live
 // player poses can be dropped into the same node the model hangs from and land on
 // the right rooftop. See src/ar/three/players.js.
+//
+// That contract SURVIVED the x2.33552 world scale that brought the map up to UT99
+// pawn scale, and only because the scale is baked into the .glb by
+// scripts/optimize-assets.mjs rather than set as a `scale` attribute on #world. Both
+// pages load the same scaled asset, so both agree. See src/shared/map-transform.js.
+// If anyone ever moves that scale onto the entity instead, this file is the thing
+// that breaks: poses would land 2.34x too far out and float off the rock, and the
+// fix would be to divide incoming poses by k in src/ar/three/players.js.
 export const AR_CONFIG = {
   // Scene settings
   scene: {
@@ -34,6 +42,15 @@ export const AR_CONFIG = {
   // The optimized map is 3.2 MB of Draco + WebP against ~14 MB of glTF + PNG for
   // the original. That is the single biggest performance lever on this page: the
   // phone is already running camera capture, feature tracking and rendering.
+  //
+  // WARNING, since the world scale landed: the second entry is the UNSCALED source. The
+  // x2.33552 correction is baked by scripts/optimize-assets.mjs into the .glb only, so if
+  // the fallback is ever the one that loads, model-fit will still size the rock correctly
+  // on the print (it measures whatever it is given) but live player poses — which arrive
+  // in scaled game coordinates — will land 2.34x too far out and float off it. The
+  // optimized tree is committed, so this should not happen; if the fallback is ever needed
+  // for real, either regenerate it or divide incoming poses by the scale in
+  // src/ar/three/players.js. See src/shared/map-transform.js.
   assets: {
     map: ["../assets-optimized/3d/map/FacingWorlds_tex_5.glb", "../assets/3d/map/FacingWorlds_tex_5.gltf"],
     // Where DRACOLoader fetches its decoder from. Only requested if a glTF that
@@ -48,6 +65,12 @@ export const AR_CONFIG = {
     // towers inside the sticker's own footprint, which reads as small and
     // timid on a table; letting the rock overhang the print reads as an object
     // sitting there. The tracker only has to stay in frame, not stay uncovered.
+    //
+    // UNCHANGED by the world scale, and it must stay that way: model-fit.js measures
+    // the loaded model's own bounding box and computes scale = size / footprint, so
+    // this is the map's physical size ON THE TABLE regardless of what the .glb
+    // contains. The map's footprint grew 111 -> 259 game units, so the fit scale it
+    // produces fell from 0.0288 to 0.0123 and the print looks identical.
     size: 3.2,
     // Gap between the print and the underside of the model.
     hover: 0.16,
@@ -186,7 +209,13 @@ export const AR_CONFIG = {
       // Height above the figure's feet, in game units before `scale`.
       height: 1.5,
     },
-    scale: 4,
+    // How much the figures are inflated so a 1.75-unit body is legible on a table.
+    // This is the ONE number in this file the world scale touches. Everything else in
+    // `avatar` is quoted "in game units before scale" and rides inside `scale`, so it
+    // self-corrects; `scale` itself is what stands between game units and marker units,
+    // and the fit scale on the other side of it fell by exactly k when the map grew.
+    // 4 -> 4 x 2.33552 = 9.34 keeps the spectator figures the same size on the print.
+    scale: 9.34,
     // Body capsule, in game units before `scale`.
     radius: 0.34,
     height: 1.75,

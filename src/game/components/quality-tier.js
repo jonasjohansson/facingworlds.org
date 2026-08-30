@@ -24,6 +24,11 @@ AFRAME.registerComponent("quality-tier", {
     // barely visible gain.
     desktopPixelRatio: { type: "number", default: 2 },
     mobilePixelRatio: { type: "number", default: 1.5 },
+    // Kept at 2048 across the x2.33552 world scale (src/shared/map-transform.js), which
+    // means the same texel count now stretches over a 330-unit shadow frustum instead of
+    // a 140-unit one: 161 mm per texel against 68 mm, i.e. the effective sharpness a
+    // 869px map used to give. If contact shadows read badly, a follow-the-player frustum
+    // on #key-light is the fix — 4096 costs 4x the memory just to get back to par.
     desktopShadowMapSize: { type: "number", default: 2048 },
     bloom: { type: "boolean", default: true },
     keyLight: { type: "selector", default: "#key-light" },

@@ -11,12 +11,47 @@ const PLAYER_HP = 100;
 const MAX_NAME = 24;
 const POSE_UPDATE_INTERVAL = 50; // ms - throttle pose updates
 
+// ---- world scale ----
+// Mirrors WORLD_SCALE in src/shared/map-transform.js, which is the single source of
+// truth and carries the full derivation. It cannot be imported: this file is CommonJS
+// (server/package.json declares no "type") and map-transform.js is an ES module, so a
+// require() of it throws. If you change it there, change it here — and re-derive every
+// value marked "x k" below, plus the matching constants in server/test/ctf.test.mjs.
+//
+// The CTF-Face fan model was authored at 0.010062 m/UU while the player rig is at UT99
+// pawn scale (0.0235 m/UU), so the map was 43% of the size the movement numbers assume.
+// k closes that gap; it is baked into the two .glb files by scripts/optimize-assets.mjs,
+// so #world and #navmesh stay at the identity transform and every world coordinate below
+// is already in its final, scaled form.
+//
+// World-anchored POSITIONS are no longer written here at all: FLAG_HOMES, SPAWNS, the
+// tower roofs and every pickup come out of the generated CTF-Face table below. What is
+// left as `<pre-scale> * WORLD_SCALE` are the two values that are just round margins —
+// WORLD_LIMIT and MAP_MARGIN — so their provenance stays legible.
+const WORLD_SCALE = 2.33552;
+
+// ---- the real CTF-Face placements ----
+// server/map-actors.js is GENERATED (scripts/gen-map-actors.mjs) from Epic's own actor
+// table, put through the measured UU->scene transform in src/shared/map-transform.js.
+// It is a CommonJS twin of src/shared/map-actors.js — same numbers, same run of the
+// generator, written next to server.js so it deploys with the server whatever root
+// directory the host is pointed at. Nothing below re-derives a world position by hand.
+//
+// Regenerate with `node scripts/gen-map-actors.mjs`; `--check` fails if it is stale.
+const MAP = require("./map-actors.js");
+
 // ---- validation / anti-cheat tuning ----
 const HEARTBEAT_INTERVAL = 15000; // ms between pings; two misses reaps the socket
+// NOT scaled by k, deliberately. This is a SPEED, and the player did not get faster: the
+// walk is still 9.4 m/s, and the fastest anything legitimate goes is a fall off a tower —
+// which did grow, from 30 m to 71 m, but only as sqrt: sqrt(2 * 22.3 * 71) = 56.3 m/s,
+// against 36.8 m/s before. 100 still covers it with 1.8x to spare. Multiplying it by k
+// would hand a cheater 234 u/s for nothing.
 const MAX_POSE_SPEED = 100; // u/s ceiling incl. tower falls — anything faster is a teleport
+// Also NOT scaled: this is speed * a lag spike's worth of time, and neither term moved.
 const POSE_SLACK = 6; // units of tolerance on top of speed*dt (lag spikes)
 const POSE_REJECT_LIMIT = 5; // after this many rejects in a row we resync to the client
-const WORLD_LIMIT = 500; // absolute coordinate clamp (map spans ~±45)
+const WORLD_LIMIT = 500 * WORLD_SCALE; // 1167.8 — absolute coordinate clamp (map spans ~±140)
 const HIT_DAMAGE = 20; // fixed server-side damage per hit
 
 // ---- pickups ----
@@ -24,12 +59,19 @@ const HIT_DAMAGE = 20; // fixed server-side damage per hit
 // weapon, twice the guns. Ownership MUST live here — if the client decided, two
 // players standing on the same pedestal would both walk away with it.
 const PICKUP_RESPAWN = 20000; // ms before a taken pickup returns
-const PICKUP_RADIUS = 3.0; // units; how close a player must be to claim one
+const PICKUP_RADIUS = 7.01; // x k — units; how close a player must be to claim one
 // Generous against PICKUP_RADIUS on purpose: the claim is checked against the
 // server's copy of the player position, which lags the client's by up to a pose
 // interval, and a player running at 9.4 m/s covers ~0.9 units in that time.
+// NOT scaled by k: it is speed * latency, and neither of those changed with the map.
 const PICKUP_CLAIM_SLACK = 2.5;
-const MAX_HIT_RANGE = 300; // no sightline on Face is anywhere near this long
+// The longest shot anyone can take is the map's full diagonal, and at world scale that
+// is sqrt(259.4^2 + 110.0^2 + 97.2^2) = 298 units — so the old 300 had literally zero
+// headroom and a genuine tower-to-tower snipe would have started coming back "out of
+// range". 400 covers the diagonal with a third to spare and still refuses a hit claimed
+// against someone who has fallen out of the world. Keep it >= the client's trace length
+// (GAME_CONFIG.WEAPON.MAX_RANGE), or honest client hits get rejected here.
+const MAX_HIT_RANGE = 400;
 const HIT_ORDER_GRACE = 150; // ms a hit may arrive AHEAD of the fire that paid for it
 const SHOT_LIFETIME = 2500; // ms a fired shot stays eligible to produce a hit
 const MAX_PENDING_SHOTS = 32;
@@ -50,62 +92,95 @@ const RESPAWN_DELAY = 1500;
 const CTF_CAP_LIMIT = Number(process.env.CTF_CAP_LIMIT) || 3; // UT99 GoalTeamScore
 const CTF_AUTO_RETURN_MS = Number(process.env.CTF_AUTO_RETURN_MS) || 25000; // UT99 CTFFlag timer
 const CTF_MATCH_RESET_MS = Number(process.env.CTF_MATCH_RESET_MS) || 10000; // scoreboard dwell after a win
-const FLAG_RADIUS = Number(process.env.CTF_FLAG_RADIUS) || 2.0;
+const FLAG_RADIUS = Number(process.env.CTF_FLAG_RADIUS) || 4.67; // x k
 // Same reasoning as PICKUP_CLAIM_SLACK: the touch is judged against the server's copy of
-// the player position, which lags the client's by up to a pose interval.
+// the player position, which lags the client's by up to a pose interval. Speed x latency,
+// so it does NOT scale with the map.
 const FLAG_CLAIM_SLACK = Number(process.env.CTF_FLAG_CLAIM_SLACK) || 2.5;
 const FLAG_MIN_INTERVAL = Number(process.env.CTF_FLAG_MIN_INTERVAL) || 150; // ms between honest touches
 const FLAG_BURST = Number(process.env.CTF_FLAG_BURST) || 3;
 
-// The flags stand on the tower ROOFS, as in UT99's CTF-Face. Measured from
-// assets-optimized/3d/navmesh.glb (not guessed): the walkable blue roof spans
-// x -34.9..-31.3 / z -2.4..2.0 and the red roof x 41.1..44.5 / z -7.0..-2.5, both at
-// y 30.42. These are the centroids, and the furthest walkable corner of either roof is
-// ~2.85 from its flag. The reach that has to cover that is the CLIENT's: it is the
-// tighter of the two gates, because a touch only ever happens when the client asks for
-// one and the server can only refuse. GAME_CONFIG.CTF.RADIUS (3.0) is what actually
-// decides whether a player standing on the roof edge can take the flag; FLAG_RADIUS +
-// FLAG_CLAIM_SLACK (4.5 here) is deliberately looser, so a client whose position the
-// server has not caught up with yet is not punished for the lag.
+// The flags stand at the FOOT of each tower, on the low plinth CTF-Face puts them on —
+// FlagBase1 for blue, FlagBase0 for red, converted straight out of the level. They were
+// on the roofs here until stage (b); that was wrong. In the original the roofs are SNIPER
+// DECKS: you climb one for the Body Armor and the firing line, not for the objective, and
+// a flag run is a run across the bridge and up into the enemy base, not two tower climbs.
+//
+// The reach that has to cover a touch is the CLIENT's: it is the tighter of the two gates,
+// because a touch only ever happens when the client asks for one and the server can only
+// refuse. GAME_CONFIG.CTF.RADIUS (7.01) is what decides whether a player standing next to
+// the plinth can take the flag; FLAG_RADIUS + FLAG_CLAIM_SLACK (7.17 here) is deliberately
+// looser, so a client whose position the server has not caught up with yet is not punished
+// for the lag.
+//
+// The same two points are rendered by index.html (#flag-stand-blue / #flag-stand-red),
+// which reads them from the ESM half of the same generated module — so there is no third
+// copy to keep in step any more.
+//
+// Spread rather than aliased: MAP.FLAG_HOMES entries also carry `ry` and `ut` (the
+// original actor's heading and name), and those must not leak into the flag broadcasts.
+const flagHome = (team) => ({
+  x: MAP.FLAG_HOMES[team].x,
+  y: MAP.FLAG_HOMES[team].y,
+  z: MAP.FLAG_HOMES[team].z,
+});
 const FLAG_HOMES = {
-  blue: { x: -33.2, y: 30.42, z: -0.2 },
-  red: { x: 42.8, y: 30.42, z: -4.7 },
+  blue: flagHome("blue"), // -75.11, 0.14, -19.22
+  red: flagHome("red"), // 101.18, 0.43, 5.00
 };
 
-// Team spawns: on the ground BEHIND each tower, between the tower and that base's
-// Enforcer pedestal, facing the bridge (forward in three is (-sin ry, 0, -cos ry), so
-// -PI/2 looks towards +x). y is the measured ground (-0.18) plus the same 0.05 lift the
-// client's navmesh placement uses. Four points a side, handed out round-robin with a
-// small jitter so two players joining together do not spawn inside each other.
+// Team spawns: all TWENTY of CTF-Face's PlayerStarts, ten a side, each keeping the
+// heading Epic gave it. They sit in the two spawn rooms at each tower's foot, and the
+// facings work out to +90 deg for red and -82 for blue — forward in three is
+// (-sin ry, 0, -cos ry), so both teams come out of their base looking at the bridge.
+// Handed out round-robin (spawnCursor below) with a small jitter so two players joining
+// together do not spawn inside each other. The jitter is sized against the PLAYER capsule
+// (HITBOX.RADIUS 0.34), not against the map, so it stays at 1.0 — and with ten points a
+// side it now has much less work to do than it did with four.
+//
+// Only x/y/z/ry are taken: the generated entries also carry `ut` (the original actor's
+// name), which is for tracing numbers back to the level, not for the wire.
 const SPAWN_JITTER = 1.0;
+const spawnPoints = (team) => MAP.SPAWNS[team].map((s) => ({ x: s.x, y: s.y, z: s.z, ry: s.ry }));
 const SPAWNS = {
-  blue: [
-    { x: -41, y: -0.13, z: -5, ry: -Math.PI / 2 },
-    { x: -41, y: -0.13, z: 5, ry: -Math.PI / 2 },
-    { x: -45, y: -0.13, z: 0, ry: -Math.PI / 2 },
-    { x: -38, y: -0.13, z: 8, ry: -Math.PI / 2 },
-  ],
-  red: [
-    { x: 50, y: -0.13, z: -1, ry: Math.PI / 2 },
-    { x: 50, y: -0.13, z: -11, ry: Math.PI / 2 },
-    { x: 54, y: -0.13, z: -6, ry: Math.PI / 2 },
-    { x: 47, y: -0.13, z: 2, ry: Math.PI / 2 },
-  ],
+  blue: spawnPoints("blue"),
+  red: spawnPoints("red"),
 };
 const spawnCursor = { red: 0, blue: 0 };
 
 // ---- map geometry, derived rather than guessed ----
-// The lowest navmesh polygon is at y = -0.18 (the pedestal ground the spawns sit on).
-const GROUND_Y = -0.18;
+// The lowest navmesh polygon (the pedestal ground both bases stand on), measured off
+// assets/3d/navmesh.gltf at -0.175 and x k by the generator.
+const GROUND_Y = MAP.GROUND_Y; // -0.41
 // Below this the carrier was not standing anywhere — they were falling off the map, or
-// already under it. A flag left down there is a flag the match never gets back.
-const MAP_FLOOR_Y = -2;
-// Horizontal playfield, taken from the extents of the two flag stands and the eight team
-// spawns plus a generous margin. Every point anyone can legitimately walk, jump or fall
-// onto is inside this; a drop outside it is off the map.
-const MAP_MARGIN = 25;
+// already under it. A flag left down there is a flag the match never gets back. x k.
+const MAP_FLOOR_Y = -4.67;
+// The two tower roofs: the only walkable surface on the map above the bridge, and — now
+// that the flags live at ground level — no longer anything to do with FLAG_HOMES. They
+// are the sniper decks, and the Enforcer pedestals stand on them.
+//
+// Centre and height come from the generated table: y is the navmesh's highest polygon
+// (30.425 x k), and each centre is the x/z centre of that tower's mesh column. The two
+// sources agree — converting CTF-Face's own roof-top Body Armor actors through the
+// transform lands them at 71.19 and 71.77 against this 71.06 deck, i.e. sitting on it.
+const ROOF_Y = MAP.TOWER_ROOFS.blue.y; // 71.06; the red deck is the same height
+const ROOF_CENTRES = [MAP.TOWER_ROOFS.red, MAP.TOWER_ROOFS.blue];
+// Half-extent of the "above a tower" box around each centre: half the tower column's own
+// footprint (38.1 x 40.1 at world scale). Generous against the ~8.4 x 10.3 walkable deck
+// on purpose — this only ever has to be wider than the truth, because its job is to spare
+// an honest player, and the nearest other geometry is seventy-odd units away across the
+// bridge. Separate x and z because the towers are not square.
+const ROOF_HALF_EXTENT = MAP.TOWER_ROOFS.HALF_EXTENT; // { x: 19.03, z: 20.05 }
+
+// Horizontal playfield: the extents of the two flag plinths, the twenty team spawns and
+// the two tower roofs, plus a generous margin. Every point anyone can legitimately walk,
+// jump or fall onto is inside this; a drop outside it is off the map. The roofs have to
+// be in the list explicitly now — they used to ride in on FLAG_HOMES, and the flags have
+// come down off them. Derived bounds are x -151.4..176.6 / z -100.9..84.0, comfortably
+// around the scaled navmesh (x -117.5..139.9, z -53.0..42.3).
+const MAP_MARGIN = 25 * WORLD_SCALE; // 58.4
 const MAP_BOUNDS = (() => {
-  const pts = [...Object.values(FLAG_HOMES), ...SPAWNS.red, ...SPAWNS.blue];
+  const pts = [...Object.values(FLAG_HOMES), ...ROOF_CENTRES, ...SPAWNS.red, ...SPAWNS.blue];
   const xs = pts.map((p) => p.x);
   const zs = pts.map((p) => p.z);
   return {
@@ -115,24 +190,21 @@ const MAP_BOUNDS = (() => {
     maxZ: Math.max(...zs) + MAP_MARGIN,
   };
 })();
-
-// The only surfaces above the ground that a flag can rest on are the two tower roofs
-// (y 30.42, the height the flag stands are measured at).
-const ROOF_Y = FLAG_HOMES.blue.y;
-// Half-extent of each roof around its FLAG_HOMES centroid. The measured walkable roofs
-// are ~3.6 x 4.4, so 8 is generous on every side without reaching anything else — the
-// nearest other geometry is thirty-odd units away across the bridge.
-const ROOF_HALF_EXTENT = 8;
 // Above this height nothing is walkable except those roofs, so a pose up here anywhere
 // else is a fly hack rather than a lag spike. Just over the roofs, to leave normal
 // jumping and the client's 0.05 navmesh lift alone.
-const ROOF_AIRSPACE_Y = 31;
+//
+// DERIVED, not multiplied: only the roof term scales. ROOF_Y (71.06) + a dodge-jump apex
+// (1.44 m, which is player-anchored and did not grow) + the 0.05 lift = 72.55.
+const ROOF_AIRSPACE_Y = ROOF_Y + 1.44 + 0.05; // 72.55
 // A dodge-jump peaks well under this. Anything higher above a surface is not a hop.
+// PLAYER-anchored: JUMP_VELOCITY and GRAVITY are unchanged, so the apex is still 1.44 m
+// and this stays 4. Scaling it would let a flag snap down through 9 units of nothing.
 const JUMP_CLEARANCE = 4;
 
 function overATowerRoof(x, z) {
-  for (const h of [FLAG_HOMES.red, FLAG_HOMES.blue]) {
-    if (Math.abs(x - h.x) <= ROOF_HALF_EXTENT && Math.abs(z - h.z) <= ROOF_HALF_EXTENT) return true;
+  for (const c of ROOF_CENTRES) {
+    if (Math.abs(x - c.x) <= ROOF_HALF_EXTENT.x && Math.abs(z - c.z) <= ROOF_HALF_EXTENT.z) return true;
   }
   return false;
 }
@@ -144,13 +216,18 @@ function inPlayableSpace(x, y, z) {
 }
 
 // Strip the jump off a drop: a carrier killed mid-air would otherwise leave the flag
-// hovering out of reach. Only the two known surfaces are snapped to, and only from within
-// jump range, so a death on the arching bridge (y up to 6.3, not a level we know) leaves
-// the flag exactly where the body was.
+// hovering out of reach. Only known surfaces are snapped to, and only from within jump
+// range, so a death on the arching bridge (y up to 14.3, not a level we know) leaves the
+// flag exactly where the body was.
+//
+// Four levels now, not two: the pedestal ground, each base's flag plinth (they differ by
+// 0.3, and a flag dropped a step from home should come to rest at home's height rather
+// than half a unit into the plinth), and the tower decks.
+const DROP_LEVELS = [...new Set([GROUND_Y, FLAG_HOMES.blue.y, FLAG_HOMES.red.y, ROOF_Y])].sort((a, b) => a - b);
 function dropGroundY(y) {
   let best = y;
   let bestGap = Infinity;
-  for (const level of [GROUND_Y, ROOF_Y]) {
+  for (const level of DROP_LEVELS) {
     const gap = y - level;
     if (gap >= 0 && gap <= JUMP_CLEARANCE && gap < bestGap) {
       bestGap = gap;
@@ -185,26 +262,49 @@ const sessions = new Map(); // sessionKey -> {kills,name,team,expires} — score
 const claimedSessions = new Map(); // sessionKey -> live player id currently owning that key
 const spectators = new Map(); // ws -> spectator id (observers, never part of the game)
 
-// Weapon pickups. Positions are game-world coordinates, measured against the
-// navmesh rather than guessed.
-//
-// One behind each tower rather than one contested pedestal mid-bridge: both
-// sides get their own, so the second Enforcer is something you arm yourself with
-// before crossing rather than a single prize that whoever spawns closest wins.
-//
-// Measured by raycasting the navmesh from above. The map is three regions along
-// x: the blue base (-48..-16), the bridge (-12..24, narrow, arching to y=6.3 at
-// its centre) and the red base (28..58). A downward ray finds each tower by the
-// y=30.4 hit on its roof — blue at x=-32, red at x=44 — so "behind the tower" is
-// further out than that on each side. Ground at both pedestals is y=-0.18, and
-// the item floats ~1 unit above it the way a UT pickup hovers.
+// Pickups. Every position is CTF-Face's own, out of the generated actor table — x and z
+// straight through the transform, y snapped to the surface the item stands on plus the
+// unscaled ~1-unit hover a UT pickup floats at relative to the PLAYER walking into it.
+// (A hover of 1.0 x k would have put them at 1.92, over the head of a 1.83 m soldier.)
 const pickups = new Map(); // id -> {id, type, x, y, z, availableAt}
 
-function definePickup(id, type, x, y, z) {
+function definePickup(id, type, { x, y, z }) {
   pickups.set(id, { id, type, x, y, z, availableAt: 0 });
 }
-definePickup("enforcer-blue", "dual-enforcer", -44, 0.82, 4);
-definePickup("enforcer-red", "dual-enforcer", 50, 0.87, -6);
+
+// --- the second Enforcer, one on each TOWER ROOF ---
+//
+// CTF-Face has no Enforcer pickup at all — in UT99 you spawn with one and the map's job
+// is to hand you something better. So these two stand where the original puts its BODY
+// ARMOR: on the sniper decks, one per tower (armor3 on blue, armor2 on red). That is the
+// bargain the map is built around and the reason to make the climb — you go up for the
+// firing line and you come down harder-hitting than you went. Leaving them at ground
+// level, as they were, made the roofs worth nothing now that the flags are not up there.
+//
+// Team-labelled by which tower they sit on, not by who may take them: it is the enemy
+// deck that is worth taking, and holding your own is how you stop them.
+const armorOn = (team) => {
+  const c = MAP.TOWER_ROOFS[team];
+  const d2 = (a) => (a.x - c.x) ** 2 + (a.z - c.z) ** 2;
+  return MAP.BODY_ARMOR.reduce((best, a) => (d2(a) < d2(best) ? a : best));
+};
+definePickup("enforcer-blue", "dual-enforcer", armorOn("blue")); // -80.03, 72.06, -1.59  (armor3)
+definePickup("enforcer-red", "dual-enforcer", armorOn("red")); // 104.51, 72.06, -12.55 (armor2)
+
+// --- health, at CTF-Face's eight MedBoxes ---
+//
+// Four in each tower base, which is exactly where they belong: the thing that keeps a
+// defender alive is in the room they are defending, and a carrier who makes it home can
+// top up before going out again. Ids are stable across restarts (medbox-<actor name>) so
+// a reconnecting client's pickup set lines up with the one it had.
+//
+// A MedBox is worth 20 in UT99 and does not overheal, which is what HEALTH_PICKUP_HP
+// below is. The big 100-point HealthPack at the centre of the bridge is NOT placed: it is
+// the single most contested item on the map and it wants to be balanced deliberately, not
+// added because it happened to be in the table. Its coordinates are there when it is
+// wanted, as MAP.HEALTH_PACK (11.52, 13.13, -9.17).
+const HEALTH_PICKUP_HP = 20;
+for (const box of MAP.MED_BOXES) definePickup(`medbox-${box.name}`, "health", box);
 
 function pickupIsAvailable(p, now) {
   return p.availableAt <= now;
@@ -738,11 +838,16 @@ wss.on("connection", (ws, req) => {
         const reach = PICKUP_RADIUS + PICKUP_CLAIM_SLACK;
         if (dx * dx + dy * dy + dz * dz > reach * reach) break;
 
-        // Already dual-wielding: leave the pickup standing for someone who wants it.
+        // Already dual-wielding, or already at full health: leave the pickup standing for
+        // someone who wants it. Both are the same rule — an item that would do nothing is
+        // an item you walk past, which is how UT99 behaves and what stops a player parked
+        // on a MedBox soaking up its respawns for free.
         if (p.type === "dual-enforcer" && me.dual) break;
+        if (p.type === "health" && me.hp >= PLAYER_HP) break;
 
         p.availableAt = now + PICKUP_RESPAWN;
         if (p.type === "dual-enforcer") me.dual = true;
+        if (p.type === "health") me.hp = Math.min(PLAYER_HP, me.hp + HEALTH_PICKUP_HP);
 
         broadcast({
           type: "pickup-taken",
@@ -750,7 +855,11 @@ wss.on("connection", (ws, req) => {
           by: me.id,
           respawnInMs: PICKUP_RESPAWN,
         });
-        broadcast({ type: "loadout", id: me.id, dual: !!me.dual });
+        // Health is server-authoritative like damage is, so healing goes out on the wire
+        // as its own message rather than riding on `hit` — a client that read a heal as a
+        // hit would flash the damage vignette for being given health.
+        if (p.type === "health") broadcast({ type: "health", id: me.id, hp: me.hp });
+        if (p.type === "dual-enforcer") broadcast({ type: "loadout", id: me.id, dual: !!me.dual });
         console.log(`[server] ${me.name} took ${p.type} (${p.id})`);
         break;
       }

@@ -27,7 +27,13 @@ export const SKY_ROTATION_DEG_PER_SEC = 0.3;
  */
 export const SKY_AXIS = Object.freeze([0.18, 1, 0.09]);
 
-/** Radius the skybox content sits at. Well inside the camera's 10000 far plane. */
+/**
+ * Radius the skybox content sits at. Well inside the camera's 10000 far plane, and well
+ * outside the map. Deliberately NOT scaled with the world: the sky is re-pinned to the
+ * camera every frame, so it has no parallax and its apparent size is scale-invariant —
+ * 2100 only has to stay between the map's reach (~260 units after the x2.33552 world
+ * scale, up from ~127) and the far plane, and it comfortably does.
+ */
 const SKY_RADIUS = 2100;
 
 /**
@@ -350,7 +356,10 @@ AFRAME.registerComponent("space-environment", {
 
     const asteroid = new THREE.Mesh(geometry, material);
 
-    const radius = 30 + Math.random() * 50;
+    // World-anchored orbit, x2.33552 with the world scale (src/shared/map-transform.js):
+    // the belt has to sit outside the 259-unit map, not inside it. Inert while
+    // index.html passes asteroidCount:0, but wrong is wrong.
+    const radius = 70.07 + Math.random() * 116.78;
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
 
@@ -394,8 +403,8 @@ AFRAME.registerComponent("space-environment", {
       asteroid.rotation.y += userData.rotationSpeed.y;
       asteroid.rotation.z += userData.rotationSpeed.z;
 
-      if (asteroid.position.length() > 150) {
-        const radius = 30 + Math.random() * 50;
+      if (asteroid.position.length() > 350.33) {
+        const radius = 70.07 + Math.random() * 116.78;
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
         asteroid.position.set(radius * Math.sin(phi) * Math.cos(theta), radius * Math.sin(phi) * Math.sin(theta), radius * Math.cos(phi));
@@ -418,18 +427,21 @@ AFRAME.registerComponent("space-environment", {
   candy; it does not illuminate anything, it just sits there flaring. Doing it with real
   lights would cost six shadowless point lights and still not look like this.
 
-  Default positions were measured off the loaded map (raycasts into #world), not guessed:
-  the blue tower's outer face sits at x -37.8 at midsection height with a buttress that
-  reaches z +/-6.3, and the red tower mirrors that at x +47.4 with its footprint centred
-  near z -4.9. Sprites are pushed ~2 units clear of those surfaces so grazing angles do
-  not slice them against the stonework.
+  Default positions were measured off the loaded map (raycasts into #world), not guessed.
+  Before the x2.33552 world scale (src/shared/map-transform.js) the blue tower's outer face
+  sat at x -37.8 at midsection height with a buttress reaching z +/-6.3, and the red tower
+  mirrored that at x +47.4 with its footprint centred near z -4.9; sprites were pushed ~2
+  units clear of those surfaces so grazing angles did not slice them against the stonework.
+  At world scale those faces are x -88.3 and x +110.7, the buttress reaches z +/-14.7, and
+  the clearance is ~4.7 units.
 
-  The two CROWN coronas (the y=30 entries) used to sit at x -36.4 and x +46 - i.e. INSIDE
-  those outer faces, buried in the tower. depthTest is on, so a buried sprite is simply
-  never drawn, and the crown of each tower had no corona at all however bright the sprite
-  was. They are now at -39.6 and +49.2, on the same side of the wall as the midsection
-  ones, and they show up. If you move a corona, check it against the outer-face numbers
-  above first: a corona a few units the wrong way does not look dim, it disappears.
+  The two CROWN coronas (the y=70.07 entries) used to sit INSIDE those outer faces, buried
+  in the tower. depthTest is on, so a buried sprite is simply never drawn, and the crown of
+  each tower had no corona at all however bright the sprite was. They are now on the same
+  side of the wall as the midsection ones, and they show up. If you move a corona, check it
+  against the outer-face numbers above first: a corona a few units the wrong way does not
+  look dim, it disappears — and every one of these numbers scales with the map, so if the
+  world scale is ever revised these have to be re-derived, not eyeballed.
 */
 
 /** Bright core, coloured falloff, faint outer ring - the classic corona/lens-flare read. */
@@ -478,18 +490,19 @@ function parsePositionList(value) {
 AFRAME.registerComponent("base-coronas", {
   schema: {
     enabled: { type: "boolean", default: true },
-    bluePositions: { type: "string", default: "-40.2 18 -0.3, -34 18 8.6, -34 18 -8.9, -39.6 30 -0.3" },
-    redPositions: { type: "string", default: "49.9 18 -4.9, 43 18 3.7, 43 18 -13.5, 49.2 30 -4.9" },
+    bluePositions: { type: "string", default: "-93.89 42.04 -0.7, -79.41 42.04 20.09, -79.41 42.04 -20.79, -92.49 70.07 -0.7" },
+    redPositions: { type: "string", default: "116.54 42.04 -11.44, 100.43 42.04 8.64, 100.43 42.04 -31.53, 114.91 70.07 -11.44" },
     blueColor: { type: "color", default: "#4aa6ff" },
     redColor: { type: "color", default: "#ff4530" },
-    /** World-space diameter of the glow at point-blank range. */
-    size: { type: "number", default: 5 },
+    /** World-space diameter of the glow at point-blank range. x world scale. */
+    size: { type: "number", default: 11.68 },
     /** How much the sprite is allowed to grow with distance to stay readable across the map. */
     distanceGrowth: { type: "number", default: 1.1 },
-    fadeNear: { type: "number", default: 7 },
-    fadeFull: { type: "number", default: 30 },
-    fadeOutStart: { type: "number", default: 170 },
-    fadeOutEnd: { type: "number", default: 340 },
+    /* Every fade distance below is measured across the map, so all four are x world scale. */
+    fadeNear: { type: "number", default: 16.35 },
+    fadeFull: { type: "number", default: 70.07 },
+    fadeOutStart: { type: "number", default: 397.04 },
+    fadeOutEnd: { type: "number", default: 794.08 },
   },
 
   init() {

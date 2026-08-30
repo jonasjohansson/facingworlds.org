@@ -4,7 +4,12 @@ import { createVector3, createRaycaster } from "../utils/three-helpers.js";
 
 const NAV = "#navmesh";
 const RIG = "#rig";
-const ABOVE = 8;
+// How far above the navmesh bbox the downward raycast starts. World-anchored, so it moved
+// with the x2.33552 world scale (src/shared/map-transform.js); mirrors
+// GAME_CONFIG.PLAYER.SPAWN_HEIGHT_ABOVE.
+const ABOVE = 18.68;
+// z-fighting lift in renderer units, not a world distance — deliberately NOT scaled, and
+// the reason the server's spawn y is GROUND_Y + 0.05 rather than a plain multiple of k.
 const LIFT = 0.05;
 
 // Module flag, set by the network layer the moment it applies the server's assigned
@@ -55,13 +60,10 @@ export async function placePlayerOnNavmesh() {
   hit.y += LIFT;
   // The server's spawn beat us here; moving the rig now would drag the player from
   // their team base back to the middle of the map (in CTF: onto the open bridge).
-  // The navmesh constraint below still gets applied either way.
+  // The rig is clamped to the navmesh either way — that job belongs to
+  // aframe-extras' `movement-controls constrainToNavMesh` on #rig plus `nav-mesh`
+  // on #navmesh (index.html), not to anything set here.
   if (!serverSpawnApplied) rigEl.setAttribute("position", `${hit.x} ${hit.y} ${hit.z}`);
-
-  // gentle snap so constraint doesn't fight our placement
-  const cur = rigEl.getAttribute("navmesh-constraint") || {};
-  const height = cur.height != null ? cur.height : 0.12;
-  rigEl.setAttribute("navmesh-constraint", `navmesh:${NAV}; fall: 0.5; height: ${height}`);
 
   console.log(serverSpawnApplied ? "[spawn] server spawn already applied; kept rig in place" : "[spawn] rig placed at", hit);
 }

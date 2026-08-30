@@ -16,11 +16,12 @@
 // the vertex shader so the wave costs nothing on the CPU.
 
 import { GAME_CONFIG } from "../config/game-config.js";
+import { FLAG_HOMES } from "../../shared/map-actors.js";
 
 // Defaults live here as well as in game-config.js so this module renders
 // correctly even if GAME_CONFIG.CTF has not landed yet. The config wins.
 const DEFAULTS = {
-  RADIUS: 2.0, // client-side touch reach; the server's is larger (RADIUS + slack)
+  RADIUS: 7.01, // x world scale — client-side touch reach; the server's is larger (RADIUS + slack)
   CLAIM_INTERVAL: 400, // ms between requests, so we do not shout at the server
   RED: "#ff3a22",
   BLUE: "#2f86ff",
@@ -39,6 +40,10 @@ const DEFAULTS = {
 const CFG = { ...DEFAULTS, ...(GAME_CONFIG.CTF || {}) };
 const BOB = GAME_CONFIG.PICKUP;
 
+// Prop dimensions below (pole, finial, cloth, stand disc) are sized against the PLAYER
+// who carries the flag, not against the map, so none of them moved with the x2.33552
+// world scale. The two things here that did are the touch RADIUS above and the glow
+// light's `distance` below — both are reaches measured across map geometry.
 const POLE_RADIUS = 0.035;
 const TEAMS = ["red", "blue"];
 
@@ -346,8 +351,11 @@ AFRAME.registerComponent("ctf-flag-item", {
     glow.setAttribute("light", {
       type: "point",
       color: teamGlow(team),
-      intensity: 2.2,
-      distance: 8,
+      // x world scale, both of them: `distance` is a reach across the map (8 -> 18.68) and
+      // A-Frame's light component defaults decay to 1, so illumination falls off as 1/d and
+      // holding the lit result steady needs intensity x k too (2.2 -> 5.14).
+      intensity: 5.14,
+      distance: 18.68,
       castShadow: false,
     });
     this.el.appendChild(glow);
@@ -454,9 +462,15 @@ AFRAME.registerComponent("ctf-flag-item", {
 });
 
 // ---------------------------------------------------------------------------
-// Stand: the lit disc each flag lives on. Static in index.html, and always
+// Stand: the lit disc each flag lives on. Declared in index.html, and always
 // visible — in UT99 the base stays lit whether or not the flag is on it, and it
-// is how you find the thing from the far tower.
+// is how you find the thing from across the bridge.
+//
+// GROUND-LEVEL. The stands were on the tower roofs until the placements were rebuilt
+// from CTF-Face's own actor table; they are on the plinth at each tower's FOOT now, which
+// is where FlagBase0/FlagBase1 actually sit. Nothing about the disc itself had to change
+// for that — it is a flat base and a ring, and it lies on whatever surface it is put on —
+// but WHERE it is put is no longer something index.html should be typing out by hand.
 // ---------------------------------------------------------------------------
 
 AFRAME.registerComponent("ctf-flag-stand", {
@@ -466,6 +480,15 @@ AFRAME.registerComponent("ctf-flag-stand", {
 
   init() {
     const team = this.data.team;
+
+    // Place from the generated level table rather than from a position attribute, so the
+    // disc and the server's FLAG_HOMES cannot disagree — they are the same two numbers,
+    // read out of src/shared/map-actors.js and server/map-actors.js, which one run of
+    // scripts/gen-map-actors.mjs writes together. A stand a metre from the flag it is
+    // supposed to be under is the exact bug this removes.
+    const home = FLAG_HOMES[team];
+    if (home) this.el.object3D.position.set(home.x, home.y, home.z);
+    else console.warn(`[ctf-flag-stand] no flag home for team "${team}"`);
     const group = new THREE.Group();
     this._disposables = [];
 

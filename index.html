@@ -111,10 +111,24 @@
         Earth Sphere (Distant Planet). `offset` is direction+distance from the camera, so
         the apparent size is size/|offset| ~ 22 degrees of arc - the same on-screen framing
         as the old distance:100/size:60, but pushed far enough out (506 units) that the map,
-        whose longest span is 111 units, can never intersect it.
+        whose longest span is 259 units, can never intersect it.
+
+        DELIBERATELY NOT SCALED with the rest of the world. The sphere is re-pinned to the
+        camera every frame (earth-sphere.js), so its apparent size is size/|offset| and is
+        scale-invariant; only clearance matters, and its surface still sits 316 units from
+        the camera against map geometry that reaches at most ~260. Scaling it would push the
+        planet to 1182 units, where the depth resolution the `near: 0.05` note below is
+        derived from (~1.7 units) stops comfortably clearing the cloud shell - i.e. it would
+        bring back the flicker that comment exists to explain.
       -->
       <a-entity
         earth-sphere="enabled:true; offset:390 120 -300; size:190; rotationSpeed:0.005; atmosphereColor:#4db2ff; atmosphereIntensity:0.8; nightLightColor:#ffb45a; nightLightIntensity:2.6; sunDirection:70 95 -100"></a-entity>
+      <!--
+        sunDirection is a DIRECTION, not a position, so it stays 70 95 -100 even though
+        #key-light's position (which it mirrors, so the planet is lit from where the scene
+        is lit) scaled to 163.49 221.87 -233.55. Same ray, different length. If you retarget
+        the key light, change this to match its direction, not its coordinates.
+      -->
 
       <!--
         UT99 coronas: additive glow billboards on the outside midsections of both bases,
@@ -122,7 +136,7 @@
         Default positions are measured off the loaded map, not guessed; see base-coronas in
         space-environment.js.
       -->
-      <a-entity base-coronas="enabled:true; size:5; blueColor:#4aa6ff; redColor:#ff4530"></a-entity>
+      <a-entity base-coronas="enabled:true; size:11.68; blueColor:#4aa6ff; redColor:#ff4530"></a-entity>
 
       <!-- Background Music -->
       <a-entity background-music="enabled:true; volume:0.8; loop:true; autoplay:false; startOnFirstBullet:true"></a-entity>
@@ -190,7 +204,7 @@
       -->
       <a-entity
         light="color: #ffd9ab; groundColor: #1d2a4a; intensity: 0.75; type: hemisphere"
-        position="3.91645 6.02928 0"></a-entity>
+        position="9.14829 14.08152 0"></a-entity>
 
       <!-- Additional Ambient Light (Light Yellow)
       <a-entity
@@ -229,16 +243,23 @@
         -->
         <a-entity
           light="color: #33456e; intensity: 0.5; type: ambient"
-          position="44.40337 3.60006 -0.55222"></a-entity>
+          position="103.70468 8.40799 -1.28974"></a-entity>
 
         <!--
           Bridge fill. distance:25 only covered a 25-unit bubble around the origin, which
-          left most of the 111-unit tower-to-tower span outside it entirely; widened to
-          cover the bridge and lifted to compensate for physicallyCorrectLights.
+          left most of the tower-to-tower span outside it entirely; widened to cover the
+          bridge and lifted to compensate for physicallyCorrectLights.
+
+          Everything here moved with the world scale (x2.33552, see
+          src/shared/map-transform.js): 46 -> 107.43 and y 8 -> 18.68. INTENSITY moved too,
+          and not by the same factor: a windowed point light falls off as 1/d^decay, so
+          scaling both d and `distance` by k leaves the window term alone and divides the
+          illumination by k^decay. Multiplying intensity by k^decay is what keeps the lit
+          result identical rather than 1.7x darker. Here decay 0.6, so 9 -> 9*k^0.6 = 15.
         -->
         <a-entity
-          light="type:point; intensity:9; color:#ffb04a; castShadow:false; distance:46; decay:0.6"
-          position="0 8 0"></a-entity>
+          light="type:point; intensity:15; color:#ffb04a; castShadow:false; distance:107.43; decay:0.6"
+          position="0 18.68 0"></a-entity>
 
         <!--
           Key light. The only shadow caster in the scene: one directional light is a single
@@ -247,11 +268,29 @@
           its untouched target, which sits at 0 0 0), so the ortho shadow frustum below is
           sized to cover the whole tower-to-tower span of CTF-Face.
           quality-tier turns castShadow off on the low tier.
+
+          SHADOW FRUSTUM AT WORLD SCALE. The map is now 259 x 97 units across, so the old
+          +/-70 ortho box (140 units) covered barely half of it and everything outside
+          simply stopped casting. +/-165 covers the 259-unit span with room for the light's
+          oblique angle; near/far and the light's own position moved by the same x2.33552 as
+          the world, which keeps the light at the same standoff relative to the map
+          (155 -> 363 units out, far 400 -> 935).
+
+          The map stays at 2048 (here and in quality-tier.js) ON PURPOSE, but be honest
+          about what that buys: 330 units across 2048 texels is 161 mm per texel, against
+          68 mm before. That is the same effective sharpness a 869px map gave on the old
+          scale - contact shadows are softer, and the fix if it reads badly is a
+          follow-the-player frustum rather than a 4096 map (which costs 4x the memory to
+          get back to where we were).
+
+          shadowBias and shadowRadius are in texel/depth space, NOT world space, so they are
+          deliberately unchanged - if acne or peter-panning shows up at the new texel size
+          they need re-tuning by eye, not multiplying.
         -->
         <a-entity
           id="key-light"
-          light="type:directional; intensity:3.1; color:#ffe0b8; castShadow:true; shadowMapWidth:2048; shadowMapHeight:2048; shadowCameraLeft:-70; shadowCameraRight:70; shadowCameraTop:70; shadowCameraBottom:-70; shadowCameraNear:1; shadowCameraFar:400; shadowBias:-0.0007; shadowRadius:2"
-          position="70 95 -100"></a-entity>
+          light="type:directional; intensity:3.1; color:#ffe0b8; castShadow:true; shadowMapWidth:2048; shadowMapHeight:2048; shadowCameraLeft:-165; shadowCameraRight:165; shadowCameraTop:165; shadowCameraBottom:-165; shadowCameraNear:2.34; shadowCameraFar:935; shadowBias:-0.0007; shadowRadius:2"
+          position="163.49 221.87 -233.55"></a-entity>
 
         <!--
           Team lighting. Two rules from the CTF-Face reference drive the numbers here:
@@ -308,8 +347,8 @@
         <a-entity id="blue-lights">
           <!-- Blue base interior: pale, cool-white, readable -->
           <a-entity
-            light="angle: 70; color: #8fc0ff; decay: 0.9; intensity: 30; penumbra: 0.6; type: spot"
-            position="-39.02148 5.75842 0.46228"
+            light="angle: 70; color: #8fc0ff; decay: 0.9; intensity: 64.4; penumbra: 0.6; type: spot"
+            position="-91.14251 13.44927 1.07968"
             rotation="-90 0 0"></a-entity>
 
           <!--
@@ -333,44 +372,54 @@
             centre of the map, equidistant (45u) from both towers.
           -->
           <a-entity
-            light="type:point; intensity:48; color:#4aa8ff; castShadow:false; distance:40; decay:1.1"
-            position="-24.3 11.6 -4"></a-entity>
+            light="type:point; intensity:122; color:#4aa8ff; castShadow:false; distance:93.42; decay:1.1"
+            position="-56.75 27.09 -9.34"></a-entity>
           <a-entity
-            light="type:point; intensity:48; color:#4aa8ff; castShadow:false; distance:40; decay:1.1"
-            position="-24.3 11.6 4"></a-entity>
+            light="type:point; intensity:122; color:#4aa8ff; castShadow:false; distance:93.42; decay:1.1"
+            position="-56.75 27.09 9.34"></a-entity>
           <a-entity
-            light="type:point; intensity:12; color:#2f6cff; castShadow:false; distance:30; decay:1.4"
-            position="-32.3 32.9 -2.57"></a-entity>
+            light="type:point; intensity:39.3; color:#2f6cff; castShadow:false; distance:70.07; decay:1.4"
+            position="-75.44 76.84 -6"></a-entity>
           <a-entity
-            light="type:point; intensity:12; color:#2f6cff; castShadow:false; distance:30; decay:1.4"
-            position="-32.3 32.9 2.05"></a-entity>
+            light="type:point; intensity:39.3; color:#2f6cff; castShadow:false; distance:70.07; decay:1.4"
+            position="-75.44 76.84 4.79"></a-entity>
         </a-entity>
 
         <!-- Red Lights Group -->
         <a-entity id="red-lights">
           <!-- Red base interior: pale, warm-white, readable -->
           <a-entity
-            light="angle: 70; color: #ffb59b; decay: 0.9; intensity: 30; penumbra: 0.6; type: spot"
-            position="41.97017 5.75842 -5.09718"
+            light="angle: 70; color: #ffb59b; decay: 0.9; intensity: 64.4; penumbra: 0.6; type: spot"
+            position="98.02278 13.44927 -11.90448"
             rotation="-90 0 0"></a-entity>
 
           <!-- Red tower exterior -->
           <a-entity
-            light="type:point; intensity:34; color:#ff3a22; castShadow:false; distance:28; decay:1.1"
-            position="34.4 10.7 -10.4"></a-entity>
+            light="type:point; intensity:86.4; color:#ff3a22; castShadow:false; distance:65.39; decay:1.1"
+            position="80.34 24.99 -24.29"></a-entity>
           <a-entity
-            light="type:point; intensity:34; color:#ff3a22; castShadow:false; distance:28; decay:1.1"
-            position="34.4 10.7 -0.6"></a-entity>
+            light="type:point; intensity:86.4; color:#ff3a22; castShadow:false; distance:65.39; decay:1.1"
+            position="80.34 24.99 -1.4"></a-entity>
           <a-entity
-            light="type:point; intensity:9; color:#ff1400; castShadow:false; distance:26; decay:1.4"
-            position="41.6 32.6 -7.30393"></a-entity>
+            light="type:point; intensity:29.5; color:#ff1400; castShadow:false; distance:60.72; decay:1.4"
+            position="97.16 76.14 -17.06"></a-entity>
           <a-entity
-            light="type:point; intensity:9; color:#ff1400; castShadow:false; distance:26; decay:1.4"
-            position="41.6 32.6 -2.85067"></a-entity>
+            light="type:point; intensity:29.5; color:#ff1400; castShadow:false; distance:60.72; decay:1.4"
+            position="97.16 76.14 -6.66"></a-entity>
         </a-entity>
       </a-entity>
 
       <!-- World + NavMesh (Performance Optimized) -->
+      <!--
+        BOTH STAY AT THE IDENTITY TRANSFORM. The x2.33552 world scale that brings CTF-Face
+        up to UT99 pawn scale is baked into the two .glb files by
+        scripts/optimize-assets.mjs, not applied here. src/ar/config/ar-config.js documents
+        a "game world coordinates are IDENTICAL to map-model coordinates" contract and
+        src/ar/three/players.js drops raw server poses straight into the map-model node on
+        the strength of it; a scale attribute here would break that silently. See
+        src/shared/map-transform.js. If #world and #navmesh ever stop matching each other
+        exactly, the player floats or sinks.
+      -->
       <!--
         `shadow` is what actually enables renderer.shadowMap - A-Frame's shadow *component*
         calls system.setShadowMapEnabled(true); light="castShadow: true" alone does nothing.
@@ -397,22 +446,28 @@
         scale="1 1 1"></a-entity>
 
       <!--
-        CTF flag stands — the lit discs on the two tower roofs, at the exact
-        coordinates the server uses for FLAG_HOMES. These are STATIC and always
-        visible: in UT99 the base stays lit whether or not the flag is sitting on
-        it, and from the far tower the ring is how you find the objective at all.
+        CTF flag stands — the lit disc at the foot of each tower, on CTF-Face's own flag
+        bases (blue -75.42/-0.32/-20.38, red 101.18/-0.36/5.00 — Epic's x/z, snapped down
+        onto the navmesh, because the fan map models no plinth to stand the disc on).
+        STATIC and always visible: in UT99 the base stays lit whether or not the flag is
+        sitting on it, and across the bridge the ring is how you find the objective at all.
 
-        The FLAGS themselves are not here. The server owns them (state, position,
-        carrier), so the "ctf-flag" system in src/game/components/ctf-flag.js
-        spawns one entity per flag from the `ctf-init` payload and rebuilds both
-        wholesale on reconnect and on match reset. Putting them in the markup
-        would mean a flag standing here before the server had said so.
+        Note there is deliberately NO position attribute. The ctf-flag-stand component
+        places itself from FLAG_HOMES in src/shared/map-actors.js — the generated table
+        the server reads its own copy of — so these two points exist once, in the level
+        data, rather than being typed out here and drifting from the server the first time
+        anyone moves them. (They moved in stage (b): the flags used to be on the tower
+        roofs, which was wrong. In the original the roofs are sniper decks and the flags
+        stand at ground level.)
 
-        Positions measured off assets-optimized/3d/navmesh.glb: the walkable roof
-        polygons sit at y 30.42, centred on (-33.2, -0.2) blue and (42.8, -4.7) red.
+        The FLAGS themselves are not here either. The server owns them (state, position,
+        carrier), so the "ctf-flag" system in src/game/components/ctf-flag.js spawns one
+        entity per flag from the `ctf-init` payload and rebuilds both wholesale on
+        reconnect and on match reset. Putting them in the markup would mean a flag
+        standing here before the server had said so.
       -->
-      <a-entity id="flag-stand-blue" ctf-flag-stand="team: blue" position="-33.2 30.42 -0.2"></a-entity>
-      <a-entity id="flag-stand-red" ctf-flag-stand="team: red" position="42.8 30.42 -4.7"></a-entity>
+      <a-entity id="flag-stand-blue" ctf-flag-stand="team: blue"></a-entity>
+      <a-entity id="flag-stand-red" ctf-flag-stand="team: red"></a-entity>
 
       <!-- soldier -->
 

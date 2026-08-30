@@ -13,6 +13,7 @@
 //   npm run optimize:assets -- --dry-run
 //
 // Flags:
+//   --world-scale=<k>            override the baked world scale (default WORLD_SCALE)
 //   --codec=auto|webp|ktx2|none  texture codec (auto = ktx2 if `ktx` on PATH, else webp)
 //   --geometry=draco|meshopt|none  geometry compression (default draco)
 //   --quality=<1-100>            webp quality for colour maps (default 90)
@@ -28,6 +29,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, cop
 import { dirname, join, relative, resolve, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+
+import { WORLD_SCALE } from "../src/shared/map-transform.js";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE_ROOT = join(REPO_ROOT, "assets");
@@ -48,6 +51,7 @@ const ASSETS = [
     src: "3d/map/FacingWorlds_tex_5.gltf",
     out: "3d/map/FacingWorlds_tex_5.glb",
     textureSize: 2048,
+    worldScale: true,
     note: "CTF-Face map; 3 external 2048 PNGs get packed into the .glb",
   },
   {
@@ -66,6 +70,7 @@ const ASSETS = [
     src: "3d/navmesh.gltf",
     out: "3d/navmesh.glb",
     textureSize: 0, // untextured collision geometry
+    worldScale: true,
     note: "navigation mesh; geometry only",
   },
 ];
@@ -79,6 +84,7 @@ const flag = (name, fallback) => {
 const has = (name) => args.includes(`--${name}`);
 
 const OPTIONS = {
+  worldScale: Number(flag("world-scale", String(WORLD_SCALE))),
   codec: flag("codec", "auto"),
   geometry: flag("geometry", "draco"),
   quality: Number(flag("quality", "90")),
@@ -138,6 +144,10 @@ if (!["draco", "meshopt", "none"].includes(OPTIONS.geometry)) {
   console.error(`unknown --geometry=${OPTIONS.geometry}`);
   process.exit(1);
 }
+if (!Number.isFinite(OPTIONS.worldScale) || OPTIONS.worldScale <= 0) {
+  console.error(`--world-scale must be a positive number, got ${OPTIONS.worldScale}`);
+  process.exit(1);
+}
 
 // ---- helpers ----
 const bytes = (n) => {
@@ -164,24 +174,98 @@ const gltf = (subcommand, extra = []) => {
   }
 };
 
+// ---- world scale ----
+// The fan model of CTF-Face is a uniform 0.010062 m/UU copy of the original level,
+// while the player rig is built at UT99 pawn scale (0.0235 m/UU) — so the map was
+// 43% of the size the movement, jump and weapon numbers assume. WORLD_SCALE closes
+// that gap; see src/shared/map-transform.js for the fit it comes from.
+//
+// It is baked into the GEOMETRY here rather than set as a `scale` attribute on
+// #world / #navmesh, because src/ar/config/ar-config.js documents a "the game places
+// the map at the identity transform, so game world coordinates are IDENTICAL to
+// map-model coordinates" contract, and src/ar/three/players.js drops raw server pose
+// coordinates straight into the map-model's node on the strength of it. An entity
+// scale would break that silently; a baked asset keeps both paths agreeing with no
+// code change.
+//
+// The scale is applied to each scene's ROOT nodes, not to vertex data: for a uniform
+// factor k, left-multiplying a node's world matrix T·R·S by kI is exactly
+// T(k·t)·R·(k·s), so scaling every root node's translation and scale is an exact
+// scale about the world origin whatever the hierarchy below looks like. aframe-extras'
+// nav-mesh component clones the mesh geometry and applies `matrixWorld` before handing
+// it to the pathfinder, so the navmesh node transform is honoured there too.
+//
+// gltf-transform's CLI has no scale subcommand, so this stage runs in-process against
+// @gltf-transform/core. That package is not a direct devDependency: it is @gltf-transform/cli's
+// own dependency, hoisted into node_modules alongside it, and the script already
+// refuses to run without the CLI installed.
+async function scaleWorld(inPath, outPath, k) {
+  const { NodeIO } = await import("@gltf-transform/core");
+  const { ALL_EXTENSIONS } = await import("@gltf-transform/extensions");
+  // This stage runs before any compression, so the file is plain glTF today. Register
+  // the extension set anyway: an unregistered extension is silently DROPPED on write
+  // (or throws, if it is required), and a round-trip that quietly deletes data is a far
+  // worse failure than one that stops.
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+  const doc = await io.read(inPath);
+  const root = doc.getRoot();
+
+  // A root node whose translation or scale is animated would need the animation
+  // sampler outputs scaled too. Neither world asset has any animation at all, so
+  // rather than half-implement that, refuse loudly if one ever appears.
+  const animatedRoots = new Set();
+  for (const anim of root.listAnimations()) {
+    for (const ch of anim.listChannels()) {
+      const path = ch.getTargetPath();
+      if (path === "translation" || path === "scale") animatedRoots.add(ch.getTargetNode());
+    }
+  }
+
+  let scaled = 0;
+  for (const scene of root.listScenes()) {
+    for (const node of scene.listChildren()) {
+      if (animatedRoots.has(node)) {
+        throw new Error(`root node "${node.getName()}" has an animated transform; scaling it would desync the animation`);
+      }
+      const t = node.getTranslation();
+      const s = node.getScale();
+      node.setTranslation([t[0] * k, t[1] * k, t[2] * k]);
+      node.setScale([s[0] * k, s[1] * k, s[2] * k]);
+      scaled++;
+    }
+  }
+  if (!scaled) throw new Error("no scene root nodes to scale");
+
+  await io.write(outPath, doc);
+}
+
 // ---- pipeline ----
 // Each asset is walked through a chain of temp files so a failure in a late
 // stage cannot leave a half-written file in the output directory.
-function optimize(asset, workDir) {
+async function optimize(asset, workDir) {
   const srcPath = join(SOURCE_ROOT, asset.src);
   const outPath = join(OPTIONS.outDir, asset.out);
   const stem = basename(asset.out, ".glb");
 
   let current = join(workDir, `${stem}.0.glb`);
+  let step;
   let stage = 0;
   const next = (label) => join(workDir, `${stem}.${++stage}.${label}.glb`);
 
   // 0. normalize to a self-contained .glb (pulls the map's external PNGs in)
   gltf("copy", [srcPath, current]);
 
+  // 0b. world scale, for the two assets that ARE the world. First, so every later
+  //     stage — and Draco's quantization in particular — sees the final box.
+  if (asset.worldScale && OPTIONS.worldScale !== 1) {
+    step = next("worldscale");
+    await scaleWorld(current, step, OPTIONS.worldScale);
+    current = step;
+  }
+
   // 1. structural cleanup: drop unused nodes/materials/accessors, merge
   //    duplicate meshes and textures, flatten redundant node hierarchy.
-  let step = next("prune");
+  step = next("prune");
   gltf("prune", [current, step]);
   current = step;
 
@@ -239,7 +323,15 @@ function optimize(asset, workDir) {
   //    the textures are compressed, raw f32 vertex data is most of what is left.
   if (OPTIONS.geometry === "draco") {
     step = next("draco");
-    gltf("draco", [current, step]);
+    // Draco quantizes positions over the mesh's own bounding box, so scaling the
+    // world by k multiplies the quantization step by k as well. 14 bits (the
+    // default) over the scaled 259-unit map is +/-7.9 mm — still sub-cm, but it
+    // eats most of the 0.01-unit coplanarity epsilon in the vendored
+    // three-pathfinding clamp, which is world-anchored and did NOT scale. Two extra
+    // bits (ceil(log2 k) = 2) put the scaled assets back at +/-2.0 mm, slightly
+    // BETTER than the +/-3.4 mm the unscaled map shipped with, for a few KB.
+    const quantizePosition = asset.worldScale && OPTIONS.worldScale !== 1 ? 14 + Math.ceil(Math.log2(OPTIONS.worldScale)) : 14;
+    gltf("draco", [current, step, "--quantize-position", String(quantizePosition)]);
     current = step;
   } else if (OPTIONS.geometry === "meshopt") {
     step = next("meshopt");
@@ -280,6 +372,7 @@ const codecLabel =
       ? "ktx2 colour etc1s / data uastc"
       : "none";
 console.log(`textures: ${codecLabel}   geometry: ${OPTIONS.geometry}`);
+console.log(`world:    x${OPTIONS.worldScale} baked into the map + navmesh (src/shared/map-transform.js)`);
 console.log(`output:   ${relative(REPO_ROOT, OPTIONS.outDir)}/`);
 if (!hasKtx && codec === "webp") {
   console.log("note:     `ktx` not found — using WebP. brew install ktx for KTX2/Basis.");
@@ -302,7 +395,7 @@ for (const asset of selected) {
   process.stdout.write(`  ${asset.src} ... `);
   try {
     const before = sourceFootprint(asset);
-    const r = optimize(asset, workDir);
+    const r = await optimize(asset, workDir);
     results.push({ asset, before, after: r.after });
     const pct = ((1 - r.after / before) * 100).toFixed(1);
     console.log(`${bytes(before)} -> ${bytes(r.after)}  (-${pct}%)`);
