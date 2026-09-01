@@ -254,3 +254,62 @@ Open: shadow texel density halved with the scale (2048 map over ±165 m — cons
 - **AR spectator shows the match** (`9e6d267`): team-tinted figures, both flags through home/carried/dropped, score line + roster; name labels half size, tap toggles them.
 - **Bots** (`28e19cb`): server-side players on the real CTF-Face PathNode/ReachSpec network (592 of Epic's edges, A* verified), UT99 CTF brain, beatable aim, fill to 2/team yielding to humans. Confirmed live on production: Tamerlane, Sarena, Kane, Baird joined an empty server.
 - **Field fixes** (same commit): remote facing includes camera yaw; the grey box gun was a destructive 5 s fallback racing a slow Draco decode; in-game team tint off; through-wall reports measured to be interpolation lag, tracing verified solid from three angles.
+
+## Landed 2026-09-01
+
+Five field reports from one session, all of them reproduced before being fixed.
+
+- **Bots waded through the rock.** The cause was written down in
+  `src/shared/map-transform.js` all along — "anything that has to sit exactly on a
+  walkable surface should snap y to the surface it belongs to" — and nothing did.
+  Measured against the shipped navmesh: 24 of the 115 walkable nav nodes sat more than
+  0.3 *under* the floor and 25 more than 0.5 above it, and a bot lerped straight between
+  them on top of that. New `server/navmesh-surface.js` (791 triangles + a plan index,
+  generated) gives the server a ground; `gen-nav-graph.mjs` snaps node `y` (102 of 166
+  moved, median 0.44); `bots.js` re-snaps every tick. After: **99.8% of 5,145 broadcast
+  poses within 0.10 of the surface**, worst 0.20.
+- **The grey box gun was back, and this was the other cause.** Not the Draco race fixed
+  in `28e19cb`. `health.js` disables `first-person-weapon` on death, `update()` called
+  `removeWeapon()`, and that did `removeChild(#player-weapon)` — deleting index.html's
+  weapon, with its measured scale and its `#weapon-muzzle` child, permanently. Respawn
+  found nothing and built the primitive fallback. **Every player was holding a box from
+  their first death onwards.** It now hides the markup weapon and only tears down a
+  fallback it built itself.
+- **The mouse dragged the world around** because `look-controls` was left at A-Frame's
+  `pointerLockEnabled: false`, which only turns the camera while a button is held. That
+  also meant the left mouse button had never fired a shot: the mousedown handler gates on
+  `document.pointerLockElement`, which was never set. Both fixed by one attribute, plus a
+  CLICK TO PLAY sign for the moment before the lock is taken.
+- **Pickups jumped off their pedestals from nine metres.** `PICKUP_RADIUS` had been
+  multiplied by WORLD_SCALE to 7.01 (+2.5 slack). It is a body touching an item and
+  neither changed size when the map did; UT99's own is about 1.03 units. Now 1.6 + 1.0.
+  The floating Enforcer was also drawn 1.08 m long — bigger than the avatar's arm — and
+  is now 0.63 m and canted.
+- **Lethality, and the trap in it.** 20 damage was a number nothing justified; UT99's
+  Enforcer is 17. But the roster also went 2/team -> 5/team, and *that alone made the game
+  more lethal than before*: a motionless player on the enemy flag went from 9.1 s median
+  alive to 5.4 s. Only after dropping accuracy 0.60 -> 0.26 and reaction 300 -> 550 ms did
+  it land at **13.0 s**, with 0.31 incoming hits/s against the old 0.36. The lesson is the
+  measurement: "less damage per shot" read as "less lethal" and was the opposite.
+
+Also: `canSee()` gives bots a real terrain line-of-sight test, and it was wrong twice
+before it was right — first inert (asking for the surface *nearest* the ray inside a
+4-unit window, while the ridge stands 15 above a shot), then over-blocking (asking for the
+*lowest* surface, which the fan navmesh's floor holes turned into a wall between a
+defender and their own flag). `server/test/bots-los.test.mjs` pins both failures.
+Honest scope: inside the range bots engage at, it changes 0.7% of pairs. It is not what
+made the game less lethal, and it is documented as not being that.
+
+### Open
+
+- **The browser side is unverified.** The pointer lock, the weapon fix, the pickup sizes
+  and the CLICK TO PLAY sign are all reasoned and syntax-checked but were never seen
+  running: Chrome's process tree was killed mid-session by an over-broad
+  `kill $(lsof -ti tcp:8081)` — `lsof` matches the *client* socket too, and Chrome had one
+  open to the game server. Restart Chrome and look before believing any of it.
+- **`canSee` knows floors, not walls,** and does not see a floor between two storeys
+  either. `MAX_FIGHT_DY` is still what keeps tower storeys apart, which is why that gate
+  survives. Closing either needs the map mesh on the server, not the navmesh.
+- The 12 nav nodes with no navmesh under them (the fan model has no lift platforms) keep
+  their fitted `y`, and a bot standing there keeps its interpolated height — 1,234 of
+  ~6,400 sampled poses were over such a hole.
