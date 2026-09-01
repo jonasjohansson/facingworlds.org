@@ -53,13 +53,21 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { UU_TO_M, OFFSET, uuToScene } from "../src/shared/map-transform.js";
+import { UU_TO_M, OFFSET, uuToScene, WORLD_SCALE } from "../src/shared/map-transform.js";
 import { FLAG_HOMES, SPAWNS } from "../src/shared/map-actors.js";
+import { loadNavmesh } from "./lib/navmesh.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
 const INPUT = path.join(ROOT, "scripts", "data", "ctf-face-nav.json");
+const NAVMESH = path.join(ROOT, "assets", "3d", "navmesh.gltf");
 const OUT_CJS = path.join(ROOT, "server", "nav-graph.js");
+
+// How far a node's y may be corrected onto the navmesh. See SNAPPING below: this is
+// sized to swallow the fit residual and to stay well clear of the 17.7-unit gap
+// between one tower storey and the next, so a snap can never change which floor a
+// waypoint is on.
+const SNAP_WINDOW = 3.0;
 
 // How far a FlagBase or PlayerStart is allowed to be from the nearest graph node
 // before this generator refuses to write. The two sets describe the same actors, so
@@ -76,10 +84,58 @@ const dist3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const src = JSON.parse(fs.readFileSync(INPUT, "utf8"));
 const SYNTHESIZED = src.edgeSource !== "reachspecs";
 
+// ---------------------------------------------------------------------------
+// SNAPPING
+// ---------------------------------------------------------------------------
+// x and z are Epic's, through the measured similarity transform, and stay Epic's.
+// y is TAKEN FROM THE NAVMESH wherever the navmesh has an answer within SNAP_WINDOW.
+//
+// The transform's own docstring asks for this: "treat a converted position as good to
+// ~1 unit vertically indoors ... anything that has to sit exactly on a walkable
+// surface should take x/z from here and snap y to the surface it belongs to". Nothing
+// did, and the result was visible — measured against the shipped navmesh before this
+// step existed, 24 of the 115 walkable nodes sat more than 0.3 units UNDER the floor
+// and 25 more than 0.5 above it. A bot steering at a waypoint 0.9 under the rock walks
+// with its shins in the rock; one steering at a waypoint 6 units in the air never gets
+// within ARRIVE_RADIUS of it and hits the stuck timer instead.
+//
+// SNAP_WINDOW is what makes this safe rather than merely closer. CTF-Face stacks nav
+// nodes vertically inside both towers, and the shipped navmesh has holes the real
+// level does not (the lift platforms are not modelled at all). A node over a hole sees
+// only the deck 23 units above it or the ground 15 below, and "snapping" onto either
+// would move a waypoint to a different floor. At 3.0 the correction can absorb the fit
+// residual (about a unit indoors, x WORLD_SCALE) and nothing else: the smallest gap
+// between two tower storeys on this mesh is 17.7 units. Nodes with no surface inside
+// the window keep their fitted y, unchanged.
+//
+// Done BEFORE the edges are built, so the straight-line floor applied to Epic's costs
+// below measures the coordinates that actually ship and A* stays admissible.
+const nav = loadNavmesh(NAVMESH, WORLD_SCALE);
+const snapped = [];
+const unsnapped = [];
+
+function snapY(x, z, y) {
+  const hits = nav.heightsAt(x, z);
+  let best = null;
+  let bestD = SNAP_WINDOW;
+  for (const h of hits) {
+    const d = Math.abs(h - y);
+    if (d <= bestD) {
+      bestD = d;
+      best = h;
+    }
+  }
+  return best;
+}
+
 const nodes = src.nodes.map((n) => {
   if (!n.location) throw new Error(`nav node ${n.name} has no Location`);
   const p = uuToScene(n.location.x, n.location.y, n.location.z);
-  const out = { id: n.id, cls: n.class, name: n.name, x: r2(p.x), y: r2(p.y), z: r2(p.z) };
+  const surface = snapY(p.x, p.z, p.y);
+  if (surface === null) unsnapped.push({ name: n.name, cls: n.class, y: p.y });
+  else if (Math.abs(surface - p.y) > 0.005) snapped.push({ name: n.name, cls: n.class, from: p.y, to: surface });
+  const y = surface === null ? p.y : surface;
+  const out = { id: n.id, cls: n.class, name: n.name, x: r2(p.x), y: r2(y), z: r2(p.z) };
   // UT's Team/TeamNumber: 0 is red, 1 is blue. Carried through so a bot can ask for
   // "a DefensePoint on my side" without re-deriving which end of the map it is.
   const team = n.class === "PlayerStart" ? n.TeamNumber : n.Team;
@@ -87,6 +143,13 @@ const nodes = src.nodes.map((n) => {
   return out;
 });
 const byId = new Map(nodes.map((n) => [n.id, n]));
+
+const snapStats = (() => {
+  if (!snapped.length) return { n: 0, median: 0, max: 0, worst: null };
+  const ds = snapped.map((s) => Math.abs(s.to - s.from)).sort((a, b) => a - b);
+  const worst = snapped.reduce((a, b) => (Math.abs(b.to - b.from) > Math.abs(a.to - a.from) ? b : a));
+  return { n: snapped.length, median: ds[ds.length >> 1], max: ds[ds.length - 1], worst };
+})();
 
 // Epic's `distance` is a path length in UU, so scaling it by UU_TO_M puts a cost in the
 // same units as the node coordinates — which is what makes the straight-line heuristic
@@ -253,16 +316,28 @@ ${
 // EDGES  ${edges.length}, DIRECTED. Epic's graph is not symmetric: a drop you can fall down
 //        but not climb back up is one spec, not two. Do not assume \`to\`/\`from\` reverse.
 //
-// COORDINATES are scene units, straight through uuToScene() with no navmesh snapping —
-// the honest conversion of Epic's placement, good to roughly a unit indoors and better
-// outdoors (see the residuals in src/shared/map-transform.js). Anything that has to
-// stand exactly on a surface should snap its own y; a bot steering towards a waypoint
-// does not need to. Mirrored from src/shared/map-transform.js at generation time, the
-// way server/map-actors.js mirrors the actor table:
+// COORDINATES are scene units. x and z are Epic's placement through uuToScene(),
+// mirrored from src/shared/map-transform.js at generation time the way
+// server/map-actors.js mirrors the actor table:
 //
 //   UU_TO_M = ${UU_TO_M}
 //   OFFSET  = (${r2(OFFSET.x)}, ${r2(OFFSET.y)}, ${r2(OFFSET.z)})
 //   scene   = (UU_TO_M*uu.x + OFFSET.x, UU_TO_M*uu.z + OFFSET.y, UU_TO_M*uu.y + OFFSET.z)
+//
+// y IS SNAPPED TO THE SHIPPED NAVMESH, as map-actors.js snaps its standing positions
+// and for the same reason: the similarity fit is good to about a unit vertically
+// indoors, and a waypoint a unit under the rock is a bot with its shins in the rock.
+// ${snapStats.n} of ${nodes.length} nodes moved, by a median of ${r2(snapStats.median)} and at most ${r2(snapStats.max)}${snapStats.worst ? ` (${snapStats.worst.name})` : ""}.
+//
+// ${unsnapped.length} node${unsnapped.length === 1 ? "" : "s"} kept the fitted y because the navmesh had no surface within ${SNAP_WINDOW} of it:
+// the fan model does not include the lift platforms, and it has small holes the real
+// level does not. The window is deliberately narrow — the smallest gap between two
+// tower storeys is 17.7 units, so a snap can never move a waypoint to another floor.
+//
+// Even snapped, these are WAYPOINTS, not a ground truth surface: the straight line
+// between two of them cuts through anything that bulges in between. server/bots.js
+// re-snaps a bot's y against server/navmesh-surface.js every tick, which is what
+// actually keeps a body on the rock.
 //
 // COSTS are Epic's own path length for the edge (\`distance\`, in UU) times UU_TO_M, so a
 // cost is in the same units as the coordinates. UT truncates that length to an INT, so
@@ -478,5 +553,11 @@ console.log(
     `\nedges: ${edges.length} directed` +
     `\nwhole graph:      ${compLine(allComponents)}` +
     `\nwalkable subgraph: ${compLine(walkComponents)}` +
-    `\nobjective check:  ${checks.length} FlagBases + PlayerStarts, worst nav-node distance ${worst.toFixed(2)} (tolerance ${OBJECTIVE_NODE_TOLERANCE})`
+    `\nobjective check:  ${checks.length} FlagBases + PlayerStarts, worst nav-node distance ${worst.toFixed(2)} (tolerance ${OBJECTIVE_NODE_TOLERANCE})` +
+    `\ny snapped:        ${snapStats.n}/${nodes.length} moved onto the navmesh, median ${r2(snapStats.median)}, max ${r2(snapStats.max)}` +
+    (snapStats.worst ? ` (${snapStats.worst.name} ${r2(snapStats.worst.from)} -> ${r2(snapStats.worst.to)})` : "") +
+    `\ny kept:           ${unsnapped.length} with no navmesh within ${SNAP_WINDOW} — ${unsnapped
+      .slice(0, 8)
+      .map((u) => u.name)
+      .join(", ")}${unsnapped.length > 8 ? `, +${unsnapped.length - 8} more` : ""}`
 );
