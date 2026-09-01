@@ -268,8 +268,16 @@ AFRAME.registerComponent("remote-avatar", {
     if (!animationState) {
       // No animation block was ever sent — derive one from the interpolated speed so
       // the avatar still animates instead of standing frozen while it slides around.
+      //
+      // Off GROUND_SPEED, the same way server/bots.js:181-182 and character.js:14 do
+      // it, because the numbers that used to sit here (0.5 and 3) were written when a
+      // run was a different number of units per second. A remote player sprinting at
+      // 9.4 cleared the old 3 easily, so the bug never showed — but 3 was 32% of a
+      // run, and the rest of the codebase agrees a run starts at 53%.
       const s = this.targetSpeed || 0;
-      this.target = { Idle: s < 0.5 ? 1 : 0, Walk: s >= 0.5 && s < 3 ? 1 : 0, Run: s >= 3 ? 1 : 0 };
+      const run = GAME_CONFIG.MOVEMENT.GROUND_SPEED * 0.53;
+      const move = 0.2;
+      this.target = { Idle: s < move ? 1 : 0, Walk: s >= move && s < run ? 1 : 0, Run: s >= run ? 1 : 0 };
       return;
     }
 
