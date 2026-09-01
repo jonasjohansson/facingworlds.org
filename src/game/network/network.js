@@ -372,8 +372,8 @@ export function startNetwork() {
         case "loadout": {
           // Broadcast for every player, so remote avatars (and the AR spectator
           // table) can show who is dual-wielding.
-          scene.emit("player-loadout", { id: m.id, dual: !!m.dual });
-          if (m.id === myId) scene.emit("local-loadout", { dual: !!m.dual });
+          scene.emit("player-loadout", { id: m.id, dual: !!m.dual, weapon: m.weapon });
+          if (m.id === myId) scene.emit("local-loadout", { dual: !!m.dual, weapon: m.weapon });
           break;
         }
 

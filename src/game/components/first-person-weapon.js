@@ -3,6 +3,7 @@
 // world geometry and player capsules, with the tracer drawn from the muzzle to whatever
 // the trace hit. Nothing travels.
 import { GAME_CONFIG } from "../config/game-config.js";
+import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
 import { hitscan } from "./hitscan.js";
 import { spawnTracer, spawnImpact, getFlashTexture } from "./impact-effects.js";
 
@@ -214,17 +215,27 @@ AFRAME.registerComponent("first-person-weapon", {
     // (see server/server.js takePickup) and the network layer re-emits it; the
     // weapon never decides on its own that it has two guns.
     this.dual = false;
+    // What we are holding. The SERVER decides — this only ever follows a loadout
+    // message — and it drives both the model and the fire rate.
+    this.weaponId = DEFAULT_WEAPON;
+    this.pickupWeapon = null; // the swapped-in model, if we are not on the Enforcer
     this.leftWeapon = null;
     this.fireLeft = false; // which hand fires the next shot
     // A loadout change is the only local "you picked something up" signal the
     // network layer emits, so it is what drives the crosshair's pickup pulse.
     this._onLoadout = (e) => {
       this.setDual(!!(e.detail && e.detail.dual));
+      if (e.detail && e.detail.weapon) this.setWeapon(e.detail.weapon);
       this.pulseCrosshair();
     };
     this.el.sceneEl.addEventListener("local-loadout", this._onLoadout);
     // Dying costs you the second gun, so the weapon has to hear about deaths too.
-    this.el.sceneEl.addEventListener("local-death", () => this.setDual(false));
+    this.el.sceneEl.addEventListener("local-death", () => {
+      this.setDual(false);
+      // The weapon dies with you, as on the server. Back to the Enforcer everyone
+      // spawns holding, so the model in your hands matches the damage you deal.
+      this.setWeapon(DEFAULT_WEAPON);
+    });
 
     // Listen for hit events
     this.el.sceneEl.addEventListener("local-hit", this.onLocalHit.bind(this));
@@ -246,7 +257,9 @@ AFRAME.registerComponent("first-person-weapon", {
     if (!this.isFiring) return;
 
     const now = time / 1000;
-    const rate = this.dual ? GAME_CONFIG.WEAPON.DUAL_FIRE_RATE : this.data.fireRate;
+    // Cadence is the weapon's, not the component's default: a Sniper Rifle that fired
+    // four times a second would be a different weapon wearing the same model.
+    const rate = this.dual ? GAME_CONFIG.WEAPON.DUAL_FIRE_RATE : weapon(this.weaponId).fireRate;
     const minInterval = 1 / Math.max(1, rate);
     if (now - this.lastFireTime < minInterval) return;
 
@@ -360,6 +373,61 @@ AFRAME.registerComponent("first-person-weapon", {
       this.fireBullet();
       this.lastFireTime = currentTime;
     }
+  },
+
+  /**
+   * Hold a different weapon.
+   *
+   * The model is the PICKUP mesh, the same one standing on the map — what you see on
+   * the floor is literally what ends up in your hands, which is how the Enforcer
+   * already works and costs no extra art.
+   *
+   * The Enforcer is the markup weapon in index.html and is never destroyed, only
+   * hidden, for the same reason removeWeapon() hides it: destroying the entity throws
+   * away a loaded GLTF and the next arm races the frame that needs it.
+   */
+  setWeapon(id) {
+    if (id === this.weaponId) return;
+    this.weaponId = id;
+    const spec = weapon(id);
+
+    if (this.pickupWeapon) {
+      this.el.removeChild(this.pickupWeapon);
+      this.pickupWeapon = null;
+    }
+
+    if (!spec.model) {
+      // Back to the Enforcer everyone spawns with.
+      if (this._gltfWeapon) {
+        this._gltfWeapon.setAttribute("visible", true);
+        this.weapon = this._gltfWeapon;
+      }
+      return;
+    }
+
+    if (this._gltfWeapon) this._gltfWeapon.setAttribute("visible", false);
+    if (this.leftWeapon) this.leftWeapon.setAttribute("visible", false);
+
+    const held = document.createElement("a-entity");
+    held.setAttribute("gltf-model", `url(${spec.model})`);
+    // Read off the Enforcer rather than written by hand: index.html owns where a
+    // weapon sits relative to the eye, and weapon-sway moves it at runtime, so any
+    // constant typed here goes stale the first time either changes.
+    const ref = this._gltfWeapon || this.weapon;
+    if (ref) {
+      const p = ref.object3D.position;
+      held.setAttribute("position", `${p.x} ${p.y} ${p.z}`);
+    }
+    // The pickup meshes are sized in metres for the map, which is far too big in
+    // first person; this brings a 1.15 m rifle to about the 0.37 m the Enforcer
+    // measures at index.html's scale.
+    held.setAttribute("scale", "0.32 0.32 0.32");
+    held.setAttribute("rotation", "0 90 0");
+    this.el.appendChild(held);
+    this.pickupWeapon = held;
+    this.weapon = held;
+    this.weaponRestRotation = null;
+    this.weaponKick = 0;
   },
 
   /**

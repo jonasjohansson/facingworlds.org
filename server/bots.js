@@ -54,6 +54,7 @@ const { NODES, WALKABLE_MAIN, nearestNode, aStar } = require("./nav-graph.js");
 // block in step()) and what stands in for a line-of-sight test (canSee()).
 const { surfaceNear, groundRisesAbove } = require("./navmesh-surface.js");
 const { pickCharacter } = require("./characters.js");
+const { DEFAULT_WEAPON } = require("./weapons.js");
 
 // ---- knobs ----
 // Read here rather than in server.js so the whole bot feature is one require away from
@@ -421,6 +422,9 @@ function createBots(ctx) {
       // the shared players map — so a full match is a room of different characters
       // ten identical soldiers. Fixed for the bot's life, like its name and team.
       character: pickCharacter([...players.values()].map((o) => o.character)),
+      weapon: DEFAULT_WEAPON, // bots spawn with the Enforcer and take what they walk over
+      armor: 0,
+      udamageUntil: 0,
       flag: null,
       // --- private ---
       bot: true,

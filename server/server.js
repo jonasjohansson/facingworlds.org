@@ -48,6 +48,7 @@ const { createBots } = require("./bots.js");
 const { pickCharacter } = require("./characters.js");
 // The baked navmesh, for standing pickups on the floor they belong to.
 const { surfaceNear } = require("./navmesh-surface.js");
+const { DEFAULT_WEAPON, WEAPON_BY_PICKUP, weapon } = require("./weapons.js");
 
 // ---- validation / anti-cheat tuning ----
 const HEARTBEAT_INTERVAL = 15000; // ms between pings; two misses reaps the socket
@@ -61,13 +62,11 @@ const MAX_POSE_SPEED = 100; // u/s ceiling incl. tower falls — anything faster
 const POSE_SLACK = 6; // units of tolerance on top of speed*dt (lag spikes)
 const POSE_REJECT_LIMIT = 5; // after this many rejects in a row we resync to the client
 const WORLD_LIMIT = 500 * WORLD_SCALE; // 1167.8 — absolute coordinate clamp (map spans ~±140)
-// UT99's Enforcer damage, exactly (Botpack.Enforcer HitDamage=17). Was 20, which is a
-// number nothing in the source justifies and which put a kill at five hits: at the
-// 4 shots/s fire rate, 1.25 s of sustained fire from one opponent. 17 makes it six
-// hits and 1.50 s, and it is the figure the rest of the weapon is already built to.
-// The other half of "it is too easy to die" was bots shooting through the rock, which
-// is server/bots.js's canSee().
-const HIT_DAMAGE = 17; // fixed server-side damage per hit
+// Damage now comes from the weapon the shooter is holding — server/weapons.js, which
+// carries UT99's own numbers (Enforcer 17, Sniper 45, Shock 40). It is still the
+// SERVER's number and never the client's; the only change is that there is more than
+// one of them. The Enforcer's 17 is what everyone spawns with and what the CTF tests
+// still measure against.
 
 // ---- pickups ----
 // UT99's Enforcer progression: pick up a second one and you dual-wield. Same
@@ -469,6 +468,7 @@ function publicPlayer(p) {
     // character — and so a bot keeps its face for the life of the match.
     character: typeof p.character === "number" ? p.character : 0,
     armor: p.armor || 0,
+    weapon: p.weapon || DEFAULT_WEAPON,
   };
 }
 
@@ -659,6 +659,7 @@ wss.on("connection", (ws, req) => {
     hitBucket: { tokens: HIT_BURST, ts: Date.now() },
     team: null, // assigned just below, fixed for the connection
     character: 0, // assigned just below, fixed for the connection
+    weapon: DEFAULT_WEAPON, // what they are holding; the client never gets to pick
     armor: 0, // absorbs a share of incoming damage; from the map's Body Armor
     udamageUntil: 0, // ms timestamp; while in the future, this player deals double
     flag: null, // "red"|"blue" while carrying that team's flag
@@ -958,6 +959,7 @@ wss.on("connection", (ws, req) => {
         if (p.type === "health" && me.hp >= PLAYER_HP) break;
         if (p.type === "health-big" && me.hp >= PLAYER_HP) break;
         if (p.type === "armor" && me.armor >= ARMOR_MAX) break;
+        if (WEAPON_BY_PICKUP[p.type] && me.weapon === WEAPON_BY_PICKUP[p.type]) break;
 
         p.availableAt = now + PICKUP_RESPAWN;
         if (p.type === "dual-enforcer") me.dual = true;
@@ -970,6 +972,13 @@ wss.on("connection", (ws, req) => {
         if (p.type === "armor") me.armor = ARMOR_MAX;
         // The Damage Amplifier, one on each ramp. Doubles what you deal, for a while.
         if (p.type === "udamage") me.udamageUntil = now + UDAMAGE_MS;
+        // A weapon the game actually implements. The Rocket Launcher, Ripper and
+        // Redeemer have pickups on the map but no entry here: they are projectile
+        // weapons and every shot in this game is an instant hit, so picking one up
+        // deliberately does nothing rather than handing out a rocket launcher that
+        // fires pistol rounds.
+        const armWith = WEAPON_BY_PICKUP[p.type];
+        if (armWith) me.weapon = armWith;
 
         broadcast({
           type: "pickup-taken",
@@ -982,6 +991,7 @@ wss.on("connection", (ws, req) => {
         // hit would flash the damage vignette for being given health.
         if (p.type === "health" || p.type === "health-big") broadcast({ type: "health", id: me.id, hp: me.hp });
         if (p.type === "armor") broadcast({ type: "armor", id: me.id, armor: me.armor });
+        if (armWith) broadcast({ type: "loadout", id: me.id, weapon: me.weapon, dual: !!me.dual });
         if (p.type === "dual-enforcer") broadcast({ type: "loadout", id: me.id, dual: !!me.dual });
         console.log(`[server] ${me.name} took ${p.type} (${p.id})`);
         break;
@@ -1178,7 +1188,7 @@ function applyHit(shooter, victim) {
   const now = Date.now();
   // The client never gets to pick the damage. It is the weapon's number, doubled while
   // the shooter is holding a Damage Amplifier, and then split with the victim's armour.
-  let dmg = HIT_DAMAGE;
+  let dmg = weapon(shooter.weapon).damage;
   if (shooter.udamageUntil > now) dmg *= UDAMAGE_MULT;
 
   // Armour takes its share first and wears down doing it, so a plated player survives
@@ -1214,8 +1224,9 @@ function applyHit(shooter, victim) {
     if (!v) return;
     v.respawnTimer = null;
     v.hp = PLAYER_HP;
-    v.armor = 0; // armour and the amplifier die with you, as in UT99
+    v.armor = 0; // armour, the amplifier and the weapon die with you, as in UT99
     v.udamageUntil = 0;
+    v.weapon = DEFAULT_WEAPON;
     // The second Enforcer does not survive you. Dying costs the pickup, which is
     // what makes holding the bridge mean something.
     v.dual = false;
@@ -1448,6 +1459,7 @@ function resetMatch() {
     // with everyone equal, not with whoever last stood on the deck still plated.
     p.armor = 0;
     p.udamageUntil = 0;
+    p.weapon = DEFAULT_WEAPON;
     p.animation = { idle: 1, walk: 0, run: 0 };
     p.speed = 0;
     p.shots.length = 0;

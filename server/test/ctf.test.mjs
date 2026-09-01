@@ -51,6 +51,7 @@ const MATCH_RESET_MS = 1200;
 const HIT_DAMAGE = 17; // UT99 Botpack.Enforcer HitDamage
 const PLAYER_HP = 100;
 const HITS_TO_KILL = Math.ceil(PLAYER_HP / HIT_DAMAGE); // 6
+const SNIPER_DAMAGE = 45; // UT99's Sniper Rifle, and the reason CTF-Face has towers
 const HEALTH_PICKUP_HP = 20; // a UT99 MedBox
 // PICKUP_RADIUS + PICKUP_CLAIM_SLACK: the 3D reach the server judges a claim against.
 // Small now — it is a body touching an item, not a world distance — so a test that
@@ -1061,6 +1062,44 @@ test("a resumed session restores the team, spawns on that side, and keeps the se
   await back.close();
   await waitFor(spec, (m) => m.type === "leave" && m.id === back.id, { from: from2, what: "the resumer leaving again" });
   resumeToken = token;
+});
+
+test("a Sniper Rifle changes what a shot is worth, and dying takes it away", async () => {
+  await settle();
+
+  // Stand both of them on the rifle: canHit() is range-limited, and the six Sniper
+  // Rifles are on the decks, a long way from wherever the last test left anyone.
+  // The pickup's broadcast position, not the raw actor y — the server snaps these to
+  // the surface before it places them.
+  const world = await worldSnapshot();
+  const placed = world.pickups.find((p) => p.type === "weapon-sniper");
+  assert.ok(placed, "no weapon-sniper reached the client");
+  await teleport(red2, placed);
+  await teleport(red1, placed);
+
+  // A baseline with the Enforcer everyone spawns holding.
+  const before = await hurt(red2, red1, 1);
+  assert.equal(100 - before, HIT_DAMAGE, `an Enforcer shot took ${100 - before}, expected ${HIT_DAMAGE}`);
+
+  let from = spec.mark();
+  red2.send({ type: "takePickup", id: placed.id });
+  const loadout = await waitFor(spec, (m) => m.type === "loadout" && m.id === red2.id, {
+    from,
+    what: "the Sniper Rifle loadout",
+  });
+  assert.equal(loadout.weapon, "sniper", `armed with ${loadout.weapon}`);
+
+  // 45 in UT99, against the Enforcer's 17. Damage is the server's number and comes
+  // from the weapon the SHOOTER holds, not from anything the client sends.
+  const after = await hurt(red2, red1, 1);
+  assert.equal(before - after, SNIPER_DAMAGE, `a Sniper Rifle shot took ${before - after}, expected ${SNIPER_DAMAGE}`);
+
+  // The weapon dies with you, as armour and the amplifier do.
+  await killPlayer(red1, red2);
+  await waitRespawn(red2);
+  const back = await worldSnapshot();
+  const row = back.players.find((p) => p.id === red2.id);
+  assert.equal(row.weapon || "enforcer", "enforcer", "the Sniper Rifle survived death");
 });
 
 test("a match reset puts everyone back on their feet with full hp and no armour", async () => {
