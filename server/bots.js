@@ -36,11 +36,23 @@
 //          zeroes the velocity so the first tick after a respawn does not try to
 //          "continue" a run from the other end of the map.
 //
-// The bot itself is deliberately beatable: it fires the Enforcer at the human rate with
-// a reaction delay, and its hit chance falls off with range and with how fast the target
-// is moving. A human who keeps moving wins most duels.
+// THE GROUND. A bot steers at nav-graph waypoints and used to lerp its y straight
+// between them, which put it up to a metre inside the rock on any slope that bulged.
+// server/navmesh-surface.js is the walkable surface baked out of the shipped navmesh,
+// and step() pulls y back onto it every tick. Measured over 5,145 broadcast bot poses
+// after the change: 99.8% within 0.10 of the surface, worst 0.20.
+//
+// The bot is deliberately beatable: it fires the Enforcer at the human rate after a
+// reaction delay, its hit chance falls off with range and with how fast the target is
+// moving, and each bot carries its own skill multiplier. A human who keeps moving wins
+// most duels. How hard they hit was TUNED AGAINST A MEASUREMENT rather than by feel —
+// see BASE_ACCURACY for the numbers and for why the roster size made that necessary.
 
 const { NODES, WALKABLE_MAIN, nearestNode, aStar } = require("./nav-graph.js");
+// The walkable surface, baked out of the shipped navmesh by
+// scripts/gen-navmesh-surface.mjs. It is what keeps a bot's feet on the rock (the GROUND
+// block in step()) and what stands in for a line-of-sight test (canSee()).
+const { surfaceNear, groundRisesAbove } = require("./navmesh-surface.js");
 
 // ---- knobs ----
 // Read here rather than in server.js so the whole bot feature is one require away from
@@ -65,10 +77,23 @@ const envMs = (name, dflt) => {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : dflt;
 };
+// A 0..1 knob. Unlike the cadences above, this one is meant to be turned in BOTH
+// directions and on a live server: how hard the bots hit is the one thing about them
+// that is pure taste, it is what every complaint about them is really about, and
+// nobody should need a deploy to answer "make them easier".
+const envUnit = (name, dflt) => {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n >= 0 && n <= 1 ? n : dflt;
+};
 
 const BOTS_ENABLED = envFlag("BOTS_ENABLED", true);
-const BOTS_MIN_PER_TEAM = envInt("BOTS_MIN_PER_TEAM", 2);
-const BOTS_MAX = envInt("BOTS_MAX", 6);
+// Five a side is a busy CTF-Face without being a UT99 full house. BOT_NAMES has 20
+// entries, so even at BOTS_MAX nobody has to wear a numeric suffix. The cost is ten
+// bots x 20 Hz of steering, one ground lookup each (~0.1 us) plus a line-of-sight
+// probe per engagement — under a millisecond a second in total, which the free-tier
+// dyno does not notice.
+const BOTS_MIN_PER_TEAM = envInt("BOTS_MIN_PER_TEAM", 5);
+const BOTS_MAX = envInt("BOTS_MAX", 10);
 // Bots exist FOR humans: with nobody watching they would run matches for the
 // void (and keep the free-tier dyno busy doing it). On by default — an empty
 // server is empty until the first human arrives, and drains again when the
@@ -104,6 +129,51 @@ const TURN_RATE = 7.0; // rad/s — how fast `ry` swings to the heading, so bots
 const STUCK_DIST = 0.6;
 const STUCK_MS = 1500;
 
+// ---- ground ----
+// Steering alone cannot keep a body on CTF-Face. Waypoints are points; the rock
+// between two of them is a curve, so a straight lerp cuts through every slope that
+// bulges and hangs over every one that dips. That is what put bots knee-deep in the
+// surface. Every tick the y is pulled back onto the navmesh instead.
+//
+// GROUND_WINDOW is how far the snap will reach for a surface. It has to cover the
+// worst a lerp can drift over one leg of a path — a couple of units on the steepest
+// ramps here — while staying far inside the 17.7-unit gap between one tower storey
+// and the next, so a bot on a tower's ground floor is never yanked up to the deck
+// above. Nothing is found over the holes the fan navmesh has where the real level has
+// lift platforms; there the bot keeps its interpolated y, exactly as before.
+const GROUND_WINDOW = 4.0;
+// How hard y is pulled towards the surface, per second. 25 settles ~92% of an error
+// inside two 20 Hz ticks — near enough to a snap that nothing wades, smooth enough
+// that a step or a ramp edge does not pop on the wire. A hard assignment would also
+// hand the pose validator a vertical jump on every kerb.
+const GROUND_LERP = 25.0;
+// Feet-to-navmesh offset. src/game/core/spawn.js lifts the local rig by the same
+// amount and server.js stores every spawn already lifted, so a bot standing still is
+// at exactly the height a human standing on the same polygon is.
+const GROUND_LIFT = 0.05;
+
+// ---- line of sight ----
+// There is no collision geometry on the server, so the navmesh doubles as a terrain
+// silhouette: sample the shot, and if the walkable surface at a sample stands above
+// the shot line, rock is in the way.
+//
+// WHAT THIS BUYS. The central ridge, the ramps and the drop off either side of the
+// bridge — the whole reason a duel across CTF-Face is a duel and not a shooting
+// gallery. Before this the only proxy was "more than 6 units apart vertically", so
+// bots on opposite sides of the rock shot each other through it, which is most of why
+// dying felt cheap.
+//
+// WHAT IT DOES NOT. It is a height field: it knows floors, not walls. Two players at
+// the same height on opposite sides of a tower wall still see each other. Closing that
+// needs the map mesh on the server, not the navmesh, and that is a much larger thing
+// than this. Written down rather than quietly hoped over.
+const LOS_SAMPLES = 12;
+// How far a surface must stand above the shot line before it counts as blocking. It
+// absorbs the navmesh's own coarseness (791 triangles over 257 units) so a bot does
+// not lose a legitimate shot to a polygon edge a few centimetres proud of the floor
+// it is standing on.
+const LOS_CLEARANCE = 0.6;
+
 // Animation thresholds, copied from src/game/components/character.js so a bot's blend
 // matches what the same speed produces on a human rig: moveThreshold 0.2, runThreshold
 // GROUND_SPEED * 0.53. Clients read `animation` straight off the wire, so getting these
@@ -117,18 +187,43 @@ const SIGHT = 40; // units — engagement range, as specified
 // target while engaging, so this is mostly about not shooting someone behind them during
 // the turn.
 const AIM_CONE = Math.cos((55 * Math.PI) / 180);
-// Bots do not have line-of-sight tests (there is no collision geometry on the server), so
-// a floor separation gate stands in for one: two players 8 units apart vertically inside
-// a tower are on different storeys and cannot see each other.
+// A floor separation gate, kept alongside canSee(): two players 6 units apart
+// vertically inside a tower are on different storeys. It is cheap and it runs first,
+// so most pairs never reach the line-of-sight sampling at all.
 const MAX_FIGHT_DY = 6;
-const REACTION_MS = 300; // a bot does not open fire the instant a target appears
+// A bot does not open fire the instant a target appears. Longer than it was (300),
+// and this is one of the two numbers the roster change had to be paid for with: at
+// five a side you are simply seen more often, so the window you get to break contact
+// before anyone shoots had to widen with it. Measured effect is under BASE_ACCURACY.
+const REACTION_MS = envMs("BOTS_REACTION_MS", 550);
 const FIRE_MS = 250; // 4 shots/s — GAME_CONFIG.WEAPON.FIRE_RATE
 const DUAL_FIRE_MS = 125; // 8 shots/s, if a bot ever ends up dual-wielding
-// Hit probability at point-blank range against a standing target. Everything below scales
-// this down. At 20 damage a shot this is 48 dps up close — about two seconds to kill —
-// falling to roughly 13 dps against someone running at range. A human landing hits at the
-// same fire rate does 80 dps, so a moving human wins the duel.
-const BASE_ACCURACY = 0.6;
+// Hit probability at point-blank range against a standing target, before the per-bot
+// skill multiplier. Everything below scales it down.
+//
+// TUNED BY MEASUREMENT, not by feel, because the two things asked for here pull against
+// each other: more bots per side is more incoming fire, and "make it less easy to die"
+// is less. The test is a motionless player parked on the enemy flag — the worst case a
+// human can be in, since hitChance's motion term is at its maximum — with 180 s of
+// clock and the median time alive taken across the deaths:
+//
+//   before, 2/team, 20 dmg, acc 0.60, react 300      9.1 s   0.36 hits/s
+//   5/team, 17 dmg, acc 0.42, react 420              5.4 s   0.57 hits/s   WORSE
+//   5/team, 17 dmg, acc 0.26, react 550             13.0 s   0.31 hits/s
+//
+// The middle row is the point: five a side more than swallowed the damage cut on its
+// own, and without measuring it this would have shipped as "less lethal" while being
+// the opposite. A real player also moves, which halves the hit chance again.
+//
+// One 180 s sample per row (9-17 deaths each), so the ordering is solid and the second
+// decimal is not. BOTS_ACCURACY overrides this at run time precisely because it is the
+// kind of number that wants a live opinion, not a deploy.
+const BASE_ACCURACY = envUnit("BOTS_ACCURACY", 0.26);
+// Per-bot skill, rolled once at join and multiplied into hitChance. UT99 ships a
+// difficulty per bot rather than one number for the roster, and a squad where every
+// member shoots identically reads as one opponent copied five times.
+const SKILL_MIN = 0.75;
+const SKILL_MAX = 1.25;
 const SPREAD_RAD = (6 * Math.PI) / 180; // visual tracer spread; the roll decides damage
 
 // Where a shot leaves and where it is aimed, relative to the pose position (the feet).
@@ -161,6 +256,68 @@ const BOT_NAMES = [
   "Sarge",
   "Kane",
 ];
+
+/**
+ * Is there rock between these two? The navmesh as a terrain silhouette.
+ *
+ * Walks the segment from the shooter's eye to the target's chest and asks, at each
+ * sample, whether the walkable surface has RISEN ABOVE the shot line — meaning there
+ * is mesh here and none of it is at or below the line any more.
+ *
+ * WHY THAT AND NOT A HEIGHT COMPARISON. A height field cannot tell terrain from a
+ * ceiling by height alone, and on this map the two ranges overlap: the ridge stands
+ * about 15.4 above a ground-level shot, while the shortest ceiling inside a tower is
+ * only 6.1 above its own floor (both measured by scripts/gen-navmesh-surface.mjs and
+ * printed in the generated file's header). So there is no threshold that separates
+ * them. What separates them is the FLOOR: a shot crossing a room keeps that room's
+ * floor beneath it the whole way no matter what hangs above, and a shot into a hillside
+ * runs out of floor exactly where the hill begins.
+ *
+ * Two earlier versions of this were wrong in ways only measurement caught, so both are
+ * recorded rather than quietly replaced:
+ *   - asking for the surface NEAREST the ray, inside the ground snap's own window, was
+ *     very nearly inert. The ridge sits ~15 over a shot between the two flag bases and
+ *     the window is 4, so the single most obvious blocker on CTF-Face came back as "no
+ *     data". The height profile along the flag-to-flag line is what showed it.
+ *   - asking for the LOWEST surface fixed that but blocked shots across a tower alcove,
+ *     where the fan navmesh has holes in the floor and the lowest thing under the
+ *     sample is the deck 23 units up. That cost 14 nav-node pairs under 6 units apart,
+ *     among them a defender standing at their own flag and the flag. Now handled by
+ *     LOS_MAX_RISE inside groundRisesAbove — a blocker further up than any terrain on
+ *     this map can rise is a roof, not rock, and counts as no evidence.
+ *
+ * HOW MUCH THIS ACTUALLY DOES, measured rather than hoped: of the 1,556 pairs of
+ * walkable nav nodes that pass SIGHT and MAX_FIGHT_DY, 11 (0.7%) come back blocked. It
+ * is not the reason the game got less lethal — HIT_DAMAGE, BASE_ACCURACY and
+ * REACTION_MS are — and it should not be described as though it were. The engagement
+ * envelope is why: at 40 units of sight and 6 of height difference you cannot span the
+ * ridge, so within the range bots actually fight, CTF-Face is mostly open ground. What
+ * this buys is that the cases which DO exist are now right, and that the envelope can
+ * be widened later without bots shooting through the rock.
+ *
+ * WHAT IT DOES NOT. It is a height field: it knows floors, not walls, and it does not
+ * see a floor BETWEEN two storeys either — a shot from a tower deck down at the floor
+ * below reads as clear. MAX_FIGHT_DY is what keeps that pairing out, which is why that
+ * gate stays even though this exists. Two players at the same height on opposite sides
+ * of a tower wall also still see each other. Closing either needs the map mesh on the
+ * server rather than the navmesh, which is a much larger thing than this.
+ */
+function canSee(from, fromY, to, toY) {
+  const ox = from.x;
+  const oz = from.z;
+  const dx = to.x - ox;
+  const dy = toY - fromY;
+  const dz = to.z - oz;
+  // Endpoints are skipped: both bodies are standing ON the surface, so a sample at
+  // either end always finds the floor they are standing on and says nothing about what
+  // is between them.
+  for (let i = 1; i < LOS_SAMPLES; i++) {
+    const t = i / LOS_SAMPLES;
+    const rayY = fromY + dy * t;
+    if (groundRisesAbove(ox + dx * t, oz + dz * t, rayY + LOS_CLEARANCE)) return false;
+  }
+  return true;
+}
 
 const clamp01 = (n) => Math.max(0, Math.min(1, n));
 const dist3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -306,6 +463,11 @@ function createBots(ctx) {
         loiterAt: 0,
         bornAt: now,
         flagSig: "",
+        // Rolled once, for the life of this bot. Multiplies hitChance, so the roster
+        // is a spread of opponents rather than one opponent five times over. It
+        // survives death and respawn deliberately: a name you learn to respect should
+        // still be the dangerous one after it kills you.
+        skill: SKILL_MIN + Math.random() * (SKILL_MAX - SKILL_MIN),
       },
     };
     teamSpawn(p);
@@ -585,7 +747,7 @@ function createBots(ctx) {
       // screen is motionless (maximum hitChance) and cannot even see the shot.
       if (!p.spawned) continue;
       if (!p.team || p.team === b.team) continue;
-      if (Math.abs(p.y - b.y) > MAX_FIGHT_DY) continue; // stands in for line of sight
+      if (Math.abs(p.y - b.y) > MAX_FIGHT_DY) continue; // cheap storey gate, runs first
       const d = dist3(b, p);
       if (d >= bestD) continue;
       // Roughly in front, in the plane. The bot turns towards whoever it is engaging,
@@ -596,6 +758,9 @@ function createBots(ctx) {
       const fx = -Math.sin(b.ry);
       const fz = -Math.cos(b.ry);
       if ((dx / len) * fx + (dz / len) * fz < AIM_CONE) continue;
+      // Last, because it is the only expensive one: LOS_SAMPLES surface lookups. Every
+      // gate above has already thrown out the pairs that cannot be a fight anyway.
+      if (!canSee(b, b.y + EYE_HEIGHT, p, p.y + AIM_HEIGHT)) continue;
       bestD = d;
       best = p;
     }
@@ -605,10 +770,10 @@ function createBots(ctx) {
   // Falls off with range and with how fast the target is moving. Both are the levers that
   // make a bot beatable: stand still at point-blank and it will kill you, keep moving and
   // circle out to range and it mostly will not.
-  function hitChance(distance, targetSpeed) {
+  function hitChance(distance, targetSpeed, skill) {
     const byRange = 1 - 0.75 * clamp01((distance - 8) / (SIGHT - 8)); // 1.0 -> 0.25
     const byMotion = 1 - 0.55 * clamp01(targetSpeed / GROUND_SPEED); // 1.0 -> 0.45
-    return BASE_ACCURACY * byRange * byMotion;
+    return clamp01(BASE_ACCURACY * skill * byRange * byMotion);
   }
 
   function fight(b, now) {
@@ -656,9 +821,10 @@ function createBots(ctx) {
 
     // The damage path, unchanged: canHit is the same precondition set the clientHit
     // handler uses (alive, not myself, inside MAX_HIT_RANGE) and applyHit is the same
-    // 20 points, kill award, flag drop, death broadcast and respawn timer.
+    // HIT_DAMAGE, kill award, flag drop, death broadcast and respawn timer a human's
+    // shot goes through.
     if (!canHit(b, target.id)) return target;
-    if (Math.random() < hitChance(len, target.speed || 0)) applyHit(b, target);
+    if (Math.random() < hitChance(len, target.speed || 0, brain.skill)) applyHit(b, target);
     return target;
   }
 
@@ -773,6 +939,27 @@ function createBots(ctx) {
     b.x = clampWorld(b.x + sx);
     b.y = b.y + sy;
     b.z = clampWorld(b.z + sz);
+
+    // GROUND. The waypoints are snapped to the navmesh now, but the straight line
+    // between two of them is not the rock between them — CTF-Face is all slopes, so a
+    // lerp cuts into every rise and hangs over every dip. This is the correction, and
+    // it is why bots stop wading through the surface.
+    //
+    // Eased rather than assigned: a hard write would pop on the wire at every step and
+    // hand the pose validator a vertical jump. At GROUND_LERP the error is gone inside
+    // two ticks, which is faster than anyone can see and slower than a teleport.
+    //
+    // Nothing happens where the navmesh has nothing to say — the fan model's holes,
+    // and the lift shafts it never modelled. There the interpolated y stands, exactly
+    // as it did before this existed.
+    const ground = surfaceNear(b.x, b.z, b.y, GROUND_WINDOW);
+    if (ground !== null) {
+      const want = ground + GROUND_LIFT;
+      b.y += (want - b.y) * (1 - Math.exp(-GROUND_LERP * dt));
+      // The vertical steering term has done its job the moment the ground owns y.
+      // Leaving it running would fight the snap and re-accumulate the same drift.
+      brain.vy = 0;
+    }
 
     // ROOF RULE. The pose validator refuses y above ROOF_AIRSPACE_Y away from a tower
     // roof, and the walkable graph tops out at 15.14 — two towers' worth below it — so
@@ -904,4 +1091,7 @@ function createBots(ctx) {
   return { sweep, stop, count: () => roster.length, enabled: BOTS_ENABLED };
 }
 
-module.exports = { createBots, BOT_NAMES };
+// canSee is exported for server/test/bots-los.test.mjs, which pins it against known
+// CTF-Face geometry. It is a pure function of the baked navmesh — no ctx, no roster —
+// which is why it sits at module scope rather than inside createBots.
+module.exports = { createBots, BOT_NAMES, canSee };
