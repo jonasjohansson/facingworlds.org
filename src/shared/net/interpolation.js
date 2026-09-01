@@ -183,6 +183,20 @@ export class SnapshotBuffer {
       const decay = settle > 0 ? Math.max(0, 1 - settle / this.maxExtrapolationMs) : 1;
       const maxAhead = lead * decay;
 
+      // Speed decays on exactly the same curve as the extrapolated lead, and for the
+      // same reason. `speed` answers "how fast is this body moving right now", and by
+      // the reasoning above a gap this long means it has stopped — so once we are no
+      // longer willing to advance the position, we must not keep claiming motion
+      // either. Carrying the last speed forward is what made an AR figure sprint on
+      // the spot forever: src/ar/three/players.js blends idle/walk/run on `speed`
+      // alone, the server stops broadcasting when nothing moves, and the final packet
+      // holds whatever the body was doing just before it went quiet.
+      //
+      // Computed here rather than inside the branch below so it cannot disagree with
+      // itself: the extrapolated and the pinned return have to be the same curve, or a
+      // figure flickers between running and standing at the seam.
+      const speedNow = newest.speed * decay;
+
       if (prev && span > 0 && maxAhead > 0) {
         const k = maxAhead / span;
         return {
@@ -190,11 +204,11 @@ export class SnapshotBuffer {
           y: newest.y + (newest.y - prev.y) * k,
           z: newest.z + (newest.z - prev.z) * k,
           ry: lerpYaw(prev.ry, newest.ry, 1 + k),
-          speed: newest.speed,
+          speed: speedNow,
           animation: newest.anim,
         };
       }
-      return out(newest);
+      return { ...out(newest), speed: speedNow };
     }
 
     // Normal case: find the bracketing pair and lerp between them.
