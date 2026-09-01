@@ -105,10 +105,21 @@ AFRAME.registerComponent("weapon-pickup-item", {
     // The weapon itself, floating. Same model the player carries — this is the
     // whole point of the dual Enforcer: no new art, and what you see on the
     // pedestal is literally what you pick up.
+    //
+    // SCALE. The mesh is 21.6 model units long, so the old 0.05 drew a pistol 1.08 m
+    // from muzzle to grip — longer than the avatar's arm, and the single loudest
+    // reason a pedestal read as "a big object" rather than "a gun". UT99 draws a
+    // weapon pickup a touch larger than the held weapon so it is findable across a
+    // room, not twice life size; 0.029 gives 0.63 m, about 1.7x the 0.37 m the
+    // first-person gun measures at index.html's 0.025.
+    //
+    // TILT. Muzzle down and canted, so the silhouette is unmistakably a weapon from
+    // any angle. Flat on the horizontal it spins through a moment, twice a turn, where
+    // it is edge-on to the camera and reads as a floating stick.
     const model = document.createElement("a-entity");
     model.setAttribute("gltf-model", "#enforcer-weapon");
-    model.setAttribute("scale", "0.05 0.05 0.05");
-    model.setAttribute("rotation", "0 0 0");
+    model.setAttribute("scale", "0.029 0.029 0.029");
+    model.setAttribute("rotation", "-24 0 12");
     this.el.appendChild(model);
     this.model = model;
 

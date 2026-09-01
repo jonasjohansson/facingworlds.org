@@ -28,6 +28,9 @@ import "../components/background-music.js";
 import "../components/space-environment.js";
 import "../components/earth-sphere.js";
 import "../components/first-person-weapon.js";
+// The "CLICK TO PLAY" sign. Attached to #cam in index.html alongside look-controls,
+// which is what actually takes the pointer lock; this only says so.
+import "../components/pointer-lock-prompt.js";
 import "../components/weapon-pickup.js";
 // Capture the Flag. Registers the "ctf-flag" system + "ctf-flag-item" component; the
 // system spawns both flags from the server's `ctf-init` payload, so nothing in

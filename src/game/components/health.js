@@ -98,6 +98,10 @@ AFRAME.registerComponent("health", {
       // Re-enable firing
       const cam = document.querySelector("#cam");
       if (cam) cam.setAttribute("first-person-weapon", "enabled", true);
+      // The counterpart of local-death above. Anything that got out of the player's
+      // way while they were dead needs to know when to come back — pointer-lock-prompt
+      // is the first such thing, and there was no event for it to listen to.
+      this.el.sceneEl.emit("local-respawn");
     }
   },
 

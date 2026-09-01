@@ -504,10 +504,29 @@
              It cannot go much higher: the weapon's nearest vertex is 0.325
              units from the camera and would start clipping. Measured in the
              running scene, not guessed. -->
+        <!--
+          pointerLockEnabled: TRUE, which is what makes this an FPS rather than a
+          model viewer. A-Frame's default is false, and with it off look-controls
+          only turns the camera while a mouse button is HELD DOWN
+          (onMouseMove reads screenX deltas and gates on this.mouseDown) — so aiming
+          meant dragging the world around, and you could not look and fire at the
+          same time. With it on, a click on the canvas takes the pointer lock and
+          every mouse movement turns the head off movementX/movementY, at A-Frame's
+          0.002 rad/px.
+
+          It also switches the left mouse button on. first-person-weapon.js has fired
+          on mousedown all along, but deliberately only while
+          document.pointerLockElement is set — otherwise the very click that asks for
+          the lock would also put a shot into the floor. With the lock never being
+          taken, that guard was permanently closed and X was the only way to shoot.
+          The panel behind the "?" has been promising "mouse look - X or click fire"
+          the whole time; this is the commit where both halves become true.
+        -->
         <a-entity
           id="cam"
           camera="active: true; near: 0.05"
-          look-controls="enabled: true"
+          look-controls="enabled: true; pointerLockEnabled: true"
+          pointer-lock-prompt
           position="0 1.4 0"
           first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0">
           <!-- Weapon (child of camera, follows look direction) -->

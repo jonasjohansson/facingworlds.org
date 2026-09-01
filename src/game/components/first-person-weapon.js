@@ -257,6 +257,20 @@ AFRAME.registerComponent("first-person-weapon", {
   setupWeapon() {
     if (!this.data.enabled || this.weapon) return;
 
+    // Coming back from a death: the gun was hidden, not destroyed (see removeWeapon),
+    // and its model is already loaded. Re-adopt it and show it. Falling through to the
+    // path below would re-arm a second `model-loaded` listener and a second 8 s
+    // fallback timeout on every single respawn.
+    if (this._gltfWeapon && this._gltfWeapon.isConnected && this._gltfWeapon.getObject3D("mesh")) {
+      this.weapon = this._gltfWeapon;
+      this.weapon.setAttribute("visible", true);
+      if (this.dual && this.leftWeapon) this.leftWeapon.setAttribute("visible", true);
+      this.setupMuzzlePosition();
+      this.captureWeaponRest();
+      this.setupMuzzleFlash();
+      return;
+    }
+
     // Find the weapon entity (should be a child of the camera)
     this.weapon = this.el.querySelector("#player-weapon");
 
@@ -768,13 +782,32 @@ AFRAME.registerComponent("first-person-weapon", {
     console.log("[first-person-weapon] Weapon created successfully");
   },
 
+  /**
+   * Put the gun away. Called on death (health.js flips `enabled` off) and on remove().
+   *
+   * HIDES the glTF weapon rather than destroying it. It used to removeChild() it, and
+   * because that entity is #player-weapon — written in index.html, with the measured
+   * 0.025 scale, the sway settings and the #weapon-muzzle child on it — the FIRST
+   * DEATH deleted the real Enforcer from the DOM for the rest of the session. Respawn
+   * set `enabled` back to true, setupWeapon() looked for #player-weapon, found
+   * nothing, and built the crude primitive fallback instead: every player was holding
+   * a grey box from their first death onwards.
+   *
+   * Only a fallback this component built itself is torn down; the markup's weapon is
+   * the page's, not ours to delete. The `visible` flag is the same mechanism the slow
+   * -Draco-load path in setupWeapon() already uses, for the same reason.
+   */
   removeWeapon() {
-    if (this.weapon) {
+    if (!this.weapon) return;
+    if (this.weapon === this._gltfWeapon) {
+      this.weapon.setAttribute("visible", false);
+    } else {
       this.el.removeChild(this.weapon);
-      this.weapon = null;
-      this.weaponRestRotation = null;
-      this.weaponKick = 0;
     }
+    if (this.leftWeapon) this.leftWeapon.setAttribute("visible", false);
+    this.weapon = null;
+    this.weaponRestRotation = null;
+    this.weaponKick = 0;
   },
 
   createTouchFireButton() {
