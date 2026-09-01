@@ -704,9 +704,13 @@ const nearestArmor = (team) => {
   const d2 = (a) => (a.x - c.x) ** 2 + (a.z - c.z) ** 2;
   return BODY_ARMOR.reduce((best, a) => (d2(a) < d2(best) ? a : best));
 };
+// The two Body Armor points on the sniper decks. They used to carry a second Enforcer,
+// a stand-in from when CTF-Face's own item set was not placed; they now carry the armour
+// UT99 puts there, so these tests exercise armour instead of dual-wielding. The ids are
+// the generated ones: `<class>-<actor name>`.
 const PEDESTALS = {
-  red: { id: "enforcer-red", ...nearestArmor("red") },
-  blue: { id: "enforcer-blue", ...nearestArmor("blue") },
+  red: { id: `armor2-${nearestArmor("red").name}`, ...nearestArmor("red") },
+  blue: { id: `armor2-${nearestArmor("blue").name}`, ...nearestArmor("blue") },
 };
 const other = (t) => (t === "red" ? "blue" : "red");
 
@@ -1059,24 +1063,24 @@ test("a resumed session restores the team, spawns on that side, and keeps the se
   resumeToken = token;
 });
 
-test("a match reset puts everyone back on their feet with full hp and no second Enforcer", async () => {
+test("a match reset puts everyone back on their feet with full hp and no armour", async () => {
   await settle();
 
-  // Someone has to have something to lose: the second Enforcer, and some damage.
+  // Someone has to have something to lose: the Body Armor, and some damage.
   await teleport(red2, PEDESTALS.red);
   let from = spec.mark();
   red2.send({ type: "takePickup", id: PEDESTALS.red.id });
-  const loadout = await waitFor(spec, (m) => m.type === "loadout" && m.id === red2.id, {
+  const armorMsg = await waitFor(spec, (m) => m.type === "armor" && m.id === red2.id, {
     from,
-    what: "the dual-Enforcer loadout",
+    what: "the Body Armor pickup",
   });
-  assert.equal(loadout.dual, true);
+  assert.ok(armorMsg.armor > 0, `armour did not stick, got ${armorMsg.armor}`);
   const hurtTo = await hurt(red1, red2, 2);
   assert.ok(hurtTo < 100, `expected ${red2.name} to be damaged, hp is ${hurtTo}`);
 
   const armed = await worldSnapshot();
   const armedRow = armed.players.find((p) => p.id === red2.id);
-  assert.equal(armedRow.dual, true, "the pickup did not stick");
+  assert.ok(armedRow.armor > 0, "the pickup did not stick");
   assert.equal(armedRow.hp, hurtTo);
 
   // Two captures is the cap, so the second one ends the match and the reset follows.
@@ -1105,7 +1109,7 @@ test("a match reset puts everyone back on their feet with full hp and no second 
     const r = respawns.find((m) => m.player.id === p.id);
     assert.ok(r, `${p.name} was not respawned by the reset`);
     assert.equal(r.player.hp, 100, `${p.name} came back with ${r.player.hp} hp`);
-    assert.equal(r.player.dual, false, `${p.name} carried the second Enforcer across the reset`);
+    assert.equal(r.player.armor || 0, 0, `${p.name} carried armour across the reset`);
     assert.equal(r.player.flag, null);
     assert.equal(r.player.kills, 0);
     assertAtTeamSpawn(r.player, r.player.team, `${p.name}'s reset spawn`);

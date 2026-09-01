@@ -46,6 +46,8 @@ const MAP = require("./map-actors.js");
 // here — publicPlayer, applyHit, dropFlag, resetMatch, the scoreboard — knows or cares.
 const { createBots } = require("./bots.js");
 const { pickCharacter } = require("./characters.js");
+// The baked navmesh, for standing pickups on the floor they belong to.
+const { surfaceNear } = require("./navmesh-surface.js");
 
 // ---- validation / anti-cheat tuning ----
 const HEARTBEAT_INTERVAL = 15000; // ms between pings; two misses reaps the socket
@@ -311,8 +313,16 @@ const armorOn = (team) => {
   const d2 = (a) => (a.x - c.x) ** 2 + (a.z - c.z) ** 2;
   return MAP.BODY_ARMOR.reduce((best, a) => (d2(a) < d2(best) ? a : best));
 };
-definePickup("enforcer-blue", "dual-enforcer", armorOn("blue")); // -80.03, 72.06, -1.59  (armor3)
-definePickup("enforcer-red", "dual-enforcer", armorOn("red")); // 104.51, 72.06, -12.55 (armor2)
+// REMOVED, deliberately. Those two coordinates are the map's BODY ARMOR, and they are
+// now what UT99 puts there — see the armor entry in PICKUP_TYPE below. The reasoning
+// above still holds (the roofs have to be worth climbing) and armour does the same job
+// the second Enforcer was standing in for: you go up for the firing line and you come
+// down harder to kill.
+//
+// The consequence is that nothing on this map hands out a second Enforcer any more,
+// which is also true of the original — CTF-Face has no Enforcer pickup at all. The
+// dual-wield code in applyHit and first-person-weapon is untouched and still works; it
+// simply has no source on this map. Put `dual-enforcer` back on any actor to restore it.
 
 // --- health, at CTF-Face's eight MedBoxes ---
 //
@@ -327,7 +337,67 @@ definePickup("enforcer-red", "dual-enforcer", armorOn("red")); // 104.51, 72.06,
 // added because it happened to be in the table. Its coordinates are there when it is
 // wanted, as MAP.HEALTH_PACK (11.52, 13.13, -9.17).
 const HEALTH_PICKUP_HP = 20;
+// The bridge HealthPack, and UT99's Body Armor. Armour absorbs a share of incoming
+// damage until it runs out, which is what makes the sniper decks worth holding: you
+// come down from one able to survive a shot you could not before.
+const HEALTH_BIG_HP = 100;
+const ARMOR_MAX = 100;
+const ARMOR_ABSORB = 0.5; // share of a hit taken by armour rather than health
+// UT99's Damage Amplifier: double damage, and it runs on a clock rather than a
+// counter, so it is worth taking even when you are about to die.
+const UDAMAGE_MS = 30000;
+const UDAMAGE_MULT = 2;
 for (const box of MAP.MED_BOXES) definePickup(`medbox-${box.name}`, "health", box);
+
+// --- everything else CTF-Face actually has ---
+//
+// The other 46 actors in MAP.UT_PICKUPS, at Epic's own coordinates. The map was
+// designed around them: six Sniper Rifles because the towers are firing platforms, a
+// Redeemer on each side as the thing worth crossing for, ammo stacked where you run
+// out. Placing ten of fifty-six and calling it CTF-Face was the biggest single gap
+// between this and the original.
+//
+// One `type` per Unreal class. The client keys its model off the type
+// (assets/3d/pickups/<class>/) and the server keys the effect off it; anything the
+// server has no effect for yet still stands on the map and still respawns, because a
+// Sniper Rifle you can see on the deck is already telling you what the deck is for.
+//
+// y comes from the actor table unsnapped, as the flags and spawns do — these are
+// Epic's placements, and the navmesh is the thing with holes in it, not the map.
+const PICKUP_TYPE = {
+  armor2: "armor",
+  UDamage: "udamage",
+  HealthPack: "health-big",
+  SniperRifle: "weapon-sniper",
+  ShockRifle: "weapon-shock",
+  UT_Eightball: "weapon-rocket",
+  ripper: "weapon-ripper",
+  WarheadLauncher: "weapon-redeemer",
+  BulletBox: "ammo-bullet",
+  RocketPack: "ammo-rocket",
+  ShockCore: "ammo-shock",
+};
+// y needs the same treatment MAP.MED_BOXES already got in the generator, and did not
+// get here: an Unreal actor's y is its COLLISION ORIGIN, not the bottom of its mesh, so
+// dropped in raw these sit about a third of a unit into the floor (measured: median
+// -0.31, worst -3.05). Snap to the surface the item stands on, then add the same hover
+// the MedBoxes float at.
+//
+// Where the navmesh has no answer — 22 of the 48, all in the tower interiors it is
+// missing — keep Epic's y untouched. It is the honest number, and a wrong snap onto a
+// surface two storeys away would be worse than a slightly sunk box.
+const PICKUP_HOVER = 0.45;
+const PICKUP_SNAP_WINDOW = 4;
+let snapped = 0;
+for (const [cls, type] of Object.entries(PICKUP_TYPE)) {
+  for (const a of MAP.UT_PICKUPS[cls] || []) {
+    const ground = surfaceNear(a.x, a.z, a.y, PICKUP_SNAP_WINDOW);
+    const y = ground === null ? a.y : ground + PICKUP_HOVER;
+    if (ground !== null) snapped++;
+    definePickup(`${cls}-${a.name}`, type, { x: a.x, y, z: a.z });
+  }
+}
+console.log(`[server] ${pickups.size} pickups placed (${snapped} snapped to the surface)`);
 
 function pickupIsAvailable(p, now) {
   return p.availableAt <= now;
@@ -398,6 +468,7 @@ function publicPlayer(p) {
     // here rather than on the client so everyone sees the same person as the same
     // character — and so a bot keeps its face for the life of the match.
     character: typeof p.character === "number" ? p.character : 0,
+    armor: p.armor || 0,
   };
 }
 
@@ -588,6 +659,8 @@ wss.on("connection", (ws, req) => {
     hitBucket: { tokens: HIT_BURST, ts: Date.now() },
     team: null, // assigned just below, fixed for the connection
     character: 0, // assigned just below, fixed for the connection
+    armor: 0, // absorbs a share of incoming damage; from the map's Body Armor
+    udamageUntil: 0, // ms timestamp; while in the future, this player deals double
     flag: null, // "red"|"blue" while carrying that team's flag
     spawnTeam: null, // the team the current spawn point was picked for
     respawnTimer: null, // in-flight applyHit respawn, so a match reset can cancel it
@@ -883,10 +956,20 @@ wss.on("connection", (ws, req) => {
         // on a MedBox soaking up its respawns for free.
         if (p.type === "dual-enforcer" && me.dual) break;
         if (p.type === "health" && me.hp >= PLAYER_HP) break;
+        if (p.type === "health-big" && me.hp >= PLAYER_HP) break;
+        if (p.type === "armor" && me.armor >= ARMOR_MAX) break;
 
         p.availableAt = now + PICKUP_RESPAWN;
         if (p.type === "dual-enforcer") me.dual = true;
         if (p.type === "health") me.hp = Math.min(PLAYER_HP, me.hp + HEALTH_PICKUP_HP);
+        // The HealthPack at the centre of the bridge. 100 in UT99, and the single most
+        // contested item on the map: it is worth five MedBoxes and it sits in the open
+        // exactly where both teams have to cross. No overheal — UT99 lets it run to 199
+        // and that is a bigger balance decision than a pickup placement.
+        if (p.type === "health-big") me.hp = Math.min(PLAYER_HP, me.hp + HEALTH_BIG_HP);
+        if (p.type === "armor") me.armor = ARMOR_MAX;
+        // The Damage Amplifier, one on each ramp. Doubles what you deal, for a while.
+        if (p.type === "udamage") me.udamageUntil = now + UDAMAGE_MS;
 
         broadcast({
           type: "pickup-taken",
@@ -897,7 +980,8 @@ wss.on("connection", (ws, req) => {
         // Health is server-authoritative like damage is, so healing goes out on the wire
         // as its own message rather than riding on `hit` — a client that read a heal as a
         // hit would flash the damage vignette for being given health.
-        if (p.type === "health") broadcast({ type: "health", id: me.id, hp: me.hp });
+        if (p.type === "health" || p.type === "health-big") broadcast({ type: "health", id: me.id, hp: me.hp });
+        if (p.type === "armor") broadcast({ type: "armor", id: me.id, armor: me.armor });
         if (p.type === "dual-enforcer") broadcast({ type: "loadout", id: me.id, dual: !!me.dual });
         console.log(`[server] ${me.name} took ${p.type} (${p.id})`);
         break;
@@ -1091,7 +1175,21 @@ function canHit(shooter, victimId) {
 }
 
 function applyHit(shooter, victim) {
-  const dmg = HIT_DAMAGE; // the client never gets to pick
+  const now = Date.now();
+  // The client never gets to pick the damage. It is the weapon's number, doubled while
+  // the shooter is holding a Damage Amplifier, and then split with the victim's armour.
+  let dmg = HIT_DAMAGE;
+  if (shooter.udamageUntil > now) dmg *= UDAMAGE_MULT;
+
+  // Armour takes its share first and wears down doing it, so a plated player survives
+  // longer without ever being unkillable — the shots still land, they just cost more.
+  if (victim.armor > 0) {
+    const absorbed = Math.min(victim.armor, Math.round(dmg * ARMOR_ABSORB));
+    victim.armor -= absorbed;
+    dmg -= absorbed;
+    broadcast({ type: "armor", id: victim.id, armor: victim.armor });
+  }
+
   victim.hp = Math.max(0, victim.hp - dmg);
   broadcast({ type: "hit", victimId: victim.id, victimName: victim.name, by: shooter.id, hp: victim.hp });
   if (victim.hp > 0) return;
@@ -1116,6 +1214,8 @@ function applyHit(shooter, victim) {
     if (!v) return;
     v.respawnTimer = null;
     v.hp = PLAYER_HP;
+    v.armor = 0; // armour and the amplifier die with you, as in UT99
+    v.udamageUntil = 0;
     // The second Enforcer does not survive you. Dying costs the pickup, which is
     // what makes holding the bridge mean something.
     v.dual = false;
@@ -1344,6 +1444,10 @@ function resetMatch() {
     // second Enforcer across a reset would be a free head start.
     p.hp = PLAYER_HP;
     p.dual = false;
+    // Armour and the amplifier are match state, like the score: a new match starts
+    // with everyone equal, not with whoever last stood on the deck still plated.
+    p.armor = 0;
+    p.udamageUntil = 0;
     p.animation = { idle: 1, walk: 0, run: 0 };
     p.speed = 0;
     p.shots.length = 0;

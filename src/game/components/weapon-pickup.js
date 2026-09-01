@@ -15,6 +15,23 @@ import { GAME_CONFIG } from "../config/game-config.js";
 
 const CFG = GAME_CONFIG.PICKUP;
 
+// Every pickup class CTF-Face places, and the model extracted for it. Keys match
+// PICKUP_TYPE in server/server.js; `dir` is the Unreal class name, which is how
+// assets/3d/pickups is laid out.
+const PICKUP_MODELS = {
+  armor: { dir: "armor2" },
+  udamage: { dir: "UDamage" },
+  "health-big": { dir: "HealthPack" },
+  "weapon-sniper": { dir: "SniperRifle", tilt: "0 0 12" },
+  "weapon-shock": { dir: "ShockRifle", tilt: "0 0 12" },
+  "weapon-rocket": { dir: "UT_Eightball", tilt: "0 0 12" },
+  "weapon-ripper": { dir: "ripper", tilt: "0 0 12" },
+  "weapon-redeemer": { dir: "WarheadLauncher", tilt: "0 0 12" },
+  "ammo-bullet": { dir: "BulletBox" },
+  "ammo-rocket": { dir: "RocketPack" },
+  "ammo-shock": { dir: "ShockCore" },
+};
+
 AFRAME.registerSystem("weapon-pickup", {
   init() {
     this.items = new Map(); // id -> { el, data, available }
@@ -99,8 +116,32 @@ AFRAME.registerComponent("weapon-pickup-item", {
     this.buildVisual();
   },
 
+  /**
+   * An extracted UT99 pickup. The models in assets/3d/pickups are already sized in
+   * metres against a 1.83 m player, so they go in at scale 1 with no per-item tuning.
+   *
+   * Weapons are tilted for the same reason the Enforcer is: flat on the horizontal a
+   * long thin object spins through a moment, twice a turn, where it is edge-on to the
+   * camera and reads as a floating stick.
+   */
+  buildUtVisual(spec) {
+    const model = document.createElement("a-entity");
+    model.setAttribute("gltf-model", `url(assets/3d/pickups/${spec.dir}/${spec.dir}.gltf)`);
+    if (spec.tilt) model.setAttribute("rotation", spec.tilt);
+    this.el.appendChild(model);
+    this.model = model;
+    // NO point light, for the same reason the MedBoxes have none (see below): three.js
+    // recompiles and re-runs the lighting loop in every material in the scene for each
+    // light, and there are 48 of these. Two Enforcer pedestals could afford one; the
+    // whole of CTF-Face's item set cannot. The items read from their own albedo and the
+    // scene's lighting, and the pickup's spin and bob do the rest of the work.
+  },
+
   buildVisual() {
     if (this.data.type === "health") return this.buildHealthVisual();
+    // Everything else CTF-Face actually has, drawn as the item Epic drew.
+    const ut = PICKUP_MODELS[this.data.type];
+    if (ut) return this.buildUtVisual(ut);
 
     // The weapon itself, floating. Same model the player carries — this is the
     // whole point of the dual Enforcer: no new art, and what you see on the
