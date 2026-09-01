@@ -42,6 +42,21 @@ const CAP_LIMIT = 2;
 const AUTO_RETURN_MS = 1500;
 const MATCH_RESET_MS = 1200;
 
+// ---- mirrored from server/server.js ----
+// Not env-overridable there, so they cannot be injected the way the CTF timers above
+// are. Written once here and derived from, rather than spelled out at each assertion:
+// the previous version had "5" and "20" typed into a helper, a comment and three
+// assertions, so changing the Enforcer's damage broke the suite in five places and
+// none of them said why. If server.js moves, move these two and the suite follows.
+const HIT_DAMAGE = 17; // UT99 Botpack.Enforcer HitDamage
+const PLAYER_HP = 100;
+const HITS_TO_KILL = Math.ceil(PLAYER_HP / HIT_DAMAGE); // 6
+const HEALTH_PICKUP_HP = 20; // a UT99 MedBox
+// PICKUP_RADIUS + PICKUP_CLAIM_SLACK: the 3D reach the server judges a claim against.
+// Small now — it is a body touching an item, not a world distance — so a test that
+// wants two pickups has to walk between them rather than stand between them.
+const PICKUP_REACH = 1.6 + 1.0;
+
 // CTF-Face's own FlagBase0 / FlagBase1, at the FOOT of each tower — the roofs are sniper
 // decks and never held the flags. `ry`/`ut` are stripped because several assertions below
 // are deepEqual against a flag's broadcast {x, y, z}, and the server strips them too.
@@ -297,11 +312,12 @@ async function teleport(c, target) {
   }
 }
 
-// Five hits of the server's fixed 20 damage. Fire first, hit right behind it: the server
-// makes every hit pay for itself with a recent shot from the same player.
+// Enough hits of the server's fixed HIT_DAMAGE to take a full-health player down. Fire
+// first, hit right behind it: the server makes every hit pay for itself with a recent
+// shot from the same player.
 async function killPlayer(shooter, victim) {
   const from = witness.mark();
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < HITS_TO_KILL; i++) {
     shooter.send({ type: "fire", origin: { ...shooter.pos }, dir: { x: 1, y: 0, z: 0 } });
     await sleep(30);
     shooter.send({ type: "clientHit", victimId: victim.id });
@@ -741,8 +757,8 @@ function rosterCounts(hello) {
   return counts;
 }
 
-// Land `shots` hits (20 damage each) without killing anyone. Same fire-then-hit pacing as
-// killPlayer: the server makes every hit pay for a shot the same player actually fired.
+// Land `shots` hits (HIT_DAMAGE each) without killing anyone. Same fire-then-hit pacing
+// as killPlayer: the server makes every hit pay for a shot the same player actually fired.
 async function hurt(shooter, victim, shots) {
   const from = spec.mark();
   for (let i = 0; i < shots; i++) {
@@ -1272,11 +1288,17 @@ test("a capture attempt after the carried flag went home by another path scores 
 // does not overheal, and a player who is already full walks past it rather than banking
 // its respawn. Run last, because taking a pickup puts it on a 20-second respawn and this
 // leaves two of the eight down.
-const nearestPair = (list) => {
+// The closest pair that is still further apart than `minGap`. CTF-Face stands its
+// MedBoxes in rows, and the tightest blue pair is 1.85 apart — inside PICKUP_REACH, so
+// one spot really does reach both (that is the map, and it is how a run down the alcove
+// is supposed to collect the row). The test below needs the opposite: two boxes that
+// cannot both be had from one place, so that the second claim proves the patient moved.
+const nearestPairBeyond = (list, minGap) => {
   let best = null;
   for (let i = 0; i < list.length; i++) {
     for (let j = i + 1; j < list.length; j++) {
       const d = Math.hypot(list[i].x - list[j].x, list[i].z - list[j].z);
+      if (d <= minGap) continue;
       if (!best || d < best.d) best = { d, a: list[i], b: list[j] };
     }
   }
@@ -1286,12 +1308,24 @@ const nearestPair = (list) => {
 test("a MedBox heals by a fixed amount, does not overheal, and is refused at full health", async () => {
   await settle();
 
-  // Two MedBoxes from the same alcove, close enough that one standing spot reaches both —
-  // the server judges the claim in 3D against PICKUP_RADIUS + PICKUP_CLAIM_SLACK (9.51).
-  const { d, a: box1, b: box2 } = nearestPair(MED_BOXES.filter((b) => b.x < 0));
-  assert.ok(d < 9, `the closest blue MedBox pair is ${q2(d)} apart, too far to test from one spot`);
-  const stand = { x: (box1.x + box2.x) / 2, y: box1.y - 1, z: (box1.z + box2.z) / 2 };
-  await teleport(blue2, stand);
+  // Two blue MedBoxes far enough apart that one standing spot cannot reach both. The
+  // patient STANDS ON each in turn: PICKUP_REACH is 2.6 now, a body's arm rather than a
+  // room, and it is the second claim FROM THE SECOND BOX that pins that down. The old
+  // version of this test stood at the midpoint of the tightest pair and claimed both
+  // from there, which only worked because the reach was 9.51.
+  const pair = nearestPairBeyond(
+    MED_BOXES.filter((b) => b.x < 0),
+    PICKUP_REACH
+  );
+  assert.ok(pair, `no two blue MedBoxes are more than PICKUP_REACH (${PICKUP_REACH}) apart`);
+  const { d, a: box1, b: box2 } = pair;
+  // The server judges a claim in 3D; the pair above was chosen in plan. Same thing for
+  // two boxes on one alcove floor, but assert it rather than assume it.
+  assert.ok(
+    dist(box1, box2) > PICKUP_REACH,
+    `the chosen MedBoxes are ${q2(dist(box1, box2))} apart in 3D (${q2(d)} in plan), inside PICKUP_REACH (${PICKUP_REACH})`
+  );
+  await teleport(blue2, box1);
 
   const patient = blue2;
   const id1 = `medbox-${box1.name}`;
@@ -1310,9 +1344,25 @@ test("a MedBox heals by a fixed amount, does not overheal, and is refused at ful
   const untouched = (await worldSnapshot()).pickups.find((p) => p.id === id1);
   assert.equal(untouched.available, true, "the refused MedBox was put on a respawn anyway");
 
-  // Now take some damage and try again.
-  const hurtTo = await hurt(red1, patient, 2);
-  assert.equal(hurtTo, 60, `two hits of the server's fixed 20 should leave 60, got ${hurtTo}`);
+  // Now take some damage and try again. The test wants a hole that ONE MedBox cannot
+  // fill and TWO overflow — that is what makes the first heal a measurable amount and
+  // the second one a clamp. The fewest hits that dig a hole deeper than one MedBox is
+  // the smallest N with N*HIT_DAMAGE > HEALTH_PICKUP_HP, and both halves are asserted
+  // rather than assumed so a change to either constant fails here with the reason
+  // instead of failing later with a number.
+  const shots = Math.ceil((HEALTH_PICKUP_HP + 1) / HIT_DAMAGE);
+  const expectHurt = PLAYER_HP - shots * HIT_DAMAGE;
+  assert.ok(
+    expectHurt > 0 && expectHurt + HEALTH_PICKUP_HP < PLAYER_HP && expectHurt + 2 * HEALTH_PICKUP_HP >= PLAYER_HP,
+    `no hit count both survives and leaves a hole one ${HEALTH_PICKUP_HP} MedBox underfills and two overfill, ` +
+      `at ${HIT_DAMAGE} damage a hit (tried ${shots} hits -> ${expectHurt} hp)`
+  );
+  const hurtTo = await hurt(red1, patient, shots);
+  assert.equal(
+    hurtTo,
+    expectHurt,
+    `${shots} hits of the server's fixed ${HIT_DAMAGE} should leave ${expectHurt}, got ${hurtTo}`
+  );
 
   from = spec.mark();
   patient.send({ type: "takePickup", id: id1 });
@@ -1320,19 +1370,25 @@ test("a MedBox heals by a fixed amount, does not overheal, and is refused at ful
     from,
     what: "the health broadcast for the first MedBox",
   });
-  assert.equal(healed.hp, 80, "a MedBox is worth 20");
+  assert.equal(healed.hp, expectHurt + HEALTH_PICKUP_HP, `a MedBox is worth ${HEALTH_PICKUP_HP}`);
   await waitFor(spec, (m) => m.type === "pickup-taken" && m.id === id1, { from, what: "the first MedBox being taken" });
 
-  // The second one caps at 100 rather than overhealing past it.
+  // The second one caps at 100 rather than overhealing past it — and the patient has to
+  // WALK to it, because the first one is no longer within reach of the second.
+  await teleport(patient, box2);
   from = spec.mark();
   patient.send({ type: "takePickup", id: id2 });
   const capped = await waitFor(spec, (m) => m.type === "health" && m.id === patient.id, {
     from,
     what: "the health broadcast for the second MedBox",
   });
-  assert.equal(capped.hp, 100, "80 + 20 must clamp at 100, not overheal");
+  assert.equal(
+    capped.hp,
+    PLAYER_HP,
+    `${expectHurt + HEALTH_PICKUP_HP} + ${HEALTH_PICKUP_HP} must clamp at ${PLAYER_HP}, not overheal`
+  );
 
   // And the server's own copy agrees — the broadcast is not the only place hp moved.
   const after = await worldSnapshot();
-  assert.equal(after.players.find((p) => p.id === patient.id).hp, 100);
+  assert.equal(after.players.find((p) => p.id === patient.id).hp, PLAYER_HP);
 });

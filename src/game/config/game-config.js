@@ -103,7 +103,11 @@ export const GAME_CONFIG = {
   // holds them (see server/server.js) — this is only how they LOOK. Positions
   // arrive from the server, so nothing here needs to agree with it.
   PICKUP: {
-    RADIUS: 7.01, // x k — must match PICKUP_RADIUS server-side; the client only predicts
+    // Must match PICKUP_RADIUS server-side; the client only predicts. NOT world-scaled
+    // — this is a touch radius between a body and an item, and the x k it used to carry
+    // (7.01) let a pedestal be emptied from nine metres away. See the server's comment
+    // for where 1.6 comes from: UT99's item + pawn CollisionRadius is about 1.03 units.
+    RADIUS: 1.6,
     SPIN_SPEED: 1.1, // radians/sec
     BOB_HEIGHT: 0.22, // units — prop-sized, read against the player, so NOT scaled
     BOB_SPEED: 2.0, // radians/sec

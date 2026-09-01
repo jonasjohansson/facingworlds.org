@@ -58,19 +58,35 @@ const MAX_POSE_SPEED = 100; // u/s ceiling incl. tower falls — anything faster
 const POSE_SLACK = 6; // units of tolerance on top of speed*dt (lag spikes)
 const POSE_REJECT_LIMIT = 5; // after this many rejects in a row we resync to the client
 const WORLD_LIMIT = 500 * WORLD_SCALE; // 1167.8 — absolute coordinate clamp (map spans ~±140)
-const HIT_DAMAGE = 20; // fixed server-side damage per hit
+// UT99's Enforcer damage, exactly (Botpack.Enforcer HitDamage=17). Was 20, which is a
+// number nothing in the source justifies and which put a kill at five hits: at the
+// 4 shots/s fire rate, 1.25 s of sustained fire from one opponent. 17 makes it six
+// hits and 1.50 s, and it is the figure the rest of the weapon is already built to.
+// The other half of "it is too easy to die" was bots shooting through the rock, which
+// is server/bots.js's canSee().
+const HIT_DAMAGE = 17; // fixed server-side damage per hit
 
 // ---- pickups ----
 // UT99's Enforcer progression: pick up a second one and you dual-wield. Same
 // weapon, twice the guns. Ownership MUST live here — if the client decided, two
 // players standing on the same pedestal would both walk away with it.
 const PICKUP_RESPAWN = 20000; // ms before a taken pickup returns
-const PICKUP_RADIUS = 7.01; // x k — units; how close a player must be to claim one
+// How close a player must be to claim one. NOT world-anchored, and the x k it used to
+// carry was a mistake: this is a touch radius between a body and an item, and neither
+// the body nor the item changed size when the map did. At 7.01 (plus the slack below)
+// pickups flew off their pedestals from nine metres away, which is what made picking
+// something up feel like it happened TO you rather than because you ran over it.
+// UT99's own is the item's CollisionRadius plus the pawn's — about 44 UU, and at this
+// scene's 0.0235 m/UU that is 1.03 units. 1.6 keeps a little of the old generosity for
+// a fast run-past without letting anyone vacuum a pedestal from across the room.
+const PICKUP_RADIUS = 1.6;
 // Generous against PICKUP_RADIUS on purpose: the claim is checked against the
 // server's copy of the player position, which lags the client's by up to a pose
 // interval, and a player running at 9.4 m/s covers ~0.9 units in that time.
 // NOT scaled by k: it is speed * latency, and neither of those changed with the map.
-const PICKUP_CLAIM_SLACK = 2.5;
+// Sized down with the radius — 2.5 of slack on a 1.6 radius would be the slack doing
+// the deciding, and it exists to forgive latency, not to widen the rule.
+const PICKUP_CLAIM_SLACK = 1.0;
 // The longest shot anyone can take is the map's full diagonal, and at world scale that
 // is sqrt(259.4^2 + 110.0^2 + 97.2^2) = 298 units — so the old 300 had literally zero
 // headroom and a genuine tower-to-tower snipe would have started coming back "out of
