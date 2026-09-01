@@ -19,6 +19,7 @@
 // copy in assets-optimized/, which scripts/optimize-assets.mjs writes from this same
 // file with the same WORLD_SCALE, so the two agree to the quantization step (~16 mm).
 import fs from "node:fs";
+import path from "node:path";
 
 const COMPONENT_READERS = {
   5121: (buf, off) => buf.readUInt8(off), // UNSIGNED_BYTE
@@ -27,11 +28,20 @@ const COMPONENT_READERS = {
 };
 const COMPONENT_BYTES = { 5121: 1, 5123: 2, 5125: 4, 5126: 4 };
 
-function bufferBytes(gltf, index) {
+function bufferBytes(gltf, index, gltfPath) {
   const uri = gltf.buffers[index].uri;
   const m = /^data:[^,]*;base64,(.*)$/s.exec(uri || "");
-  if (!m) throw new Error(`navmesh buffer ${index} is not an inline data: URI — external .bin is not supported`);
-  return Buffer.from(m[1], "base64");
+  if (m) return Buffer.from(m[1], "base64");
+  // A sibling .bin, which is how the map mesh ships (assets/3d/map/*.gltf + .bin)
+  // while the navmesh inlines its buffer. Resolved against the glTF's own directory,
+  // never against the working directory, and confined to it: a URI is a relative path
+  // in someone else's file, not a licence to read anywhere on disk.
+  if (!uri) throw new Error(`glTF buffer ${index} has no uri (GLB is not supported)`);
+  if (/^[a-z][a-z0-9+.-]*:/i.test(uri)) throw new Error(`glTF buffer ${index} uri is not a local file: ${uri}`);
+  const dir = path.dirname(gltfPath);
+  const file = path.resolve(dir, decodeURIComponent(uri));
+  if (path.relative(dir, file).startsWith("..")) throw new Error(`glTF buffer ${index} escapes its directory: ${uri}`);
+  return fs.readFileSync(file);
 }
 
 function readAccessor(gltf, buffers, accessorIndex) {
@@ -60,7 +70,7 @@ function readAccessor(gltf, buffers, accessorIndex) {
  */
 export function loadNavmesh(gltfPath, scale = 1) {
   const gltf = JSON.parse(fs.readFileSync(gltfPath, "utf8"));
-  const buffers = gltf.buffers.map((_, i) => bufferBytes(gltf, i));
+  const buffers = gltf.buffers.map((_, i) => bufferBytes(gltf, i, gltfPath));
   const tris = [];
 
   // world = k * v + a, accumulated down the hierarchy. Rotations are rejected rather
