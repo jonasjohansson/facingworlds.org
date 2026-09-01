@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { clone as cloneSkinned } from "../vendor/utils/SkeletonUtils.js";
 import { AR_CONFIG } from "../config/ar-config.js";
 import { createGLTFLoader, loadFirstAvailable, disposeModel } from "./assets.js";
+import { modelUrl, skinUrls } from "../../shared/characters.js";
 
 // The live spectator table.
 //
@@ -160,58 +161,84 @@ export class SpectatorTable {
     // best-effort and off the critical path: figures appear as capsules the
     // moment a player joins and are upgraded in place when the model lands,
     // so a slow or failed download never delays or blocks the table.
-    this.model = null;
-    this.modelScale = 1;
-    this.modelFootY = 0;
+    // ONE MODEL PER CHARACTER, not one model for everybody. The server assigns each
+    // player a UT99 body (server/characters.js) and the game view draws it; a table
+    // where every figure is the same soldier no longer matches what the players see.
+    // Keyed by model URL, so four bots wearing the same model share one download and
+    // one measurement, and only the skin textures differ between them.
+    this.models = new Map(); // url -> { gltf, scale, footY } once loaded
+    this.modelPending = new Map(); // url -> Promise, so two players never race a load
     this.mixers = new Set();
     this.modelLoader = null;
-    this._loadModel();
   }
 
-  // Loads the character once, then upgrade any figures already standing.
-  // Never throws: the table must survive a missing file or a dead network.
-  _loadModel() {
-    const cfg = AR_CONFIG.avatar;
-    if (!cfg.modelUrls || !cfg.modelUrls.length) return;
+  /**
+   * A skin texture, loaded once and shared by every figure that wears it.
+   *
+   * Shared on purpose: the texture is immutable here — the team colour rides on the
+   * material's colour and emissive, which _applyTint writes per clone — so four bots
+   * in the same skin cost one upload rather than four.
+   */
+  _skinTexture(url) {
+    if (!this._skinTextures) this._skinTextures = new Map();
+    let tex = this._skinTextures.get(url);
+    if (tex) return tex;
+    if (!this._texLoader) this._texLoader = new THREE.TextureLoader();
+    tex = this._texLoader.load(url);
+    if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+    tex.flipY = false; // matches the glTF UV origin our exporter writes
+    this._skinTextures.set(url, tex);
+    return tex;
+  }
 
-    this.modelLoader = createGLTFLoader();
-    loadFirstAvailable(this.modelLoader, cfg.modelUrls, "avatar")
+  /**
+   * Load one character model, once, and upgrade any figure already waiting on it.
+   *
+   * Never throws: the table must survive a missing file or a dead network, and a
+   * capsule is a complete figure, just a duller one.
+   */
+  _loadModelFor(url) {
+    if (!url) return Promise.resolve(null);
+    if (this.models.has(url)) return Promise.resolve(this.models.get(url));
+    if (this.modelPending.has(url)) return this.modelPending.get(url);
+
+    if (!this.modelLoader) this.modelLoader = createGLTFLoader();
+    const p = loadFirstAvailable(this.modelLoader, [url], "avatar")
       .then((gltf) => {
-        if (this.disposed) {
-          return;
-        }
-        this.model = gltf;
-
-        // Measure the model ONCE, here, with its matrices forced up to
-        // date. A freshly cloned skinned mesh has unset bone matrices, so
-        // Box3.setFromObject on a clone collapses to ~0 and any per-clone
-        // fit silently does nothing. Measured on the source it is honest,
-        // and every clone reuses the number for free.
+        if (this.disposed) return null;
+        // Measure the model ONCE, here, with its matrices forced up to date. A fresh
+        // clone's bone matrices are unset, so Box3.setFromObject on a clone collapses
+        // to ~0 and any per-clone fit silently does nothing. Measured on the source it
+        // is honest, and every clone reuses the number for free.
         gltf.scene.updateWorldMatrix(true, true);
         const box = new THREE.Box3().setFromObject(gltf.scene);
         const h = box.max.y - box.min.y;
-        this.modelScale = h > 0.01 ? AR_CONFIG.avatar.height / h : 1;
-        // Feet to y=0, so a figure stands ON the rock rather than
-        // hovering above it or sinking into it.
-        this.modelFootY = box.min.y * this.modelScale;
-
+        const scale = h > 0.01 ? AR_CONFIG.avatar.height / h : 1;
+        const rec = { gltf, scale, footY: box.min.y * scale };
+        this.models.set(url, rec);
+        // Anyone who joined while this was in flight is still a capsule.
         for (const entry of this.players.values()) {
-          this._upgradeToModel(entry);
+          if (entry.modelUrl === url) this._upgradeToModel(entry);
         }
+        return rec;
       })
       .catch((err) => {
-        // Not fatal. Capsules are a complete figure, just a duller one.
-        console.warn("[players] soldier model unavailable, using capsules:", err);
-      });
+        console.warn("[players] character model unavailable, using capsule:", url, err);
+        return null;
+      })
+      .finally(() => this.modelPending.delete(url));
+    this.modelPending.set(url, p);
+    return p;
   }
 
   /** Swap a placed capsule figure for a skinned one, keeping its pose. */
   _upgradeToModel(entry) {
-    if (!this.model || entry.skinned || this.mixers.size >= AR_CONFIG.avatar.maxSkinned) {
+    const rec = entry.modelUrl ? this.models.get(entry.modelUrl) : null;
+    if (!rec || entry.skinned || this.mixers.size >= AR_CONFIG.avatar.maxSkinned) {
       return;
     }
 
-    const skinned = this._buildSkinned();
+    const skinned = this._buildSkinned(rec, entry.skinUrls);
     if (!skinned) {
       return;
     }
@@ -235,11 +262,11 @@ export class SpectatorTable {
    * Clone the loaded model for one player and wire up its clips.
    * Returns null if anything is missing, so the caller keeps its capsule.
    */
-  _buildSkinned() {
-    if (!this.model) return null;
+  _buildSkinned(rec, skinUrls) {
+    if (!rec) return null;
 
     const cfg = AR_CONFIG.avatar;
-    const root = cloneSkinned(this.model.scene);
+    const root = cloneSkinned(rec.gltf.scene);
 
     // Geometry and skeleton are per-clone; the material is shared with the
     // source until we tint it, so clone it per player and track it for
@@ -256,10 +283,23 @@ export class SpectatorTable {
       // the table the colour of whichever player was tinted last. The texture is
       // reused (it is immutable and shared on purpose); the colour and emissive
       // that carry the team are per-clone, and _applyTint writes them.
+      // The skin. Each UT99 model has one material slot per texture, named slotN by
+      // the exporter, and the variant decides which set of textures goes on them —
+      // so two bots on the same model wear different faces. Falls back to whatever
+      // the glTF itself referenced when no skin was assigned.
+      let map = src && src.map ? src.map : null;
+      if (skinUrls && skinUrls.length) {
+        const slot = /slot(\d+)$/.exec((src && src.name) || "");
+        const url = skinUrls[slot ? Number(slot[1]) : materials.length];
+        if (url) {
+          const tex = this._skinTexture(url);
+          if (tex) map = tex;
+        }
+      }
       const mat = new THREE.MeshLambertMaterial({
         color: 0xffffff,
         emissive: 0x000000,
-        map: src && src.map ? src.map : null,
+        map,
       });
       obj.material = mat;
       materials.push(mat);
@@ -269,7 +309,7 @@ export class SpectatorTable {
     const mixer = new THREE.AnimationMixer(root);
     const clipsBy = {};
     for (const [key, name] of Object.entries(cfg.clips)) {
-      const clip = THREE.AnimationClip.findByName(this.model.animations || [], name);
+      const clip = THREE.AnimationClip.findByName(rec.gltf.animations || [], name);
       if (clip) {
         const action = mixer.clipAction(clip);
         action.play();
@@ -284,8 +324,8 @@ export class SpectatorTable {
     // _loadModel(); do NOT re-measure here. A clone's bone matrices are
     // unset until it has been through a render, so Box3.setFromObject on
     // it collapses to ~0 and the fit silently does nothing.
-    root.scale.setScalar(this.modelScale);
-    root.position.y = -this.modelFootY;
+    root.scale.setScalar(rec.scale);
+    root.position.y = -rec.footY;
 
     return { root, mixer, clips: clipsBy, materials };
   }
@@ -694,6 +734,20 @@ export class SpectatorTable {
       this._setStatus(this.status);
     }
 
+    // The body this player wears. The server picks it so the table and the game view
+    // agree on who is who; a player object without one keeps its capsule.
+    if (typeof player.character === "number" && entry.modelUrl === null) {
+      // "../" because the AR page is served from /ar/ while the paths in the roster
+      // are relative to the site root, the same reason ar-config.js prefixes its own.
+      entry.modelUrl = modelUrl(player.character, "../");
+      entry.skinUrls = skinUrls(player.character, "../");
+      if (entry.modelUrl) {
+        this._loadModelFor(entry.modelUrl).then(() => {
+          if (!this.disposed) this._upgradeToModel(entry);
+        });
+      }
+    }
+
     if (player.name) {
       this._setLabel(entry, player.name);
     }
@@ -773,6 +827,9 @@ export class SpectatorTable {
     this.worldGroup.add(group);
 
     const entry = {
+      // Which character this player wears, filled in from the server's pick.
+      modelUrl: null,
+      skinUrls: [],
       id,
       group,
       figure,
@@ -1032,9 +1089,14 @@ export class SpectatorTable {
 
     // The source model's own geometries and textures, disposed once here
     // rather than per player.
-    if (this.model) {
-      disposeModel(this.model.scene);
-      this.model = null;
+    for (const rec of this.models.values()) {
+      disposeModel(rec.gltf.scene);
+    }
+    this.models.clear();
+    this.modelPending.clear();
+    if (this._skinTextures) {
+      for (const tex of this._skinTextures.values()) tex.dispose();
+      this._skinTextures.clear();
     }
     this.mixers.clear();
   }

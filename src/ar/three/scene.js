@@ -72,6 +72,9 @@ export async function buildScene(ar, options = {}) {
   // The table is wired before the map downloads, so a player who is already connected
   // appears the instant the marker is found rather than after the glTF lands.
   const table = new SpectatorTable(world);
+  // A handle for headless checks. Harmless in production and the AR page has no
+  // other way to be inspected from outside: everything else is module-scoped.
+  if (typeof window !== "undefined") window.__arTable = table;
 
   // The flags live in the SAME node the figures do, for the same reason: it is
   // game world space, so a position off the wire goes in verbatim. They also need

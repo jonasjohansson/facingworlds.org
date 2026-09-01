@@ -186,18 +186,25 @@ const MODELS = {
 
 const VARIANTS = [["boss","xan"],["commando","gorn"],["commando","graves"],["commando","kragoth"],["commando","malakai"],["fcommando","gromida"],["fcommando","ivana"],["fcommando","jayce"],["fcommando","nikita"],["nali","default"],["sgirl","aryss"],["sgirl","athena"],["sgirl","ryanna"],["sgirl","tasha"],["skaarj","baetal"],["skaarj","disconnect"],["skaarj","pharoh"],["skaarj","skrilax"],["soldier","malcom"],["soldier","manwell"],["soldier","radkin"],["soldier","rankin"],["warcow","default"]];
 
-/** Model URL for a variant index, or null when the index is unknown. */
-function modelUrl(index) {
+/**
+ * Model URL for a variant index, or null when the index is unknown.
+ *
+ * `prefix` is for pages that are not at the site root: the game is served from /, the
+ * AR spectator page from /ar/, and the paths here are relative so both can be hosted
+ * under any path prefix. The AR page passes "../", as ar-config.js does for its own
+ * assets.
+ */
+function modelUrl(index, prefix = "") {
   const v = VARIANTS[index];
   if (!v) return null;
-  return `${BASE}/${v[0]}/${MODELS[v[0]].gltf}`;
+  return `${prefix}${BASE}/${v[0]}/${MODELS[v[0]].gltf}`;
 }
 
 /** Skin texture URLs, one per material slot, for a variant index. */
-function skinUrls(index) {
+function skinUrls(index, prefix = "") {
   const v = VARIANTS[index];
   if (!v) return [];
-  return MODELS[v[0]].skins[v[1]].map((f) => `${BASE}/${v[0]}/${v[1]}/${f}`);
+  return MODELS[v[0]].skins[v[1]].map((f) => `${prefix}${BASE}/${v[0]}/${v[1]}/${f}`);
 }
 
 const CHARACTER_COUNT = VARIANTS.length;
