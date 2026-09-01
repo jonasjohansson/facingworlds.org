@@ -53,6 +53,7 @@ const { NODES, WALKABLE_MAIN, nearestNode, aStar } = require("./nav-graph.js");
 // scripts/gen-navmesh-surface.mjs. It is what keeps a bot's feet on the rock (the GROUND
 // block in step()) and what stands in for a line-of-sight test (canSee()).
 const { surfaceNear, groundRisesAbove } = require("./navmesh-surface.js");
+const { pickCharacter } = require("./characters.js");
 
 // ---- knobs ----
 // Read here rather than in server.js so the whole bot feature is one require away from
@@ -416,6 +417,10 @@ function createBots(ctx) {
       animation: { idle: 1, walk: 0, run: 0 },
       dual: false,
       team,
+      // A UT99 body, picked against everyone already on the map — humans included, via
+      // the shared players map — so a full match is a room of different characters
+      // ten identical soldiers. Fixed for the bot's life, like its name and team.
+      character: pickCharacter([...players.values()].map((o) => o.character)),
       flag: null,
       // --- private ---
       bot: true,

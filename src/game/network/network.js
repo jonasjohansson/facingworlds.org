@@ -1,5 +1,6 @@
 // network.js (ES module) — robust init: waits for DOM, scene, and #soldier
 import { waitForElement, waitForSceneLoaded as waitForScene, createEntity, addClass, setDataAttribute } from "../utils/dom-helpers.js";
+import { modelUrl, skinUrls } from "../../shared/characters.js";
 import { createEuler } from "../utils/three-helpers.js";
 import { getWebSocketUrl, log } from "../utils/environment.js";
 import { handleError, wrapAsync } from "../utils/error-handler.js";
@@ -756,9 +757,17 @@ export function startNetwork() {
       rig.setAttribute("position", `${p.x} ${p.y} ${p.z}`);
     }
 
+    // Which UT99 body this player wears. The server picks it (server/characters.js) so
+    // everyone draws the same person as the same character; here it becomes a model URL
+    // and a list of skin textures, which remote-avatar hangs on the material slots.
+    // An unknown index falls back to the original soldier asset rather than nothing.
+    const url = modelUrl(p.character);
+    const skins = skinUrls(p.character);
+    if (skins.length) setDataAttribute(rig, "skin", skins.join(","));
+
     // Create soldier entity inside rig
     const soldier = createEntity("a-entity", {
-      "gltf-model": "#soldier-model",
+      "gltf-model": url ? `url(${url})` : "#soldier-model",
       shadow: "cast:true; receive:true",
       "remote-avatar": "",
       health: "max:100; current:100",

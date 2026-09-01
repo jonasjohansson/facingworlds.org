@@ -58,6 +58,12 @@ AFRAME.registerComponent("remote-avatar", {
       maxExtrapolationMs: this.data.delay + 20,
     });
 
+    // ---- skin ----
+    // Textures loaded for this body, so remove() can dispose them. Each UT99 model is
+    // one glTF with a material slot per skin texture; the variant the server picked
+    // decides which set of textures goes onto those slots.
+    this._skinTextures = [];
+
     // Animation system for remote players
     this.mixer = null;
     this.actions = {};
@@ -73,6 +79,9 @@ AFRAME.registerComponent("remote-avatar", {
     // Wait for GLTF model to load
     this._onModelLoaded = () => {
       this.setupAnimations();
+      // Skin before tint: applyTeamTint clones whatever material is on the mesh, so
+      // the texture has to be in place first or the clone carries the wrong one.
+      this.applySkin();
       // The rig already carries data-team when the team was known at spawnRemote time
       // (hello/join); if it was not, the scene event below fills it in later.
       this.applyTeamTint();
@@ -149,6 +158,50 @@ AFRAME.registerComponent("remote-avatar", {
     this._tintedTeam = t;
   },
 
+  /**
+   * Put this avatar's skin on its model.
+   *
+   * The UT99 models are one glTF per character with one material slot per skin
+   * texture, named slot0..slotN by the exporter. A variant (which model, which named
+   * character) is chosen by the SERVER and broadcast, so everyone sees the same body
+   * for the same player; network.js writes the resulting texture list onto the rig as
+   * data-skin, and this hangs those textures on the matching slots.
+   *
+   * Textures are per-avatar, not shared: two bots on the same model wear different
+   * faces, so they cannot share a material. Disposed in remove().
+   */
+  applySkin: function () {
+    const rig = this.el.parentElement;
+    const raw = (rig && rig.dataset && rig.dataset.skin) || "";
+    if (!raw) return; // no skin assigned: the model keeps whatever its glTF referenced
+    const urls = raw.split(",").filter(Boolean);
+    if (!urls.length) return;
+
+    const mesh = this.el.getObject3D("mesh");
+    if (!mesh) return; // model-loaded calls us again
+
+    const loader = new AFRAME.THREE.TextureLoader();
+    mesh.traverse((o) => {
+      if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+      // slotN in the material name is the authority; traversal order is the fallback
+      // for anything that did not come out of our exporter.
+      const m = /slot(\d+)$/.exec(o.material.name || "");
+      const idx = m ? Number(m[1]) : this._skinTextures.length;
+      const url = urls[idx];
+      if (!url) return;
+      const tex = loader.load(url);
+      // glTF albedo is sRGB; three r164 will otherwise treat a raw load as linear and
+      // the UT99 skins come out washed out.
+      if (AFRAME.THREE.SRGBColorSpace) tex.colorSpace = AFRAME.THREE.SRGBColorSpace;
+      tex.flipY = false; // matches glTF's UV origin, which our exporter writes
+      const mat = o.material.clone();
+      mat.map = tex;
+      mat.needsUpdate = true;
+      o.material = mat;
+      this._skinTextures.push({ tex, mat });
+    });
+  },
+
   /** Restore the asset's own materials and dispose the clones we made. */
   clearTeamTint: function () {
     for (let i = 0; i < this._tinted.length; i++) {
@@ -223,10 +276,16 @@ AFRAME.registerComponent("remote-avatar", {
     // Create animation mixer
     this.mixer = new AFRAME.THREE.AnimationMixer(mesh);
 
-    // Find animation clips (assuming standard indices)
-    const idleClip = clips[0] || clips.find((c) => c.name.toLowerCase().includes("idle"));
-    const walkClip = clips[3] || clips.find((c) => c.name.toLowerCase().includes("walk"));
-    const runClip = clips[1] || clips.find((c) => c.name.toLowerCase().includes("run"));
+    // BY NAME FIRST, then the old fixed indices as a fallback.
+    //
+    // Those indices are Soldier.glb's layout (0 Idle, 3 Walk, 1 Run) and only ever
+    // worked for that one file. The UT99 characters in assets/3d/characters carry
+    // exactly three clips, in order Idle, Walk, Run — so index 1 is Walk there, and
+    // the old code would have given every one of them the walk cycle as its run.
+    const byName = (want) => clips.find((c) => c.name.toLowerCase() === want);
+    const idleClip = byName("idle") || clips[0] || clips.find((c) => c.name.toLowerCase().includes("idle"));
+    const walkClip = byName("walk") || clips[3] || clips.find((c) => c.name.toLowerCase().includes("walk"));
+    const runClip = byName("run") || clips[1] || clips.find((c) => c.name.toLowerCase().includes("run"));
 
     if (!idleClip || !walkClip || !runClip) {
       console.warn("[remote-avatar] Missing required animation clips");
@@ -339,6 +398,11 @@ AFRAME.registerComponent("remote-avatar", {
   },
 
   remove: function () {
+    for (let i = 0; i < this._skinTextures.length; i++) {
+      this._skinTextures[i].tex.dispose();
+      this._skinTextures[i].mat.dispose();
+    }
+    this._skinTextures.length = 0;
     this.el.removeEventListener("model-loaded", this._onModelLoaded);
     if (this._scene && this._onPlayerTeam) this._scene.removeEventListener("player-team", this._onPlayerTeam);
     this.clearTeamTint();

@@ -45,6 +45,7 @@ const MAP = require("./map-actors.js");
 // world sweep. A bot is an ordinary entry in `players` with no socket, so nothing else in
 // here — publicPlayer, applyHit, dropFlag, resetMatch, the scoreboard — knows or cares.
 const { createBots } = require("./bots.js");
+const { pickCharacter } = require("./characters.js");
 
 // ---- validation / anti-cheat tuning ----
 const HEARTBEAT_INTERVAL = 15000; // ms between pings; two misses reaps the socket
@@ -393,6 +394,10 @@ function publicPlayer(p) {
     dual: !!p.dual,
     team: p.team || null,
     flag: p.flag || null, // the team colour of the flag this player is carrying
+    // Which UT99 body this player wears. An index into server/characters.js, chosen
+    // here rather than on the client so everyone sees the same person as the same
+    // character — and so a bot keeps its face for the life of the match.
+    character: typeof p.character === "number" ? p.character : 0,
   };
 }
 
@@ -582,6 +587,7 @@ wss.on("connection", (ws, req) => {
     fireBucket: { tokens: FIRE_BURST, ts: Date.now() },
     hitBucket: { tokens: HIT_BURST, ts: Date.now() },
     team: null, // assigned just below, fixed for the connection
+    character: 0, // assigned just below, fixed for the connection
     flag: null, // "red"|"blue" while carrying that team's flag
     spawnTeam: null, // the team the current spawn point was picked for
     respawnTimer: null, // in-flight applyHit respawn, so a match reset can cancel it
@@ -595,6 +601,8 @@ wss.on("connection", (ws, req) => {
   };
   // Team first: the spawn point depends on it, and so does everything in `hello`.
   p.team = assignTeam();
+  // A body nobody on the map is already wearing, where there is one to spare.
+  p.character = pickCharacter([...players.values()].map((o) => o.character));
   teamSpawn(p);
   players.set(id, p);
 
