@@ -427,3 +427,30 @@ export function scriptText(pkg, classExport) {
   if (len <= 0) return null;
   return buf.toString("latin1", o.p, o.p + len - 1);
 }
+
+/**
+ * The WAV inside a USound export.
+ *
+ * UE1 stores a sound as a format name and a lazy array of bytes, and for format "WAV"
+ * those bytes are a complete RIFF file. Rather than model the serialization — which
+ * changed shape across engine versions and would need a version guess — this finds the
+ * RIFF header inside the export and trusts the file to declare its own length, which is
+ * exactly what a RIFF header is for. A wrong answer cannot survive that: the size field
+ * has to land back inside the export.
+ */
+export function soundWav(pkg, name) {
+  const { buf } = pkg;
+  const exp = pkg.exports.find((e) => e.name === name && pkg.classOf(e) === "Sound");
+  if (!exp) return null;
+  const start = exp.offset;
+  const end = exp.offset + exp.size;
+  for (let i = start; i < end - 12; i++) {
+    if (buf[i] !== 0x52 || buf[i + 1] !== 0x49 || buf[i + 2] !== 0x46 || buf[i + 3] !== 0x46) continue;
+    if (buf.toString("latin1", i + 8, i + 12) !== "WAVE") continue;
+    // RIFF size counts everything after the size field itself.
+    const total = buf.readUInt32LE(i + 4) + 8;
+    if (total < 44 || i + total > end) continue;
+    return buf.subarray(i, i + total);
+  }
+  return null;
+}

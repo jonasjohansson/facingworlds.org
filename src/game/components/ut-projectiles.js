@@ -21,7 +21,7 @@
 // The procedural FireTexture smoke trails are deliberately absent. Those are a cellular
 // automaton over a palette rather than an image — a few hundred bytes of parameters — and
 // reproducing them is the "very complex shader" this was explicitly scoped away from.
-import { WEAPONS } from "../../shared/weapons.js";
+import { WEAPONS, PICKUP_SOUND } from "../../shared/weapons.js";
 
 const MAX_LIVE = 24;
 const MAX_BLASTS = 12;
@@ -106,6 +106,13 @@ export function preloadProjectiles(sceneEl) {
   for (const kind of BY_KIND.keys()) {
     loadModel(kind);
     atlasFor(kind);
+    const src = BY_KIND.get(kind)?.explosion?.sound;
+    if (src && !blastAudio.has(src)) {
+      const a = new Audio(src);
+      a.volume = 0.35;
+      a.preload = "auto";
+      blastAudio.set(src, a);
+    }
   }
   ensureBlasts();
 }
@@ -152,6 +159,25 @@ function ensureBlasts() {
   }
 }
 
+// One element per explosion kind, reused. Two rockets landing together will cut each
+// other off, which is what UT99 does too — it has a finite number of sound slots.
+const blastAudio = new Map();
+
+function playBlast(kind) {
+  const w = BY_KIND.get(kind);
+  const src = w?.explosion?.sound;
+  if (!src) return;
+  let a = blastAudio.get(src);
+  if (!a) {
+    a = new Audio(src);
+    a.volume = 0.35;
+    a.preload = "auto";
+    blastAudio.set(src, a);
+  }
+  a.currentTime = 0;
+  a.play().catch(() => {});
+}
+
 function spawnBlast(kind, x, y, z) {
   const w = BY_KIND.get(kind);
   if (!w || !w.explosion) return;
@@ -179,6 +205,7 @@ function spawnBlast(kind, x, y, z) {
   slot.rows = w.explosion.rows;
   slot.frames = w.explosion.frames;
   setFrame(slot, 0);
+  playBlast(kind);
 }
 
 function setFrame(slot, i) {
@@ -191,6 +218,18 @@ function setFrame(slot, i) {
 // ---------------------------------------------------------------------------
 // the wire
 // ---------------------------------------------------------------------------
+
+/** UT99's WeaponPickup blip. Lives here because this file already owns the sound pool. */
+let pickupAudio = null;
+export function playPickupSound() {
+  if (!PICKUP_SOUND) return;
+  if (!pickupAudio) {
+    pickupAudio = new Audio(PICKUP_SOUND);
+    pickupAudio.volume = 0.4;
+  }
+  pickupAudio.currentTime = 0;
+  pickupAudio.play().catch(() => {});
+}
 
 export function spawnProjectile(sceneEl, m) {
   ensureRoot(sceneEl);

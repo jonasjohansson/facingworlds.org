@@ -74,10 +74,11 @@ const WEAPON_BY_PICKUP = {
   "weapon-redeemer": "redeemer"
 };
 const PAWN = {"radius":0.4,"height":1.833};
+const PICKUP_SOUND = "assets/audio/ut/weaponpickup.mp3";
 
 /** The weapon for an id, falling back to the one everyone spawns with. */
 function weapon(id) {
   return WEAPONS[id] || WEAPONS[DEFAULT_WEAPON];
 }
 
-module.exports = { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, weapon };
+module.exports = { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, PICKUP_SOUND, weapon };

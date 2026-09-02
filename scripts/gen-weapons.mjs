@@ -46,6 +46,13 @@ const uu = (n) => Math.round(n * UU_TO_M * 1000) / 1000;
 const PROJECTILE_DATA = JSON.parse(
   fs.readFileSync(path.join(ROOT, "scripts", "data", "ut-projectiles.json"), "utf8"),
 );
+// UT99's own weapon sounds — see scripts/build-ut-sounds.mjs, which reads each name off
+// the class that plays it rather than listing them. Until this the game had ONE weapon
+// sound for all six.
+const SOUND_DATA = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "scripts", "data", "ut-sounds.json"), "utf8"),
+);
+const fireSound = (id) => SOUND_DATA.fire[id]?.file ?? null;
 
 // A projectile weapon's own numbers, converted once here so neither process converts.
 // `bounces` is the wall-hit budget: Razor2's HitWall destroys the blade at NumWallHits
@@ -71,6 +78,7 @@ const WEAPONS = {
     fireRate: 4, // shots per second
     model: null, // the markup weapon in index.html; every player spawns holding it
     pickup: null, // CTF-Face has no Enforcer pickup, as in the original
+    sound: fireSound("enforcer"),
   },
   sniper: {
     name: "Sniper Rifle",
@@ -78,6 +86,7 @@ const WEAPONS = {
     fireRate: 1 / 1.5,
     model: "assets/3d/pickups/SniperRifle/SniperRifle.gltf",
     pickup: "weapon-sniper",
+    sound: fireSound("sniper"),
   },
   shock: {
     name: "Shock Rifle",
@@ -85,6 +94,7 @@ const WEAPONS = {
     fireRate: 1 / 0.6,
     model: "assets/3d/pickups/ShockRifle/ShockRifle.gltf",
     pickup: "weapon-shock",
+    sound: fireSound("shock"),
   },
   rocket: {
     name: "Rocket Launcher",
@@ -92,6 +102,7 @@ const WEAPONS = {
     fireRate: 1 / 1.1,
     model: "assets/3d/pickups/UT_Eightball/UT_Eightball.gltf",
     pickup: "weapon-rocket",
+    sound: fireSound("rocket"),
     projectile: projectile("rocket", { type: "rocket", bounces: 0 }),
     explosion: explosion("rocket"),
   },
@@ -101,6 +112,7 @@ const WEAPONS = {
     fireRate: 1 / 0.6,
     model: "assets/3d/pickups/ripper/ripper.gltf",
     pickup: "weapon-ripper",
+    sound: fireSound("ripper"),
     projectile: projectile("ripper", { type: "ripper", bounces: 6 }),
   },
   redeemer: {
@@ -109,6 +121,7 @@ const WEAPONS = {
     fireRate: 1 / 2.5,
     model: "assets/3d/pickups/WarheadLauncher/WarheadLauncher.gltf",
     pickup: "weapon-redeemer",
+    sound: fireSound("redeemer"),
     projectile: projectile("redeemer", { type: "redeemer", bounces: 0 }),
     explosion: explosion("redeemer"),
   },
@@ -141,6 +154,7 @@ function explosion(id) {
     lifeMs: Math.round(e.lifeSeconds * 1000),
     size: uu(e.frameSize * e.drawScale),
     blend: e.blend,
+    sound: SOUND_DATA.explode[id]?.file ?? null,
   };
 }
 
@@ -169,13 +183,14 @@ const WEAPONS = ${JSON.stringify(WEAPONS, null, 2)};
 const DEFAULT_WEAPON = ${JSON.stringify(DEFAULT)};
 const WEAPON_BY_PICKUP = ${JSON.stringify(BY_PICKUP, null, 2)};
 const PAWN = ${JSON.stringify(PAWN)};
+const PICKUP_SOUND = ${JSON.stringify(SOUND_DATA.pickup.file)};
 
 /** The weapon for an id, falling back to the one everyone spawns with. */
 function weapon(id) {
   return WEAPONS[id] || WEAPONS[DEFAULT_WEAPON];
 }
 
-export { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, weapon };
+export { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, PICKUP_SOUND, weapon };
 `;
 
 const server = `${header}
@@ -194,13 +209,14 @@ const WEAPONS = ${JSON.stringify(
 const DEFAULT_WEAPON = ${JSON.stringify(DEFAULT)};
 const WEAPON_BY_PICKUP = ${JSON.stringify(BY_PICKUP, null, 2)};
 const PAWN = ${JSON.stringify(PAWN)};
+const PICKUP_SOUND = ${JSON.stringify(SOUND_DATA.pickup.file)};
 
 /** The weapon for an id, falling back to the one everyone spawns with. */
 function weapon(id) {
   return WEAPONS[id] || WEAPONS[DEFAULT_WEAPON];
 }
 
-module.exports = { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, weapon };
+module.exports = { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, PICKUP_SOUND, weapon };
 `;
 
 if (CHECK) {

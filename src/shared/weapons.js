@@ -14,21 +14,24 @@ const WEAPONS = {
     "damage": 17,
     "fireRate": 4,
     "model": null,
-    "pickup": null
+    "pickup": null,
+    "sound": "assets/audio/ut/e_shot.mp3"
   },
   "sniper": {
     "name": "Sniper Rifle",
     "damage": 45,
     "fireRate": 0.6666666666666666,
     "model": "assets/3d/pickups/SniperRifle/SniperRifle.gltf",
-    "pickup": "weapon-sniper"
+    "pickup": "weapon-sniper",
+    "sound": "assets/audio/ut/sniperfire.mp3"
   },
   "shock": {
     "name": "Shock Rifle",
     "damage": 40,
     "fireRate": 1.6666666666666667,
     "model": "assets/3d/pickups/ShockRifle/ShockRifle.gltf",
-    "pickup": "weapon-shock"
+    "pickup": "weapon-shock",
+    "sound": "assets/audio/ut/tazerfire.mp3"
   },
   "rocket": {
     "name": "Rocket Launcher",
@@ -36,6 +39,7 @@ const WEAPONS = {
     "fireRate": 0.9090909090909091,
     "model": "assets/3d/pickups/UT_Eightball/UT_Eightball.gltf",
     "pickup": "weapon-rocket",
+    "sound": "assets/audio/ut/ignite.mp3",
     "projectile": {
       "type": "rocket",
       "speed": 21.15,
@@ -51,7 +55,8 @@ const WEAPONS = {
       "rows": 2,
       "lifeMs": 700,
       "size": 4.211,
-      "blend": "additive"
+      "blend": "additive",
+      "sound": "assets/audio/ut/explo1.mp3"
     }
   },
   "ripper": {
@@ -60,6 +65,7 @@ const WEAPONS = {
     "fireRate": 1.6666666666666667,
     "model": "assets/3d/pickups/ripper/ripper.gltf",
     "pickup": "weapon-ripper",
+    "sound": "assets/audio/ut/startblade.mp3",
     "projectile": {
       "type": "ripper",
       "speed": 30.55,
@@ -75,6 +81,7 @@ const WEAPONS = {
     "fireRate": 0.4,
     "model": "assets/3d/pickups/WarheadLauncher/WarheadLauncher.gltf",
     "pickup": "weapon-redeemer",
+    "sound": "assets/audio/ut/warheadshot.mp3",
     "projectile": {
       "type": "redeemer",
       "speed": 14.1,
@@ -90,7 +97,8 @@ const WEAPONS = {
       "rows": 3,
       "lifeMs": 1000,
       "size": 8.422,
-      "blend": "additive"
+      "blend": "additive",
+      "sound": "assets/audio/ut/warexplo.mp3"
     }
   }
 };
@@ -104,10 +112,11 @@ const WEAPON_BY_PICKUP = {
   "weapon-redeemer": "redeemer"
 };
 const PAWN = {"radius":0.4,"height":1.833};
+const PICKUP_SOUND = "assets/audio/ut/weaponpickup.mp3";
 
 /** The weapon for an id, falling back to the one everyone spawns with. */
 function weapon(id) {
   return WEAPONS[id] || WEAPONS[DEFAULT_WEAPON];
 }
 
-export { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, weapon };
+export { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, PICKUP_SOUND, weapon };

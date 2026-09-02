@@ -6,11 +6,13 @@ import { getWebSocketUrl, log } from "../utils/environment.js";
 import { handleError, wrapAsync } from "../utils/error-handler.js";
 import { GAME_CONFIG } from "../config/game-config.js";
 import { markServerSpawnApplied } from "../core/spawn.js";
+import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
 import {
   spawnProjectile,
   bounceProjectile,
   removeProjectile,
   clearProjectiles,
+  playPickupSound,
 } from "../components/ut-projectiles.js";
 
 const BULLET_SPEED = GAME_CONFIG.BULLET.SPEED;
@@ -30,6 +32,10 @@ export function startNetwork() {
   // It is only ever set from a server message — the client never picks a side.
   let myTeam = null;
   const remotes = new Map();
+  // Which weapon each player is holding, kept from the loadout broadcasts the server
+  // already sends for everyone. Used only to pick the right FIRE SOUND for someone
+  // else's shot: the damage was never the client's to know, and still is not.
+  const remoteWeapons = new Map();
 
   // reconnect state
   let reconnectAttempts = 0;
@@ -215,6 +221,7 @@ export function startNetwork() {
           });
 
           (m.players || []).forEach((p) => {
+            if (p.weapon) remoteWeapons.set(p.id, p.weapon);
             if (p.id !== myId) spawnRemote(p);
           });
 
@@ -235,6 +242,7 @@ export function startNetwork() {
           break;
         }
         case "join":
+          if (m.player?.weapon) remoteWeapons.set(m.player.id, m.player.weapon);
           if (m.player?.id !== myId) spawnRemote(m.player);
           // Emit player join event for highscore
           scene.emit("player-join", {
@@ -245,6 +253,7 @@ export function startNetwork() {
           });
           break;
         case "leave":
+          remoteWeapons.delete(m.id);
           removeRemote(m.id);
           // Emit player leave event for highscore
           scene.emit("player-leave", { id: m.id });
@@ -404,8 +413,14 @@ export function startNetwork() {
         case "loadout": {
           // Broadcast for every player, so remote avatars (and the AR spectator
           // table) can show who is dual-wielding.
+          if (m.weapon) remoteWeapons.set(m.id, m.weapon);
           scene.emit("player-loadout", { id: m.id, dual: !!m.dual, weapon: m.weapon });
-          if (m.id === myId) scene.emit("local-loadout", { dual: !!m.dual, weapon: m.weapon });
+          if (m.id === myId) {
+            scene.emit("local-loadout", { dual: !!m.dual, weapon: m.weapon });
+            // UT99's own WeaponPickup blip, and only for the player who picked it up —
+            // hearing everyone else's across the map would be noise, not information.
+            playPickupSound();
+          }
           break;
         }
 
@@ -872,6 +887,7 @@ export function startNetwork() {
         lifeSec: 2,
         ownerId: ownerId || "",
         reportHits,
+        sound: weapon(remoteWeapons.get(ownerId) || DEFAULT_WEAPON).sound || "",
       },
     });
 

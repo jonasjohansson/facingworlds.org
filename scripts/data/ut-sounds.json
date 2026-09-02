@@ -1,0 +1,51 @@
+{
+  "source": "UT99 retail",
+  "fire": {
+    "enforcer": {
+      "sound": "E_Shot",
+      "file": "assets/audio/ut/e_shot.mp3",
+      "from": "enforcer"
+    },
+    "sniper": {
+      "sound": "SniperFire",
+      "file": "assets/audio/ut/sniperfire.mp3",
+      "from": "SniperRifle"
+    },
+    "shock": {
+      "sound": "TazerFire",
+      "file": "assets/audio/ut/tazerfire.mp3",
+      "from": "ShockRifle"
+    },
+    "redeemer": {
+      "sound": "WarheadShot",
+      "file": "assets/audio/ut/warheadshot.mp3",
+      "from": "WarheadLauncher"
+    },
+    "rocket": {
+      "sound": "Ignite",
+      "file": "assets/audio/ut/ignite.mp3",
+      "from": "RocketMk2"
+    },
+    "ripper": {
+      "sound": "StartBlade",
+      "file": "assets/audio/ut/startblade.mp3",
+      "from": "Razor2"
+    }
+  },
+  "explode": {
+    "rocket": {
+      "sound": "Explo1",
+      "file": "assets/audio/ut/explo1.mp3",
+      "from": "UT_SpriteBallExplosion"
+    },
+    "redeemer": {
+      "sound": "WarExplo",
+      "file": "assets/audio/ut/warexplo.mp3",
+      "from": "WarExplosion"
+    }
+  },
+  "pickup": {
+    "sound": "WeaponPickup",
+    "file": "assets/audio/ut/weaponpickup.mp3"
+  }
+}

@@ -462,6 +462,10 @@ function publicPlayer(p) {
     speed: q2(p.speed || 0),
     animation: p.animation || { idle: 1, walk: 0, run: 0 },
     dual: !!p.dual,
+    // What they are holding. Already broadcast on every pickup via `loadout`, so this
+    // reveals nothing new — it is here so a client that JOINS mid-match knows too, and
+    // plays the right fire sound for someone who armed themselves before it arrived.
+    weapon: p.weapon,
     team: p.team || null,
     flag: p.flag || null, // the team colour of the flag this player is carrying
     // Which UT99 body this player wears. An index into server/characters.js, chosen

@@ -15,21 +15,28 @@ let audioPool = null;
 let audioPoolIndex = 0;
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-function getAudioPool() {
-  if (audioPool) return audioPool;
+// A pool per sound, so somebody else's Sniper Rifle sounds like a Sniper Rifle rather
+// than like your Enforcer. The sound arrives with the shot: the network layer knows which
+// weapon each player is holding, from the loadout broadcasts it already receives.
+const audioPools = new Map();
+
+function poolFor(src) {
   if (isMobile) return null;
-  audioPool = [];
+  let pool = audioPools.get(src);
+  if (pool) return pool;
+  pool = [];
   for (let i = 0; i < AUDIO_POOL_SIZE; i++) {
-    const a = new Audio("assets/audio/fire.wav");
+    const a = new Audio(src);
     a.volume = 0.01;
     a.preload = "auto";
-    audioPool.push(a);
+    pool.push(a);
   }
-  return audioPool;
+  audioPools.set(src, pool);
+  return pool;
 }
 
-function playPooledAudio() {
-  const pool = getAudioPool();
+function playPooledAudio(src) {
+  const pool = poolFor(src || "assets/audio/fire.wav");
   if (!pool) return;
   const a = pool[audioPoolIndex % AUDIO_POOL_SIZE];
   audioPoolIndex++;
@@ -45,6 +52,7 @@ AFRAME.registerComponent("bullet", {
     radius: { type: "number", default: 0.05 }, // legacy, kept for schema compatibility
     lifeSec: { type: "number", default: 2.0 }, // legacy, kept for schema compatibility
     ownerId: { type: "string", default: "" },
+    sound: { type: "string", default: "" },
     reportHits: { type: "boolean", default: false },
   },
 
@@ -61,7 +69,7 @@ AFRAME.registerComponent("bullet", {
     this.resolveShot(origin, dir);
 
     // Play shot sound from shared pool
-    playPooledAudio();
+    playPooledAudio(this.data.sound);
 
     // Emit bullet-fired event for background music
     this.el.sceneEl.emit("bullet-fired");

@@ -13,27 +13,41 @@ let weaponAudioPool = null;
 let weaponAudioIndex = 0;
 const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-function getWeaponAudioPool() {
-  if (weaponAudioPool) return weaponAudioPool;
+// A pool PER WEAPON, keyed by the sound file. Every weapon used to share one
+// assets/audio/fire.wav; each now plays what UT99 plays — the Enforcer's E_Shot, the
+// Sniper's SniperFire, the Rocket Launcher's Ignite — and firing while an earlier shot
+// is still ringing needs more than one element of each, which is what the pool is for.
+const weaponAudioPools = new Map();
+
+function poolFor(src) {
   if (isMobileDevice) return null;
-  weaponAudioPool = [];
+  let pool = weaponAudioPools.get(src);
+  if (pool) return pool;
+  pool = [];
   for (let i = 0; i < WEAPON_POOL_SIZE; i++) {
-    const a = new Audio("assets/audio/fire.wav");
+    const a = new Audio(src);
     a.volume = 0.1;
     a.preload = "auto";
-    weaponAudioPool.push(a);
+    pool.push(a);
   }
-  return weaponAudioPool;
+  weaponAudioPools.set(src, pool);
+  return pool;
 }
 
-function playPooledWeaponSound(volume) {
-  const pool = getWeaponAudioPool();
+function playPooledWeaponSound(volume, src) {
+  const pool = poolFor(src || "assets/audio/fire.wav");
   if (!pool) return;
   const a = pool[weaponAudioIndex % WEAPON_POOL_SIZE];
   weaponAudioIndex++;
   a.volume = volume;
   a.currentTime = 0;
   a.play().catch(() => {});
+}
+
+/** Warm a weapon's pool so the first shot with it is not silent while the file loads. */
+export function preloadWeaponSound(id) {
+  const spec = weapon(id);
+  if (spec && spec.sound) poolFor(spec.sound);
 }
 
 AFRAME.registerComponent("first-person-weapon", {
@@ -218,6 +232,10 @@ AFRAME.registerComponent("first-person-weapon", {
     // What we are holding. The SERVER decides — this only ever follows a loadout
     // message — and it drives both the model and the fire rate.
     this.weaponId = DEFAULT_WEAPON;
+    // Warm the Enforcer's sound at init. Every other weapon's is warmed when it is picked
+    // up; this one is never picked up, so without this the very first shot of a session
+    // is silent while the file loads.
+    poolFor(weapon(DEFAULT_WEAPON).sound);
     this.pickupWeapon = null; // the swapped-in model, if we are not on the Enforcer
     this.leftWeapon = null;
     this.fireLeft = false; // which hand fires the next shot
@@ -390,6 +408,10 @@ AFRAME.registerComponent("first-person-weapon", {
     if (id === this.weaponId) return;
     this.weaponId = id;
     const spec = weapon(id);
+    // Warm this weapon's audio now rather than on its first shot, which would otherwise
+    // be silent while the file loads — and the first shot with a weapon you just picked
+    // up is the one you notice.
+    if (spec.sound) poolFor(spec.sound);
 
     if (this.pickupWeapon) {
       this.el.removeChild(this.pickupWeapon);
@@ -795,7 +817,7 @@ AFRAME.registerComponent("first-person-weapon", {
   },
 
   playWeaponSound() {
-    playPooledWeaponSound(0.1);
+    playPooledWeaponSound(0.1, weapon(this.weaponId).sound);
   },
 
   update() {
@@ -1070,7 +1092,7 @@ AFRAME.registerComponent("first-person-weapon", {
   playMultikillSound(streak) {
     // All streaks currently use the same sound — volume increases with streak
     const volume = Math.min(0.05, 0.01 * streak);
-    playPooledWeaponSound(volume);
+    playPooledWeaponSound(volume, weapon(this.weaponId).sound);
   },
 
   remove() {
