@@ -8,10 +8,22 @@
 // client owns what the weapon looks like in your hands. Both have to agree on the id,
 // so one table generates both — the same arrangement as the character roster.
 //
-// NUMBERS ARE UT99's, from Botpack's own class defaults, not invented:
-//   Enforcer      17 damage, 4 shots/s   (Botpack.Enforcer HitDamage=17)
-//   Sniper Rifle  45 damage, 1.5 s cycle — the reason CTF-Face has towers
-//   Shock Rifle   40 damage, 0.6 s cycle — primary fire, the instant-hit beam
+// WHAT IS DERIVED AND WHAT IS CHOSEN. Worth being exact, because an earlier version of
+// this header claimed all of it came from Botpack's class defaults and only the damage
+// did.
+//
+// DERIVED, read out of the retail package by scripts/lib/upkg.mjs:
+//   Enforcer      17   Botpack.enforcer  hitdamage
+//   Shock Rifle   40   Botpack.ShockRifle  hitdamage
+//   Sniper Rifle  45   in SniperRifle's own source: TakeDamage(45, ...). The same
+//                      function does 100 for a headshot, which this game does not
+//                      implement yet.
+//   the three projectile weapons — speed, damage, splash radius, lifespan and mesh, out
+//   of scripts/data/ut-projectiles.json. See scripts/dump-ut-projectiles.mjs.
+//
+// CHOSEN: every fireRate. UT99 does not store a shot interval — cadence falls out of the
+// firing animation's length and its AnimRate, and RefireRate is a multiplier on that
+// rather than a period. These are set to match the feel and are not claimed to be Epic's.
 //
 // The held model is the PICKUP mesh, the same way the Enforcer already works: what you
 // see on the pedestal is literally what you pick up, and it costs no extra art.
@@ -19,11 +31,38 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { UU_TO_M } from "../src/shared/map-transform.js";
+import { gridFor } from "./lib/atlas.mjs";
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
 const OUT_SHARED = path.join(ROOT, "src", "shared", "weapons.js");
 const OUT_SERVER = path.join(ROOT, "server", "weapons.js");
 const CHECK = process.argv.includes("--check");
+
+// UT99 speaks in Unreal Units; this game's scene is metres at pawn scale.
+const uu = (n) => Math.round(n * UU_TO_M * 1000) / 1000;
+
+const PROJECTILE_DATA = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "scripts", "data", "ut-projectiles.json"), "utf8"),
+);
+
+// A projectile weapon's own numbers, converted once here so neither process converts.
+// `bounces` is the wall-hit budget: Razor2's HitWall destroys the blade at NumWallHits
+// greater than 6, and a rocket has no HitWall of its own so it inherits Projectile's,
+// which explodes.
+function projectile(id, { type, bounces }) {
+  const d = PROJECTILE_DATA.weapons[id];
+  if (!d) throw new Error(`${id} is not in ut-projectiles.json`);
+  return {
+    type,
+    speed: uu(d.speed),
+    splashRadius: d.splashRadius ? uu(d.splashRadius) : 0,
+    lifeMs: Math.round((d.lifeSpan ?? 6) * 1000),
+    bounces,
+    model: `assets/3d/projectiles/${type}/${type}.gltf`,
+  };
+}
 
 const WEAPONS = {
   enforcer: {
@@ -47,7 +86,63 @@ const WEAPONS = {
     model: "assets/3d/pickups/ShockRifle/ShockRifle.gltf",
     pickup: "weapon-shock",
   },
+  rocket: {
+    name: "Rocket Launcher",
+    damage: PROJECTILE_DATA.weapons.rocket.damage,
+    fireRate: 1 / 1.1,
+    model: "assets/3d/pickups/UT_Eightball/UT_Eightball.gltf",
+    pickup: "weapon-rocket",
+    projectile: projectile("rocket", { type: "rocket", bounces: 0 }),
+    explosion: explosion("rocket"),
+  },
+  ripper: {
+    name: "Ripper",
+    damage: PROJECTILE_DATA.weapons.ripper.damage,
+    fireRate: 1 / 0.6,
+    model: "assets/3d/pickups/ripper/ripper.gltf",
+    pickup: "weapon-ripper",
+    projectile: projectile("ripper", { type: "ripper", bounces: 6 }),
+  },
+  redeemer: {
+    name: "Redeemer",
+    damage: PROJECTILE_DATA.weapons.redeemer.damage,
+    fireRate: 1 / 2.5,
+    model: "assets/3d/pickups/WarheadLauncher/WarheadLauncher.gltf",
+    pickup: "weapon-redeemer",
+    projectile: projectile("redeemer", { type: "redeemer", bounces: 0 }),
+    explosion: explosion("redeemer"),
+  },
 };
+
+// The body a projectile has to hit, and the radius HurtRadius measures its falloff
+// against. UT99's CollisionHeight is a HALF height, so 39 is a body 1.83 m tall.
+const PAWN = {
+  radius: uu(PROJECTILE_DATA.pawn.collisionRadius),
+  height: uu(PROJECTILE_DATA.pawn.collisionHalfHeight * 2),
+};
+
+// The blast a projectile leaves. UT99 draws it as a camera-facing quad playing a frame
+// sequence — no shader then, none now — and every number here is Epic's: the frame count,
+// how long it runs, and how big it is on screen (USize * DrawScale units across).
+//
+// "additive" is not a choice either. Both classes are Style STY_TRANSLUCENT, and in UE1 a
+// translucent sprite's brightness IS its opacity, so black is invisible. Alpha-blend the
+// sheet instead and the Redeemer ends on a black square, because its last frame is a
+// fully opaque near-black one.
+function explosion(id) {
+  const e = PROJECTILE_DATA.explosions[id];
+  if (!e) return null;
+  const { cols, rows } = gridFor(e.frames);
+  return {
+    atlas: `assets/3d/projectiles/fx/${id}-explosion.png`,
+    frames: e.frames,
+    cols,
+    rows,
+    lifeMs: Math.round(e.lifeSeconds * 1000),
+    size: uu(e.frameSize * e.drawScale),
+    blend: e.blend,
+  };
+}
 
 const DEFAULT = "enforcer";
 // pickup type -> weapon id, for the server's claim handler and the client's HUD.
@@ -62,11 +157,10 @@ const header = `// GENERATED by scripts/gen-weapons.mjs — DO NOT EDIT.
 // CTF-Face's weapons, as far as they are implemented. Damage and cadence are UT99's
 // own numbers; the held model is the pickup mesh, the way the Enforcer already works.
 //
-// NOT HERE YET: the Rocket Launcher, Ripper and Redeemer. All three are projectile
-// weapons — travel time, splash, bouncing blades — and the game resolves every shot as
-// an instant hit. Their pickups stand on the map and respawn, and picking one up does
-// nothing, which is honest: arming someone with a rocket launcher that fires hitscan
-// pistol rounds would be a worse lie than leaving it inert.
+// Six weapons: three hitscan, three that fly. A projectile weapon carries a "projectile"
+// block the server uses to simulate it — speed in metres per second, splash radius in
+// metres, and a wall-hit budget. Those are UT99's own figures converted once; the
+// fireRate beside them is not: UT99 has no shot interval to read, so cadence is chosen.
 `;
 
 const shared = `${header}
@@ -74,31 +168,39 @@ const WEAPONS = ${JSON.stringify(WEAPONS, null, 2)};
 
 const DEFAULT_WEAPON = ${JSON.stringify(DEFAULT)};
 const WEAPON_BY_PICKUP = ${JSON.stringify(BY_PICKUP, null, 2)};
+const PAWN = ${JSON.stringify(PAWN)};
 
 /** The weapon for an id, falling back to the one everyone spawns with. */
 function weapon(id) {
   return WEAPONS[id] || WEAPONS[DEFAULT_WEAPON];
 }
 
-export { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, weapon };
+export { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, weapon };
 `;
 
 const server = `${header}
 const WEAPONS = ${JSON.stringify(
-  Object.fromEntries(Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, damage: w.damage, fireRate: w.fireRate }])),
+  Object.fromEntries(
+    Object.entries(WEAPONS).map(([id, w]) => [
+      id,
+      // The server needs the projectile block: it is the one that flies them.
+      { name: w.name, damage: w.damage, fireRate: w.fireRate, ...(w.projectile ? { projectile: w.projectile } : {}) },
+    ])
+  ),
   null,
   2
 )};
 
 const DEFAULT_WEAPON = ${JSON.stringify(DEFAULT)};
 const WEAPON_BY_PICKUP = ${JSON.stringify(BY_PICKUP, null, 2)};
+const PAWN = ${JSON.stringify(PAWN)};
 
 /** The weapon for an id, falling back to the one everyone spawns with. */
 function weapon(id) {
   return WEAPONS[id] || WEAPONS[DEFAULT_WEAPON];
 }
 
-module.exports = { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, weapon };
+module.exports = { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, weapon };
 `;
 
 if (CHECK) {

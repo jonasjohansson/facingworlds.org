@@ -521,22 +521,29 @@ AFRAME.registerComponent("first-person-weapon", {
     dir.negate();
     this.applySpread(dir);
 
-    // Single instant trace: nearest of world geometry and player capsules wins, so
-    // shots stop at walls instead of passing through them.
-    const result = hitscan(scene, this._rayOrigin, dir, {
-      maxDistance: this.data.maxRange,
-      excludeEl: this.getLocalAvatar(),
-    });
+    // A PROJECTILE weapon traces nothing. There is no instant hit to find, no tracer to
+    // draw down the crosshair and no local-hit to claim: the shot becomes a thing the
+    // SERVER flies through the level, and what comes back is a `projectile` message that
+    // src/game/components/ut-projectiles.js draws. Running the hitscan here anyway would
+    // put a bullet tracer and a spark on the wall the instant a rocket left the tube.
+    if (!weapon(this.weaponId).projectile) {
+      // Single instant trace: nearest of world geometry and player capsules wins, so
+      // shots stop at walls instead of passing through them.
+      const result = hitscan(scene, this._rayOrigin, dir, {
+        maxDistance: this.data.maxRange,
+        excludeEl: this.getLocalAvatar(),
+      });
 
-    // Tracer runs muzzle -> impact (or muzzle -> range limit on a miss)
-    spawnTracer(scene, this.muzzlePosition, result.point);
+      // Tracer runs muzzle -> impact (or muzzle -> range limit on a miss)
+      spawnTracer(scene, this.muzzlePosition, result.point);
 
-    if (result.type === "player") {
-      spawnImpact(scene, result.point, result.normal, true);
-      // Server decides the damage; keep the payload shape other listeners expect.
-      scene.emit("local-hit", { victimId: result.playerId });
-    } else if (result.type === "world") {
-      spawnImpact(scene, result.point, result.normal, false);
+      if (result.type === "player") {
+        spawnImpact(scene, result.point, result.normal, true);
+        // Server decides the damage; keep the payload shape other listeners expect.
+        scene.emit("local-hit", { victimId: result.playerId });
+      } else if (result.type === "world") {
+        spawnImpact(scene, result.point, result.normal, false);
+      }
     }
 
     // Emit to the network layer — unchanged contract (origin, dir).

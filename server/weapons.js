@@ -3,11 +3,10 @@
 // CTF-Face's weapons, as far as they are implemented. Damage and cadence are UT99's
 // own numbers; the held model is the pickup mesh, the way the Enforcer already works.
 //
-// NOT HERE YET: the Rocket Launcher, Ripper and Redeemer. All three are projectile
-// weapons — travel time, splash, bouncing blades — and the game resolves every shot as
-// an instant hit. Their pickups stand on the map and respawn, and picking one up does
-// nothing, which is honest: arming someone with a rocket launcher that fires hitscan
-// pistol rounds would be a worse lie than leaving it inert.
+// Six weapons: three hitscan, three that fly. A projectile weapon carries a "projectile"
+// block the server uses to simulate it — speed in metres per second, splash radius in
+// metres, and a wall-hit budget. Those are UT99's own figures converted once; the
+// fireRate beside them is not: UT99 has no shot interval to read, so cadence is chosen.
 
 const WEAPONS = {
   "enforcer": {
@@ -24,18 +23,61 @@ const WEAPONS = {
     "name": "Shock Rifle",
     "damage": 40,
     "fireRate": 1.6666666666666667
+  },
+  "rocket": {
+    "name": "Rocket Launcher",
+    "damage": 75,
+    "fireRate": 0.9090909090909091,
+    "projectile": {
+      "type": "rocket",
+      "speed": 21.15,
+      "splashRadius": 5.17,
+      "lifeMs": 6000,
+      "bounces": 0,
+      "model": "assets/3d/projectiles/rocket/rocket.gltf"
+    }
+  },
+  "ripper": {
+    "name": "Ripper",
+    "damage": 30,
+    "fireRate": 1.6666666666666667,
+    "projectile": {
+      "type": "ripper",
+      "speed": 30.55,
+      "splashRadius": 0,
+      "lifeMs": 6000,
+      "bounces": 6,
+      "model": "assets/3d/projectiles/ripper/ripper.gltf"
+    }
+  },
+  "redeemer": {
+    "name": "Redeemer",
+    "damage": 1000,
+    "fireRate": 0.4,
+    "projectile": {
+      "type": "redeemer",
+      "speed": 14.1,
+      "splashRadius": 7.05,
+      "lifeMs": 6000,
+      "bounces": 0,
+      "model": "assets/3d/projectiles/redeemer/redeemer.gltf"
+    }
   }
 };
 
 const DEFAULT_WEAPON = "enforcer";
 const WEAPON_BY_PICKUP = {
   "weapon-sniper": "sniper",
-  "weapon-shock": "shock"
+  "weapon-shock": "shock",
+  "weapon-rocket": "rocket",
+  "weapon-ripper": "ripper",
+  "weapon-redeemer": "redeemer"
 };
+const PAWN = {"radius":0.4,"height":1.833};
 
 /** The weapon for an id, falling back to the one everyone spawns with. */
 function weapon(id) {
   return WEAPONS[id] || WEAPONS[DEFAULT_WEAPON];
 }
 
-module.exports = { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, weapon };
+module.exports = { WEAPONS, DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, weapon };

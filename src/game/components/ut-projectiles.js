@@ -1,0 +1,304 @@
+// ut-projectiles.js — drawing the three UT99 weapons that fly, and their blasts.
+//
+// The SERVER owns where a projectile is and what it hits (server/projectiles.js). This
+// file only draws: it is told where something was launched, where it bounced and where it
+// ended, and dead-reckons the rest so the wire carries three small messages per shot
+// instead of a position twenty times a second.
+//
+// ---------------------------------------------------------------------------
+// WHY THERE IS NO SHADER HERE
+// ---------------------------------------------------------------------------
+// Because UT99 did not have one. A rocket blast is a camera-facing quad playing eight
+// frames over 0.7 s, and the frames are ordinary bitmaps out of the package — see
+// scripts/build-ut-projectiles.mjs, which composes them into one sheet.
+//
+// The one thing that is easy to get wrong is the BLEND. Both explosion classes are Style
+// STY_TRANSLUCENT, and in UE1 a translucent sprite's brightness IS its opacity: black is
+// invisible. WarExplosion's last frame is a fully opaque near-black one, so alpha-blending
+// the sheet ends the Redeemer on a black square hanging in the air. Additive is not a
+// stylistic preference, it is what the asset was authored for.
+//
+// The procedural FireTexture smoke trails are deliberately absent. Those are a cellular
+// automaton over a palette rather than an image — a few hundred bytes of parameters — and
+// reproducing them is the "very complex shader" this was explicitly scoped away from.
+import { WEAPONS } from "../../shared/weapons.js";
+
+const MAX_LIVE = 24;
+const MAX_BLASTS = 12;
+
+const state = {
+  sceneEl: null,
+  root: null,
+  camera: null,
+  models: new Map(), // kind -> Object3D to clone
+  loading: new Map(),
+  atlases: new Map(), // kind -> THREE.Texture
+  live: new Map(), // server id -> { obj, dx, dy, dz, speed, kind, spin }
+  blasts: [], // pooled quads
+  blastIdx: 0,
+};
+
+/** Every weapon that has a projectile, keyed by the projectile's own name. */
+const BY_KIND = new Map(
+  Object.values(WEAPONS)
+    .filter((w) => w.projectile)
+    .map((w) => [w.projectile.type, w]),
+);
+
+function ensureRoot(sceneEl) {
+  if (state.root && state.sceneEl === sceneEl) return state.root;
+  const THREE = AFRAME.THREE;
+  const root = new THREE.Group();
+  root.name = "ut-projectiles";
+  root.frustumCulled = false;
+  sceneEl.object3D.add(root);
+  state.sceneEl = sceneEl;
+  state.root = root;
+  return root;
+}
+
+function camera() {
+  if (state.camera && state.camera.parent) return state.camera;
+  state.camera = state.sceneEl?.camera || null;
+  return state.camera;
+}
+
+// ---------------------------------------------------------------------------
+// models
+// ---------------------------------------------------------------------------
+
+function loadModel(kind) {
+  if (state.models.has(kind) || state.loading.has(kind)) return;
+  const w = BY_KIND.get(kind);
+  if (!w) return;
+  const THREE = AFRAME.THREE;
+  const loader = new THREE.GLTFLoader();
+  const p = new Promise((resolve) => {
+    loader.load(
+      w.projectile.model,
+      (gltf) => {
+        const obj = gltf.scene;
+        obj.traverse((n) => {
+          if (n.isMesh) {
+            n.frustumCulled = false;
+            n.castShadow = false;
+            n.receiveShadow = false;
+          }
+        });
+        state.models.set(kind, obj);
+        state.loading.delete(kind);
+        resolve(obj);
+      },
+      undefined,
+      (err) => {
+        console.warn(`[ut-projectiles] could not load ${kind}:`, err);
+        state.loading.delete(kind);
+        resolve(null);
+      },
+    );
+  });
+  state.loading.set(kind, p);
+}
+
+/** Warm every model and sheet at load, so the first rocket costs no upload. */
+export function preloadProjectiles(sceneEl) {
+  ensureRoot(sceneEl);
+  for (const kind of BY_KIND.keys()) {
+    loadModel(kind);
+    atlasFor(kind);
+  }
+  ensureBlasts();
+}
+
+// ---------------------------------------------------------------------------
+// explosions
+// ---------------------------------------------------------------------------
+
+function atlasFor(kind) {
+  if (state.atlases.has(kind)) return state.atlases.get(kind);
+  const w = BY_KIND.get(kind);
+  if (!w || !w.explosion) return null;
+  const THREE = AFRAME.THREE;
+  const tex = new THREE.TextureLoader().load(w.explosion.atlas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  // One cell of the sheet at a time; the offset moves per frame.
+  tex.repeat.set(1 / w.explosion.cols, 1 / w.explosion.rows);
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  state.atlases.set(kind, tex);
+  return tex;
+}
+
+function ensureBlasts() {
+  if (state.blasts.length) return;
+  const THREE = AFRAME.THREE;
+  const geo = new THREE.PlaneGeometry(1, 1);
+  for (let i = 0; i < MAX_BLASTS; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      // Additive already discards black; alpha test as well would punch holes in the
+      // soft edge the sprite is drawn with.
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.visible = false;
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 10;
+    state.root.add(mesh);
+    state.blasts.push({ mesh, mat, life: 0, lifeMs: 0, kind: null });
+  }
+}
+
+function spawnBlast(kind, x, y, z) {
+  const w = BY_KIND.get(kind);
+  if (!w || !w.explosion) return;
+  ensureBlasts();
+  const tex = atlasFor(kind);
+  if (!tex) return;
+  const slot = state.blasts[state.blastIdx % state.blasts.length];
+  state.blastIdx++;
+  // Each slot needs its own texture object: they share the image but not the UV offset,
+  // and one shared texture would make every live blast show the same frame.
+  if (!slot.tex || slot.kind !== kind) {
+    slot.tex = tex.clone();
+    slot.tex.needsUpdate = true;
+    slot.tex.repeat.set(1 / w.explosion.cols, 1 / w.explosion.rows);
+    slot.mat.map = slot.tex;
+    slot.mat.needsUpdate = true;
+    slot.kind = kind;
+  }
+  slot.mesh.position.set(x, y, z);
+  slot.mesh.scale.setScalar(w.explosion.size);
+  slot.mesh.visible = true;
+  slot.life = 0;
+  slot.lifeMs = w.explosion.lifeMs;
+  slot.cols = w.explosion.cols;
+  slot.rows = w.explosion.rows;
+  slot.frames = w.explosion.frames;
+  setFrame(slot, 0);
+}
+
+function setFrame(slot, i) {
+  const col = i % slot.cols;
+  const row = Math.floor(i / slot.cols);
+  // three.js UV origin is bottom-left; the sheet is written top-down.
+  slot.tex.offset.set(col / slot.cols, 1 - (row + 1) / slot.rows);
+}
+
+// ---------------------------------------------------------------------------
+// the wire
+// ---------------------------------------------------------------------------
+
+export function spawnProjectile(sceneEl, m) {
+  ensureRoot(sceneEl);
+  loadModel(m.kind);
+  const THREE = AFRAME.THREE;
+  const model = state.models.get(m.kind);
+  const obj = model ? model.clone(true) : new THREE.Object3D();
+  obj.position.set(m.x, m.y, m.z);
+  state.root.add(obj);
+
+  if (state.live.size >= MAX_LIVE) {
+    // Somebody is spamming, or a `projectile-gone` was lost. Drop the oldest rather than
+    // growing without bound.
+    const oldest = state.live.keys().next().value;
+    removeProjectile(oldest, null);
+  }
+  const p = {
+    obj,
+    kind: m.kind,
+    dx: m.dx,
+    dy: m.dy,
+    dz: m.dz,
+    speed: m.speed,
+    // The ripper blade spins about its travel axis — Razor2's SetRoll does exactly this.
+    spin: m.kind === "ripper" ? 14 : m.kind === "rocket" ? 3 : 0,
+    roll: 0,
+  };
+  aim(p);
+  state.live.set(m.id, p);
+}
+
+export function bounceProjectile(m) {
+  const p = state.live.get(m.id);
+  if (!p) return;
+  p.obj.position.set(m.x, m.y, m.z);
+  p.dx = m.dx;
+  p.dy = m.dy;
+  p.dz = m.dz;
+  aim(p);
+}
+
+export function removeProjectile(id, m) {
+  const p = state.live.get(id);
+  if (p) {
+    state.root.remove(p.obj);
+    disposeTree(p.obj);
+    state.live.delete(id);
+  }
+  if (m && m.splash > 0) spawnBlast(m.kind, m.x, m.y, m.z);
+}
+
+/** Point the mesh along its travel. Every projectile was built nose-on +Z. */
+function aim(p) {
+  const THREE = AFRAME.THREE;
+  const dir = new THREE.Vector3(p.dx, p.dy, p.dz);
+  if (dir.lengthSq() < 1e-9) return;
+  p.obj.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.normalize());
+}
+
+function disposeTree(obj) {
+  obj.traverse((n) => {
+    if (!n.isMesh) return;
+    // Geometry and materials come from a shared cloned model; the clone shares them, so
+    // disposing here would blank every other projectile of the same kind.
+    n.geometry = null;
+    n.material = null;
+  });
+}
+
+export function updateProjectiles(dt) {
+  const cam = camera();
+  for (const p of state.live.values()) {
+    p.obj.position.x += p.dx * p.speed * dt;
+    p.obj.position.y += p.dy * p.speed * dt;
+    p.obj.position.z += p.dz * p.speed * dt;
+    if (p.spin) {
+      p.roll += p.spin * dt;
+      p.obj.rotateZ(p.spin * dt);
+    }
+  }
+  for (const slot of state.blasts) {
+    if (!slot.mesh.visible) continue;
+    slot.life += dt * 1000;
+    const t = slot.life / slot.lifeMs;
+    if (t >= 1) {
+      slot.mesh.visible = false;
+      continue;
+    }
+    setFrame(slot, Math.min(slot.frames - 1, Math.floor(t * slot.frames)));
+    if (cam) slot.mesh.quaternion.copy(cam.quaternion);
+  }
+}
+
+export function clearProjectiles() {
+  for (const id of [...state.live.keys()]) removeProjectile(id, null);
+  for (const slot of state.blasts) slot.mesh.visible = false;
+}
+
+AFRAME.registerSystem("ut-projectiles", {
+  init() {
+    try {
+      preloadProjectiles(this.sceneEl);
+    } catch (e) {
+      console.warn("[ut-projectiles] preload failed:", e);
+    }
+  },
+  tick(time, dtMs) {
+    if (!state.root) return;
+    updateProjectiles(Math.min(dtMs, 100) / 1000);
+  },
+});

@@ -6,6 +6,12 @@ import { getWebSocketUrl, log } from "../utils/environment.js";
 import { handleError, wrapAsync } from "../utils/error-handler.js";
 import { GAME_CONFIG } from "../config/game-config.js";
 import { markServerSpawnApplied } from "../core/spawn.js";
+import {
+  spawnProjectile,
+  bounceProjectile,
+  removeProjectile,
+  clearProjectiles,
+} from "../components/ut-projectiles.js";
 
 const BULLET_SPEED = GAME_CONFIG.BULLET.SPEED;
 
@@ -217,6 +223,12 @@ export function startNetwork() {
           // a drop the ids are the same but availability may not be.
           scene.emit("pickups-init", { pickups: m.pickups || [] });
 
+          // Anything already in the air. Joining mid-match should show the rocket that
+          // is about to land next to you, not just its explosion. Clear first: on a
+          // RECONNECT the old drawings are still on screen and their ids may be reused.
+          clearProjectiles();
+          (m.projectiles || []).forEach((pr) => spawnProjectile(scene, pr));
+
           // Same wholesale-replace contract for the match: on a reconnect this is
           // the one path that rebuilds both flags and the score from scratch.
           if (m.ctf) scene.emit("ctf-init", { ...m.ctf, myTeam });
@@ -276,6 +288,26 @@ export function startNetwork() {
         }
         case "fire": {
           if (m.id !== myId) spawnBulletVisual(m.origin, m.dir, m.id, false);
+          break;
+        }
+
+        // ---- the three weapons that fly ----
+        //
+        // The server owns these completely: it decides where they go and what they hit,
+        // and sends three small messages per shot instead of a position twenty times a
+        // second. Everything here is drawing, including our OWN rocket — unlike a bullet,
+        // which the local client draws for itself, a projectile is only ever what the
+        // server says it is, so there is no `m.id !== myId` guard to write.
+        case "projectile": {
+          spawnProjectile(scene, m);
+          break;
+        }
+        case "projectile-bounce": {
+          bounceProjectile(m);
+          break;
+        }
+        case "projectile-gone": {
+          removeProjectile(m.id, m);
           break;
         }
         case "hit": {
@@ -433,6 +465,9 @@ export function startNetwork() {
         }
 
         case "match-reset": {
+          // The server drops everything in the air on a reset; drop the drawings of it
+          // too, or a rocket nobody can be hit by keeps flying across the new match.
+          clearProjectiles();
           // One reset path: ctf-init rebuilds the flags and the score exactly as it
           // does on connect, then match-reset tells the HUD to drop the end card.
           if (m.ctf) scene.emit("ctf-init", { ...m.ctf, myTeam });

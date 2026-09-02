@@ -49,6 +49,7 @@ const { pickCharacter } = require("./characters.js");
 // The baked navmesh, for standing pickups on the floor they belong to.
 const { surfaceNear } = require("./navmesh-surface.js");
 const { DEFAULT_WEAPON, WEAPON_BY_PICKUP, weapon } = require("./weapons.js");
+const { createProjectiles, STEP_MS: PROJECTILE_STEP_MS } = require("./projectiles.js");
 
 // ---- validation / anti-cheat tuning ----
 const HEARTBEAT_INTERVAL = 15000; // ms between pings; two misses reaps the socket
@@ -686,6 +687,9 @@ wss.on("connection", (ws, req) => {
     yourId: id,
     players: [...players.values()].map(publicPlayer),
     pickups: [...pickups.values()].map((pk) => publicPickup(pk, helloNow)),
+    // Anything already in the air, so a player joining mid-match sees the rocket that is
+    // about to land next to them rather than only its explosion.
+    projectiles: projectiles.snapshot(helloNow),
     team: p.team,
     // The assigned team spawn. The client places its rig here BEFORE it sends `spawn`,
     // so the pose loop starts from the same point the server is already judging against
@@ -914,10 +918,18 @@ wss.on("connection", (ws, req) => {
         me.shots.push(now);
         if (me.shots.length > MAX_PENDING_SHOTS) me.shots.shift();
 
+        // A PROJECTILE weapon does not resolve on the client at all. The server launches
+        // the thing and decides what it meets; there is no trace to settle and no
+        // clientHit that could ever pay for this shot.
+        const launched = weapon(me.weapon).projectile
+          ? projectiles.spawn(me, { x: ox, y: oy, z: oz }, { x: dxr, y: dyr, z: dzr }, now)
+          : null;
+        if (launched) me.pendingHit = null;
+
         // A hitscan client resolves the trace before it tells us it fired, so the
         // clientHit can legitimately arrive just ahead of its own fire. Settle any
         // hit that was parked waiting for this shot.
-        if (me.pendingHit) {
+        if (!launched && me.pendingHit) {
           const ph = me.pendingHit;
           me.pendingHit = null;
           if (now - ph.at <= HIT_ORDER_GRACE && canHit(me, ph.victimId)) {
@@ -1012,6 +1024,10 @@ wss.on("connection", (ws, req) => {
 
       case "clientHit": {
         const now = Date.now();
+        // Holding a rocket launcher does not entitle you to hitscan hits. Without this a
+        // client could pick up the Redeemer and claim 1000 damage on anything it could
+        // see, instantly and at any range.
+        if (weapon(me.weapon).projectile) break;
         if (!canHit(me, m.victimId)) break;
 
         // Rate limit: an honest client cannot land hits faster than it can fire
@@ -1072,6 +1088,21 @@ wss.on("connection", (ws, req) => {
 // ---- bots ----
 // Created here, after every function and table it borrows exists. The context is explicit
 // rather than a module-wide reach-in so that bots.js holds no second copy of any rule:
+// The three weapons that fly. Damage goes through applyHit like everything else, so
+// armour, the amplifier, kills, the flag drop and the respawn timer all behave the same
+// whether a shot arrived as a bullet or as a blast.
+const projectiles = createProjectiles({
+  players,
+  broadcast,
+  damage: (shooter, victim, amount) => applyHit(shooter, victim, amount),
+});
+
+// Its own timer at the projectile step rather than a share of the 500ms world sweep: a
+// rocket covers 21 metres a second and half a second of dead reckoning is a rocket
+// through a wall.
+const projectileTick = setInterval(() => projectiles.tick(Date.now()), PROJECTILE_STEP_MS);
+projectileTick.unref && projectileTick.unref();
+
 // tryTouchFlag is the flag rule, canHit/applyHit are the damage path the clientHit
 // handler uses, teamSpawn is the spawn every respawn already goes through.
 const bots = createBots({
@@ -1184,11 +1215,17 @@ function canHit(shooter, victimId) {
   return dx * dx + dy * dy + dz * dz <= MAX_HIT_RANGE * MAX_HIT_RANGE;
 }
 
-function applyHit(shooter, victim) {
+function applyHit(shooter, victim, amount) {
   const now = Date.now();
   // The client never gets to pick the damage. It is the weapon's number, doubled while
   // the shooter is holding a Damage Amplifier, and then split with the victim's armour.
-  let dmg = weapon(shooter.weapon).damage;
+  //
+  // `amount` is for the projectile path only, where the number is not simply the
+  // weapon's: splash falls off with distance, so what reaches a body at the edge of a
+  // blast is a fraction of it. It still comes from the server — the caller is
+  // server/projectiles.js, never a client — and everything after this line is identical
+  // whether the damage arrived as a bullet or as a rocket.
+  let dmg = amount === undefined ? weapon(shooter.weapon).damage : amount;
   if (shooter.udamageUntil > now) dmg *= UDAMAGE_MULT;
 
   // Armour takes its share first and wears down doing it, so a plated player survives
@@ -1431,6 +1468,10 @@ function endMatch(winner) {
 // A full restart: flags home, scores and frags to zero, and the session stashes wiped of
 // kills too, so a player who reconnects mid-next-match does not resume a dead score.
 function resetMatch() {
+  // Nothing in the air survives into the next match. A rocket launched a moment before
+  // the score landed would otherwise arrive during the reset and kill somebody standing
+  // on a fresh spawn.
+  projectiles.clear();
   match.scores = { red: 0, blue: 0 };
   match.state = "playing";
   match.winner = null;

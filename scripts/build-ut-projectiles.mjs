@@ -10,10 +10,10 @@
 // GEOMETRY comes from scripts/lib/umesh.mjs, which reads the package directly. Its face
 // and wedge counts were checked against umodel's own .3d export for all three meshes.
 //
-// TEXTURES come from umodel, as TGA, converted here with sips. Decoding UE1's palettized
-// P8 by hand is a solved problem with a well-known way to get it subtly wrong — the
-// channel order — and umodel is the reference implementation. Geometry is worth reading
-// ourselves because we need it in a specific shape; a texture is just a texture.
+// TEXTURES come from umodel as TGA and are converted here. umodel does the part with a
+// known way to go subtly wrong — resolving UE1's palettized P8, where swapping two channels
+// turns everything blue and nothing complains — and scripts/lib/tga.mjs and png.mjs do the
+// rest, so the build needs no image library and no macOS-only sips.
 //
 // SIZE is derived end to end, not chosen:
 //
@@ -29,11 +29,18 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { loadPackage, classDefaults } from "./lib/upkg.mjs";
 import { readMesh } from "./lib/umesh.mjs";
+import { readTga } from "./lib/tga.mjs";
+import { writePng } from "./lib/png.mjs";
+import { gridFor } from "./lib/atlas.mjs";
 import { UU_TO_M } from "../src/shared/map-transform.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
 const OUT_DIR = path.join(ROOT, "assets", "3d", "projectiles");
+const FX_DIR = path.join(OUT_DIR, "fx");
+const DATA = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "scripts", "data", "ut-projectiles.json"), "utf8"),
+);
 const SYSTEM =
   process.argv[2] || path.join(os.homedir(), "Downloads", "Unreal Tournament", "System");
 const UMODEL = process.env.UMODEL || "umodel";
@@ -55,15 +62,24 @@ const PROJECTILES = [
 
 const pkg = loadPackage(fs.readFileSync(path.join(SYSTEM, "BotPack.u")));
 
-function tgaToPng(textureName, dest) {
+/** One texture out of the package, as RGBA. */
+function textureRgba(textureName) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "utx-"));
   execFileSync(UMODEL, ["-export", `-path=${SYSTEM}`, `-out=${tmp}`, "BotPack.u", textureName], {
     stdio: "ignore",
   });
-  const tga = walk(tmp).find((f) => path.basename(f).toLowerCase() === `${textureName.toLowerCase()}.tga`);
+  const tga = walk(tmp).find(
+    (f) => path.basename(f).toLowerCase() === `${textureName.toLowerCase()}.tga`,
+  );
   if (!tga) throw new Error(`${textureName}: umodel produced no TGA`);
-  execFileSync("sips", ["-s", "format", "png", tga, "--out", dest], { stdio: "ignore" });
+  const img = readTga(fs.readFileSync(tga));
   fs.rmSync(tmp, { recursive: true, force: true });
+  return img;
+}
+
+function tgaToPng(textureName, dest) {
+  const img = textureRgba(textureName);
+  fs.writeFileSync(dest, writePng(img.width, img.height, img.rgba));
 }
 
 function walk(dir) {
@@ -194,9 +210,15 @@ for (const spec of PROJECTILES) {
     };
     if (flags & PF_TRANSLUCENT) material.alphaMode = "BLEND";
     else if (flags & PF_MASKED) material.alphaMode = "MASK";
-    // Unlit in UE1 means "ignore the light here", which is what an exhaust flare or a
-    // motion trail wants. glTF says the same thing with KHR_materials_unlit.
-    if (flags & PF_UNLIT) material.extensions = { KHR_materials_unlit: {} };
+    // Unlit in UE1 means "ignore the light here". Two separate flags say it and BOTH
+    // matter: PF_Unlit on a polygon group, and bUnlit on the ACTOR, which UT99 sets on
+    // all three projectiles — a rocket in flight is self-lit, not something the level
+    // shines on. Honouring only the polygon flag leaves the bodies lit by the scene, and
+    // this scene is a night sky: the ripper blade rendered as a black disc in front of
+    // its own explosion.
+    if (flags & PF_UNLIT || actor.bUnlit === true) {
+      material.extensions = { KHR_materials_unlit: {} };
+    }
 
     const idxBuf = Buffer.from(new Uint16Array(indices).buffer);
     parts.push(pad(idxBuf));
@@ -263,5 +285,43 @@ for (const spec of PROJECTILES) {
     `${spec.id.padEnd(9)} ${String(mesh.faces.length).padStart(4)} faces in ${groups.size} ` +
       `material${groups.size === 1 ? " " : "s"}  ${size.padEnd(26)}` +
       `frame ${frameIndex}  ${[...pngFor.keys()].join(" + ")}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EXPLOSIONS
+// ---------------------------------------------------------------------------
+// The whole reason this needed no shader. UT99 draws a rocket blast as a camera-facing
+// quad playing a frame sequence, and the frames are ordinary bitmaps in the package: 8 of
+// them for UT_SpriteBallExplosion, 18 for WarExplosion. Composed onto one sheet each so
+// the client uploads a single texture and animates by moving the UV offset.
+fs.mkdirSync(FX_DIR, { recursive: true });
+for (const [id, e] of Object.entries(DATA.explosions)) {
+  const names = [];
+  for (let i = 0; i < e.frames; i++) {
+    names.push(`${e.stem}${String(e.firstFrame + i).padStart(2, "0")}`);
+  }
+  const images = names.map((n) => textureRgba(n));
+  const w = images[0].width;
+  const h = images[0].height;
+  for (const [i, img] of images.entries()) {
+    if (img.width !== w || img.height !== h) {
+      throw new Error(`${id}: frame ${names[i]} is ${img.width}x${img.height}, not ${w}x${h}`);
+    }
+  }
+  const { cols, rows } = gridFor(e.frames);
+  const sheet = Buffer.alloc(cols * w * rows * h * 4); // transparent black in the spare cells
+  images.forEach((img, i) => {
+    const cx = (i % cols) * w;
+    const cy = Math.floor(i / cols) * h;
+    for (let y = 0; y < h; y++) {
+      img.rgba.copy(sheet, ((cy + y) * cols * w + cx) * 4, y * w * 4, (y + 1) * w * 4);
+    }
+  });
+  const file = path.join(FX_DIR, `${id}-explosion.png`);
+  fs.writeFileSync(file, writePng(cols * w, rows * h, sheet));
+  console.log(
+    `${id.padEnd(9)} explosion ${e.frames} frames of ${w}x${h} as ${cols}x${rows}  ` +
+      `${(fs.statSync(file).size / 1024).toFixed(0)} KB  ${e.lifeSeconds.toFixed(2)}s`,
   );
 }

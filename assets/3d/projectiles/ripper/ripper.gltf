@@ -53,6 +53,9 @@
     },
     "metallicFactor": 0,
     "roughnessFactor": 1
+   },
+   "extensions": {
+    "KHR_materials_unlit": {}
    }
   },
   {

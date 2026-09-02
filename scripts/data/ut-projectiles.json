@@ -1,6 +1,10 @@
 {
   "source": "UT99 retail BotPack.u",
   "packageVersion": 69,
+  "pawn": {
+    "collisionRadius": 17,
+    "collisionHalfHeight": 39
+  },
   "weapons": {
     "rocket": {
       "pickup": "weapon-rocket",
@@ -49,6 +53,30 @@
       "drawScale": 1,
       "bounces": false,
       "damageType": "RedeemerDeath"
+    }
+  },
+  "explosions": {
+    "rocket": {
+      "class": "UT_SpriteBallExplosion",
+      "frameSize": 128,
+      "stem": "exp1_a",
+      "firstFrame": 0,
+      "frames": 8,
+      "lifeSeconds": 0.699999988079071,
+      "drawScale": 1.399999976158142,
+      "blend": "additive",
+      "once": true
+    },
+    "redeemer": {
+      "class": "WarExplosion",
+      "frameSize": 128,
+      "stem": "we_a",
+      "firstFrame": 0,
+      "frames": 18,
+      "lifeSeconds": 1,
+      "drawScale": 2.799999952316284,
+      "blend": "additive",
+      "once": true
     }
   }
 }
