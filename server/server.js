@@ -50,6 +50,14 @@ const { pickCharacter } = require("./characters.js");
 const { surfaceNear } = require("./navmesh-surface.js");
 const { DEFAULT_WEAPON, WEAPON_BY_PICKUP, weapon } = require("./weapons.js");
 const { createProjectiles, STEP_MS: PROJECTILE_STEP_MS } = require("./projectiles.js");
+const {
+  FIRST_BLOOD,
+  MULTI_KILL_WINDOW_MS,
+  MATCH: ANNOUNCER_MATCH,
+  CAPTURE: ANNOUNCER_CAPTURE,
+  multiKillSound,
+  spreeSound,
+} = require("./announcer-rules.js");
 
 // ---- validation / anti-cheat tuning ----
 const HEARTBEAT_INTERVAL = 15000; // ms between pings; two misses reaps the socket
@@ -650,6 +658,10 @@ wss.on("connection", (ws, req) => {
     ry: 0,
     kills: 0,
     speed: 0,
+    // --- announcer bookkeeping, all UT99's own (see server/announcer-rules.js) ---
+    spree: 0, // kills since last death; speaks at exactly 5, 10, 15, 20, 25
+    multiLevel: 0, // kills chained inside the 3s window
+    lastKillAt: 0,
     // --- private (never sent to other clients) ---
     session: null,
     sessionResumable: false, // false when this connection was isolated off a claimed token
@@ -1107,6 +1119,64 @@ const projectiles = createProjectiles({
 const projectileTick = setInterval(() => projectiles.tick(Date.now()), PROJECTILE_STEP_MS);
 projectileTick.unref && projectileTick.unref();
 
+// ---------------------------------------------------------------------------
+// THE ANNOUNCER
+// ---------------------------------------------------------------------------
+// The rules are UT99's and live in server/announcer-rules.js; the decisions live HERE,
+// because the server is the only thing that knows who killed whom and when. The client
+// is told a name and plays a file — it never works out that it has earned anything.
+let firstBloodSpoken = false;
+
+/** The socket a player is on, or null for a bot and for anyone already gone. */
+function socketFor(playerId) {
+  for (const [ws, id] of clients) {
+    if (id === playerId && ws.readyState === ws.OPEN) return ws;
+  }
+  return null;
+}
+
+function announceAll(sound) {
+  if (sound) broadcast({ type: "announce", sound });
+}
+
+function announceTo(playerId, sound) {
+  if (!sound) return;
+  const ws = socketFor(playerId);
+  if (ws) send(ws, { type: "announce", sound });
+}
+
+function announceTeam(team, sound) {
+  if (!sound) return;
+  for (const p of players.values()) {
+    if (p.team === team) announceTo(p.id, sound);
+  }
+}
+
+/**
+ * One kill, and everything the announcer has to say about it.
+ *
+ * FIRST BLOOD is once a match and everybody hears it. MULTI-KILL is a three-second window
+ * between this killer's own kills — not a count — and goes to the killer alone, which is
+ * why it is announceTo and not announceAll. A SPREE speaks at exactly 5, 10, 15, 20 and
+ * 25 and nowhere in between, and dying takes it away.
+ */
+function announceKill(killer, victim, now) {
+  if (!firstBloodSpoken) {
+    firstBloodSpoken = true;
+    announceAll(FIRST_BLOOD);
+  }
+
+  killer.multiLevel = now - killer.lastKillAt < MULTI_KILL_WINDOW_MS ? killer.multiLevel + 1 : 0;
+  killer.lastKillAt = now;
+  announceTo(killer.id, multiKillSound(killer.multiLevel));
+
+  killer.spree++;
+  announceAll(spreeSound(killer.spree));
+
+  victim.spree = 0;
+  victim.multiLevel = 0;
+}
+
 // tryTouchFlag is the flag rule, canHit/applyHit are the damage path the clientHit
 // handler uses, teamSpawn is the spawn every respawn already goes through.
 const bots = createBots({
@@ -1251,6 +1321,7 @@ function applyHit(shooter, victim, amount) {
 
   // Award kill to attacker
   shooter.kills++;
+  announceKill(shooter, victim, now);
   console.log(`[server] ${shooter.name} killed ${victim.name} (${shooter.kills} kills)`);
 
   broadcast({ type: "death", id: victim.id, by: shooter.id });
@@ -1454,6 +1525,7 @@ function tryTouchFlag(me, team) {
   match.scores[me.team]++;
   broadcastFlag(carried, "captured", me);
   broadcast({ type: "ctf-score", scores: { ...match.scores }, by: me.id, team: me.team });
+  announceAll(ANNOUNCER_CAPTURE);
   console.log(
     `[server] ${me.name} captured the ${carried.team} flag (red ${match.scores.red} - blue ${match.scores.blue})`
   );
@@ -1466,12 +1538,19 @@ function endMatch(winner) {
   match.winner = winner;
   match.resetAt = Date.now() + CTF_MATCH_RESET_MS;
   broadcast({ type: "match-end", winner, scores: { ...match.scores }, resetInMs: CTF_MATCH_RESET_MS });
+  // Each side hears its own result, which is the whole point of having two lines.
+  announceTeam(winner, ANNOUNCER_MATCH.won);
+  announceTeam(winner === "red" ? "blue" : "red", ANNOUNCER_MATCH.lost);
   console.log(`[server] match over — ${winner} team wins ${match.scores.red}-${match.scores.blue}`);
 }
 
 // A full restart: flags home, scores and frags to zero, and the session stashes wiped of
 // kills too, so a player who reconnects mid-next-match does not resume a dead score.
 function resetMatch() {
+  // A new match is a clean sheet for the announcer too: first blood is available again
+  // and nobody is on a spree.
+  firstBloodSpoken = false;
+  announceAll(ANNOUNCER_MATCH.start);
   // Nothing in the air survives into the next match. A rocket launched a moment before
   // the score landed would otherwise arrive during the reset and kill somebody standing
   // on a fresh spawn.
@@ -1488,6 +1567,9 @@ function resetMatch() {
   for (const p of players.values()) {
     p.flag = null;
     p.kills = 0;
+    p.spree = 0;
+    p.multiLevel = 0;
+    p.lastKillAt = 0;
     // A kill a second before the reset has a respawn timer in flight. Left alone it fires
     // into the new match and yanks a player who is already standing at a fresh spawn —
     // and it would hand them a second spawn point off the cursor we just rewound.

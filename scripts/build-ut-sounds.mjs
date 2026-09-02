@@ -43,7 +43,11 @@ const SYSTEM =
 // Sounds are spread across three packages; which one holds a given name is not something
 // the weapon class records, so all three are searched.
 const PACKAGES = ["BotPack.u", "UnrealShare.u", "UnrealI.u"];
+const ANNOUNCER = path.join(SYSTEM, "..", "Sounds", "Announcer.uax");
 const loaded = PACKAGES.map((f) => ({ name: f, pkg: loadPackage(fs.readFileSync(path.join(SYSTEM, f))) }));
+if (fs.existsSync(ANNOUNCER)) {
+  loaded.push({ name: "Announcer.uax", pkg: loadPackage(fs.readFileSync(ANNOUNCER)) });
+}
 const botpack = loaded[0].pkg;
 
 function findWav(soundName) {
@@ -91,15 +95,64 @@ if (!pickupName) throw new Error("enforcer has no PickupSound");
 out.pickup = { sound: pickupName, file: `assets/audio/ut/${pickupName.toLowerCase()}.mp3` };
 jobs.push(pickupName);
 
+// ---------------------------------------------------------------------------
+// THE ANNOUNCER
+// ---------------------------------------------------------------------------
+// The rules for WHEN each of these fires are UT99's, read out of the same packages:
+//
+//   FIRST BLOOD  DeathMatchPlus guards it with a bFirstBlood flag — once a match, on the
+//                first kill, broadcast to everyone.
+//
+//   MULTI-KILL   DeathMessagePlus: `if (Level.TimeSeconds - LastKillTime < 3)` then
+//                MultiLevel++ and announce, else MultiLevel = 0. A THREE SECOND window
+//                between kills, and MultiKillMessage maps the level 1 -> DoubleKill,
+//                2 -> MultiKill, 3 -> UltraKill, 4 and up -> MonsterKill. It goes to the
+//                killer alone, not the room.
+//
+//   SPREE        DeathMatchPlus calls NotifySpree once Spree passes 4, and NotifySpree
+//                itself only speaks at EXACTLY 5, 10, 15, 20 and 25 — anything else
+//                returns without a word. The five sounds are read from
+//                KillingSpreeMessage's own SpreeSound array rather than typed. Everyone
+//                hears it, and dying resets the count.
+//
+// megakill and triplekill are in the package and are NOT used: UT99's MultiKillMessage
+// never reaches for them. They are left out rather than pressed into service.
+const spreeSounds = defaults("KillingSpreeMessage").SpreeSound;
+if (!Array.isArray(spreeSounds) || spreeSounds.length !== 5) {
+  throw new Error(`KillingSpreeMessage.SpreeSound is ${JSON.stringify(spreeSounds)}, expected 5 names`);
+}
+out.announcer = {
+  firstBlood: "firstblood",
+  // Index by MultiLevel; 4 and beyond all use the last one.
+  multiKill: ["doublekill", "multikill", "ultrakill", "monsterkill"],
+  multiKillWindowMs: 3000,
+  spreeAt: [5, 10, 15, 20, 25],
+  spree: spreeSounds,
+  match: { start: "prepare", won: "winner", lost: "lostmatch" },
+  capture: "capture",
+  dir: "assets/audio/ut/announcer",
+};
+const announcerJobs = [
+  out.announcer.firstBlood,
+  ...out.announcer.multiKill,
+  ...out.announcer.spree,
+  out.announcer.match.start,
+  out.announcer.match.won,
+  out.announcer.match.lost,
+  out.announcer.capture,
+];
+
+fs.mkdirSync(path.join(OUT_DIR, "announcer"), { recursive: true });
 fs.mkdirSync(OUT_DIR, { recursive: true });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "utsnd-"));
 let bytesIn = 0;
 let bytesOut = 0;
-for (const name of [...new Set(jobs)]) {
+for (const name of [...new Set([...jobs, ...announcerJobs])]) {
   const { wav, from } = findWav(name);
   const wavFile = path.join(tmp, `${name}.wav`);
   fs.writeFileSync(wavFile, wav);
-  const mp3 = path.join(OUT_DIR, `${name.toLowerCase()}.mp3`);
+  const isAnnouncer = announcerJobs.includes(name);
+  const mp3 = path.join(isAnnouncer ? path.join(OUT_DIR, "announcer") : OUT_DIR, `${name.toLowerCase()}.mp3`);
   // Mono at 64k: every one of these is already mono, and they are short. -y to overwrite,
   // -loglevel error so a real problem is not buried in banner output.
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", wavFile, "-ac", "1", "-b:a", "64k", mp3]);
@@ -116,6 +169,6 @@ for (const name of [...new Set(jobs)]) {
 fs.rmSync(tmp, { recursive: true, force: true });
 fs.writeFileSync(OUT_JSON, JSON.stringify(out, null, 2) + "\n");
 console.log(
-  `wrote ${[...new Set(jobs)].length} sounds — ${(bytesIn / 1024).toFixed(0)}K of WAV as ` +
+  `wrote ${new Set([...jobs, ...announcerJobs]).size} sounds — ${(bytesIn / 1024).toFixed(0)}K of WAV as ` +
     `${(bytesOut / 1024).toFixed(0)}K of MP3, and ${path.relative(ROOT, OUT_JSON)}`,
 );

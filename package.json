@@ -26,6 +26,8 @@
     "gen:characters:check": "node scripts/gen-characters.mjs --check",
     "gen:weapons": "node scripts/gen-weapons.mjs",
     "gen:weapons:check": "node scripts/gen-weapons.mjs --check",
+    "gen:announcer": "node scripts/gen-announcer.mjs",
+    "gen:announcer:check": "node scripts/gen-announcer.mjs --check",
     "optimize:assets": "node scripts/optimize-assets.mjs",
     "optimize:assets:webp": "node scripts/optimize-assets.mjs --codec=webp",
     "optimize:assets:ktx2": "node scripts/optimize-assets.mjs --codec=ktx2",

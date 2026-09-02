@@ -7,6 +7,7 @@ import { handleError, wrapAsync } from "../utils/error-handler.js";
 import { GAME_CONFIG } from "../config/game-config.js";
 import { markServerSpawnApplied } from "../core/spawn.js";
 import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
+import { announce } from "../components/announcer.js";
 import {
   spawnProjectile,
   bounceProjectile,
@@ -476,6 +477,14 @@ export function startNetwork() {
             resetInMs: m.resetInMs || 0,
             myTeam,
           });
+          break;
+        }
+
+        // The announcer. The server has already decided this is worth saying and to
+        // whom — a multi-kill comes to the killer alone, first blood to everyone — so
+        // there is no audience test to make here.
+        case "announce": {
+          announce(m.sound);
           break;
         }
 

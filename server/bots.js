@@ -426,6 +426,13 @@ function createBots(ctx) {
       armor: 0,
       udamageUntil: 0,
       flag: null,
+      // The announcer counts a bot's kills like anyone's — first blood belongs to
+      // whoever gets it. Missing these makes `killer.spree++` produce NaN, which no
+      // threshold ever matches, so a bot on a rampage would be met with silence and no
+      // error to say why.
+      spree: 0,
+      multiLevel: 0,
+      lastKillAt: 0,
       // --- private ---
       bot: true,
       session: null,

@@ -47,5 +47,36 @@
   "pickup": {
     "sound": "WeaponPickup",
     "file": "assets/audio/ut/weaponpickup.mp3"
+  },
+  "announcer": {
+    "firstBlood": "firstblood",
+    "multiKill": [
+      "doublekill",
+      "multikill",
+      "ultrakill",
+      "monsterkill"
+    ],
+    "multiKillWindowMs": 3000,
+    "spreeAt": [
+      5,
+      10,
+      15,
+      20,
+      25
+    ],
+    "spree": [
+      "killingspree",
+      "rampage",
+      "dominating",
+      "unstoppable",
+      "godlike"
+    ],
+    "match": {
+      "start": "prepare",
+      "won": "winner",
+      "lost": "lostmatch"
+    },
+    "capture": "capture",
+    "dir": "assets/audio/ut/announcer"
   }
 }
