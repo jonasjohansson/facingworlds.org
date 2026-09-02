@@ -388,18 +388,41 @@ staying there. The reasoning is in `canSee`'s own comment; the short version:
 - It is **right about the mesh**. On engageable pairs the terrain rule blocks 0.7% and
   this blocks 69.7%, and 71.3% of those are a genuine wall against 0.3% grazed floor.
   Bots have been shooting through the towers.
-- The **cost is recoverable**: 0.50 hits/s as shipped, 0.10 with walls alone, 0.47 with
-  walls plus a widened height gate and a modest accuracy bump. Most of the recovery is the
-  gate — `MAX_FIGHT_DY` exists only because a height field cannot see the floor between
-  two storeys, so a real test removes its reason.
-- What stops it is **neither of those**. Four of eight cases in `bots-los.test.mjs` fail,
-  two of them badly: a defender cannot see their own flag, and two nav nodes 3.1 m apart
-  are separated by a wall. Epic's actor placements and the FAN-MADE map mesh disagree in
-  specific spots — `FlagBase1` is boxed in on 7 of 8 sides, the only one of 112 walkable
-  nodes that is. Adopting it would trade old wrong answers for new ones at exactly the
-  places bots and flags stand, which is the failure the height-field version was already
-  fixed for once.
+- **The cost is not a tuning problem.** Four 120-second runs per configuration,
+  interleaved, counting hits per second spent *at the post* rather than per wall-clock
+  second (dying more means more time walking back, which flatters the deadlier rule):
 
-Reconciling the two assets is the actual next piece of work, and it is a bigger one than
-this switch.
+  | | hits/s at the post | deaths |
+  |---|---|---|
+  | terrain rule, as shipped | 0.79 ± 0.20 | 9.5 |
+  | walls + `MAX_FIGHT_DY` 30, acc 0.36, react 450 | 0.16 ± 0.33 | 2.0 |
+
+  The spread on the second row exceeds its mean, and that IS the finding: three of its
+  four runs were **exactly zero** — no bot ever found the player — and the fourth was an
+  ordinary 0.65. Sharpening the aim does not help, because the problem is not how well
+  bots shoot once they see you. Nothing brings them into the room. **The enemy flag
+  becomes a safe place to stand.**
+- **And the assets disagree.** Four of eight cases in `bots-los.test.mjs` fail, two badly:
+  a defender cannot see their own flag, and two nav nodes 3.1 m apart are separated by a
+  wall. `FlagBase1` is boxed in on 7 of 8 sides, the only one of 112 walkable nodes that
+  is. That is the failure the height-field version was already fixed for once.
+
+So there are **two** things to fix, not one: bots need a reason to enter a room they
+cannot shoot into, and Epic's placements need reconciling with the fan mesh. A correct
+rule that makes the enemy flag safe to stand on is worse to play than an incorrect one.
+
+### A correction, and why the harness is now in the repo
+
+An earlier version of this section said the cost *was* recoverable, at 0.47 against 0.50.
+It was measured with a throwaway harness that moved its dummy locally without checking the
+server had accepted the pose — and the server refuses the first hop of every life, because
+`dt` is measured from the last ACCEPTED pose and a client that has never sent one gets it
+clamped to about eight units. The dummy walked in its imagination and was shot wherever
+the reject-limit resync dropped it, which was not the enemy flag.
+
+`scripts/measure-lethality.mjs` now watches a second connection to confirm every step, and
+throws a run away if the dummy never arrived. It lives in the repo rather than a
+scratchpad for the same reason the UE1 package reader does: this is the second time
+throwing the tooling away cost real work, and the first time it produced confidently wrong
+numbers rather than merely absent ones.
 

@@ -324,30 +324,44 @@ function canSee(from, fromY, to, toY) {
   //   shooting through the towers; this is not an artifact of the navmesh and map mesh
   //   disagreeing about heights.
   //
-  //   THE COST IS RECOVERABLE. Standing a motionless player on the enemy flag for 180 s
-  //   (scripts are gone but the numbers are not):
+  //   THE COST IS NOT A TUNING PROBLEM. A motionless player standing on the ENEMY flag,
+  //   measured with scripts/measure-lethality.mjs — four 120 s runs per row, interleaved,
+  //   counting hits per second spent AT THE POST rather than per wall-clock second
+  //   (dying more means more time walking back, which flatters the deadlier rule):
   //
-  //     terrain rule, as shipped                     15 deaths  0.50 hits/s
-  //     walls, no other change                        3 deaths  0.10 hits/s   unplayable
-  //     walls + MAX_FIGHT_DY 30, acc 0.45, react 350 10 deaths  0.36 hits/s
-  //     walls + MAX_FIGHT_DY 30, acc 0.36, react 450 14 deaths  0.47 hits/s   ~as shipped
+  //     terrain rule, as shipped                      0.79 +/- 0.20 hits/s   9.5 deaths
+  //     walls + MAX_FIGHT_DY 30, acc 0.36, react 450  0.16 +/- 0.33 hits/s   2.0 deaths
   //
-  //   ONE 180 s sample per row, 3-15 deaths each. The ordering is solid; the last row is
-  //   a single sample and its second decimal is not to be leaned on.
+  //   The spread on the second row is larger than its mean, and that IS the finding, not
+  //   noise: three of its four runs were exactly ZERO — no bot ever found the player —
+  //   and the fourth was an ordinary 0.65. Widening the envelope and sharpening the aim
+  //   does not help, because the problem is not how well bots shoot once they see you. It
+  //   is that with real walls nothing brings them into the room. The enemy flag becomes a
+  //   safe place to stand.
   //
-  //   Most of that recovery is the height gate, not the accuracy: MAX_FIGHT_DY exists
-  //   only because a height field cannot see the floor between two storeys, so with a
-  //   real test its reason is gone and widening it is removing a workaround.
+  //   An earlier version of this comment claimed the cost WAS recoverable, at 0.47
+  //   against 0.50. That was measured with a harness which moved its dummy locally
+  //   without checking the server had accepted the pose — and the server refuses the
+  //   first hop of every life, because dt is measured from the last ACCEPTED pose and a
+  //   client that has never sent one gets it clamped to about eight units. The dummy
+  //   walked in its imagination and was shot wherever the reject-limit resync dropped it,
+  //   which was not the enemy flag. The numbers above come from a harness that watches a
+  //   second connection to confirm every step.
   //
-  //   WHAT STOPS IT SHIPPING is neither of those. Four of the eight cases in
+  //   AND THE ASSETS DISAGREE. Four of the eight cases in
   //   bots-los.test.mjs fail under it, and two of them matter: a defender cannot see
   //   their own flag, and one pair of nav nodes 3.1 m apart is separated by a wall. The
   //   cause is that Epic's actor and nav placements and the FAN-MADE map mesh disagree
   //   in specific spots — FlagBase1 sits boxed in on 7 of 8 sides, the only one of 112
   //   walkable nodes that does. Adopting this trades old wrong answers for new ones at
   //   exactly the places bots and flags stand, which is the same failure the height-field
-  //   version was fixed for once already. Fixing it means reconciling the two assets, not
-  //   turning a knob.
+  //   version was fixed for once already.
+  //
+  //   SO THERE ARE TWO THINGS TO FIX, not one. Bots need a reason to come into a room
+  //   they cannot shoot into, and Epic's placements need reconciling with the fan mesh.
+  //   Neither is a knob. Until both are done this stays behind the flag, because a
+  //   correct rule that makes the enemy flag safe to stand on is worse to play than an
+  //   incorrect one.
   if (LOS_WALLS) return !blocked(from.x, fromY, from.z, to.x, toY, to.z);
 
   const ox = from.x;
