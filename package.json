@@ -20,6 +20,8 @@
     "gen:nav-graph:check": "node scripts/gen-nav-graph.mjs --check",
     "gen:navmesh-surface": "node scripts/gen-navmesh-surface.mjs",
     "gen:navmesh-surface:check": "node scripts/gen-navmesh-surface.mjs --check",
+    "gen:map-collision": "node scripts/gen-map-collision.mjs",
+    "gen:map-collision:check": "node scripts/gen-map-collision.mjs --check",
     "gen:characters": "node scripts/gen-characters.mjs",
     "gen:characters:check": "node scripts/gen-characters.mjs --check",
     "gen:weapons": "node scripts/gen-weapons.mjs",
