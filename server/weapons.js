@@ -17,7 +17,8 @@ const WEAPONS = {
   "sniper": {
     "name": "Sniper Rifle",
     "damage": 45,
-    "fireRate": 0.6666666666666666
+    "fireRate": 0.6666666666666666,
+    "headshotDamage": 100
   },
   "shock": {
     "name": "Shock Rifle",
@@ -41,6 +42,7 @@ const WEAPONS = {
     "name": "Ripper",
     "damage": 30,
     "fireRate": 1.6666666666666667,
+    "headshotDamage": 105,
     "projectile": {
       "type": "ripper",
       "speed": 30.55,
@@ -73,7 +75,7 @@ const WEAPON_BY_PICKUP = {
   "weapon-ripper": "ripper",
   "weapon-redeemer": "redeemer"
 };
-const PAWN = {"radius":0.4,"height":1.833};
+const PAWN = {"radius":0.4,"height":1.833,"headshotAboveCentre":0.568};
 const PICKUP_SOUND = "assets/audio/ut/weaponpickup.mp3";
 
 /** The weapon for an id, falling back to the one everyone spawns with. */

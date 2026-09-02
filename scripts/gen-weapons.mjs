@@ -86,6 +86,9 @@ const WEAPONS = {
     fireRate: 1 / 1.5,
     model: "assets/3d/pickups/SniperRifle/SniperRifle.gltf",
     pickup: "weapon-sniper",
+    // SniperRifle's own source: TakeDamage(100, ...) with AltDamageType "Decapitated",
+    // against TakeDamage(45, ...) for a body hit. A flat number, not a multiplier.
+    headshotDamage: 100,
     sound: fireSound("sniper"),
   },
   shock: {
@@ -113,6 +116,9 @@ const WEAPONS = {
     model: "assets/3d/pickups/ripper/ripper.gltf",
     pickup: "weapon-ripper",
     sound: fireSound("ripper"),
+    // Razor2: TakeDamage(3.5 * damage, ...) with damage type 'decapitated'. A multiplier
+    // rather than a number, so it is computed from the damage above rather than restated.
+    headshotDamage: Math.round(3.5 * PROJECTILE_DATA.weapons.ripper.damage),
     projectile: projectile("ripper", { type: "ripper", bounces: 6 }),
   },
   redeemer: {
@@ -132,6 +138,15 @@ const WEAPONS = {
 const PAWN = {
   radius: uu(PROJECTILE_DATA.pawn.collisionRadius),
   height: uu(PROJECTILE_DATA.pawn.collisionHalfHeight * 2),
+  // A HEADSHOT, in UT99's own words. Both the Sniper Rifle and the Ripper spell out the
+  // same test, character for character:
+  //
+  //     HitLocation.Z - Other.Location.Z > 0.62 * Other.CollisionHeight
+  //
+  // A UE1 actor's Location is the CENTRE of its collision cylinder, so this is 0.62 of a
+  // half-height above the middle of the body — not above its feet. Here a player's y is
+  // their feet, so the test is `hitY - (y + height/2) > headshotAboveCentre`.
+  headshotAboveCentre: uu(0.62 * PROJECTILE_DATA.pawn.collisionHalfHeight),
 };
 
 // The blast a projectile leaves. UT99 draws it as a camera-facing quad playing a frame
@@ -199,7 +214,13 @@ const WEAPONS = ${JSON.stringify(
     Object.entries(WEAPONS).map(([id, w]) => [
       id,
       // The server needs the projectile block: it is the one that flies them.
-      { name: w.name, damage: w.damage, fireRate: w.fireRate, ...(w.projectile ? { projectile: w.projectile } : {}) },
+      {
+        name: w.name,
+        damage: w.damage,
+        fireRate: w.fireRate,
+        ...(w.headshotDamage ? { headshotDamage: w.headshotDamage } : {}),
+        ...(w.projectile ? { projectile: w.projectile } : {}),
+      },
     ])
   ),
   null,

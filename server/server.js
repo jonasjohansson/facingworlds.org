@@ -48,13 +48,14 @@ const { createBots } = require("./bots.js");
 const { pickCharacter } = require("./characters.js");
 // The baked navmesh, for standing pickups on the floor they belong to.
 const { surfaceNear } = require("./navmesh-surface.js");
-const { DEFAULT_WEAPON, WEAPON_BY_PICKUP, weapon } = require("./weapons.js");
-const { createProjectiles, STEP_MS: PROJECTILE_STEP_MS } = require("./projectiles.js");
+const { DEFAULT_WEAPON, WEAPON_BY_PICKUP, PAWN, weapon } = require("./weapons.js");
+const { createProjectiles, isHeadshot, STEP_MS: PROJECTILE_STEP_MS } = require("./projectiles.js");
 const {
   FIRST_BLOOD,
   MULTI_KILL_WINDOW_MS,
   MATCH: ANNOUNCER_MATCH,
   CAPTURE: ANNOUNCER_CAPTURE,
+  HEADSHOT: ANNOUNCER_HEADSHOT,
   multiKillSound,
   spreeSound,
 } = require("./announcer-rules.js");
@@ -930,8 +931,11 @@ wss.on("connection", (ws, req) => {
         if (Math.abs(ox) > WORLD_LIMIT || Math.abs(oy) > WORLD_LIMIT || Math.abs(oz) > WORLD_LIMIT) break;
         if (!takeToken(me.fireBucket, now, FIRE_MIN_INTERVAL, FIRE_BURST)) break;
 
-        // Credit the shot — a hit must later be paid for by one of these
-        me.shots.push(now);
+        // Credit the shot — a hit must later be paid for by one of these. The RAY is
+        // kept, not just the moment: a client's claimed hit point is checked against the
+        // shot it says paid for it, which is what makes a headshot verifiable rather
+        // than merely reported.
+        me.shots.push({ at: now, ox, oy, oz, dx: dxr, dy: dyr, dz: dzr });
         if (me.shots.length > MAX_PENDING_SHOTS) me.shots.shift();
 
         // A PROJECTILE weapon does not resolve on the client at all. The server launches
@@ -949,8 +953,8 @@ wss.on("connection", (ws, req) => {
           const ph = me.pendingHit;
           me.pendingHit = null;
           if (now - ph.at <= HIT_ORDER_GRACE && canHit(me, ph.victimId)) {
-            me.shots.shift();
-            applyHit(me, players.get(ph.victimId));
+            const shot = me.shots.shift();
+            resolveClientHit(me, players.get(ph.victimId), shot, ph.point);
           }
         }
 
@@ -1050,15 +1054,15 @@ wss.on("connection", (ws, req) => {
         if (!takeToken(me.hitBucket, now, HIT_MIN_INTERVAL, HIT_BURST)) break;
 
         // Every hit must be paid for by a shot this player actually fired recently
-        while (me.shots.length && now - me.shots[0] > SHOT_LIFETIME) me.shots.shift();
+        while (me.shots.length && now - me.shots[0].at > SHOT_LIFETIME) me.shots.shift();
         if (me.shots.length) {
-          me.shots.shift();
-          applyHit(me, players.get(m.victimId));
+          const shot = me.shots.shift();
+          resolveClientHit(me, players.get(m.victimId), shot, m.point);
         } else {
           // No shot to pay for it yet. Park it — the matching "fire" may be a
           // fraction of a millisecond behind (see the fire handler). One only, so
           // this can never become a queue of free damage.
-          me.pendingHit = { victimId: m.victimId, at: now };
+          me.pendingHit = { victimId: m.victimId, at: now, point: m.point };
         }
         break;
       }
@@ -1111,6 +1115,7 @@ const projectiles = createProjectiles({
   players,
   broadcast,
   damage: (shooter, victim, amount) => applyHit(shooter, victim, amount),
+  onHeadshot: (shooter) => announceTo(shooter.id, ANNOUNCER_HEADSHOT),
 });
 
 // Its own timer at the projectile step rather than a share of the 500ms world sweep: a
@@ -1118,6 +1123,63 @@ const projectiles = createProjectiles({
 // through a wall.
 const projectileTick = setInterval(() => projectiles.tick(Date.now()), PROJECTILE_STEP_MS);
 projectileTick.unref && projectileTick.unref();
+
+// ---------------------------------------------------------------------------
+// A CLAIMED HIT, AND WHERE IT LANDED
+// ---------------------------------------------------------------------------
+// A hitscan shot is resolved on the client — it has to be, that is what makes it feel
+// instant — and the server's job is to make sure the claim is one the client could
+// honestly have made. It already checks that the victim is alive, in range, and that a
+// shot was fired to pay for it.
+//
+// A HEADSHOT needs one thing more: WHERE. The client sends the point its own trace
+// stopped at, and the server accepts that point only if it lies on the ray of the shot
+// being spent AND inside the victim's body. Neither test is about catching a liar
+// precisely — it is that a client which sends a point failing either one is given a BODY
+// hit, so the worst a lie can do is cost the liar their own bonus.
+const HIT_POINT_RAY_SLACK = 0.75; // how far off its own ray a claimed point may sit
+const HIT_POINT_BODY_SLACK = 0.5; // and how far outside the body
+
+function isNumV(p) {
+  return p && isNum(p.x) && isNum(p.y) && isNum(p.z);
+}
+
+/** Is this a point the shooter could have hit on this shot, on this body? */
+function pointIsPlausible(point, shot, victim) {
+  if (!isNumV(point) || !shot) return false;
+  // Distance from the point to the shot's ray.
+  const vx = point.x - shot.ox;
+  const vy = point.y - shot.oy;
+  const vz = point.z - shot.oz;
+  const len = Math.hypot(shot.dx, shot.dy, shot.dz) || 1;
+  const t = (vx * shot.dx + vy * shot.dy + vz * shot.dz) / len;
+  if (t < 0) return false; // behind the muzzle
+  const cx = shot.ox + (shot.dx / len) * t;
+  const cy = shot.oy + (shot.dy / len) * t;
+  const cz = shot.oz + (shot.dz / len) * t;
+  if (Math.hypot(point.x - cx, point.y - cy, point.z - cz) > HIT_POINT_RAY_SLACK) return false;
+  // And inside the body it claims to have hit. Generous, because the victim has moved
+  // since its last pose and the shooter traced against where it drew them.
+  const plan = Math.hypot(point.x - victim.x, point.z - victim.z);
+  if (plan > PAWN.radius + HIT_POINT_BODY_SLACK) return false;
+  if (point.y < victim.y - HIT_POINT_BODY_SLACK) return false;
+  if (point.y > victim.y + PAWN.height + HIT_POINT_BODY_SLACK) return false;
+  return true;
+}
+
+/**
+ * One client-reported hit: body damage, or a headshot if the weapon has one and the
+ * point stands up. A point that does not verify is not an error and not a kick — it is
+ * simply a body hit.
+ */
+function resolveClientHit(shooter, victim, shot, point) {
+  if (!victim) return;
+  const spec = weapon(shooter.weapon);
+  const head =
+    spec.headshotDamage > 0 && pointIsPlausible(point, shot, victim) && isHeadshot(point.y, victim);
+  applyHit(shooter, victim, head ? spec.headshotDamage : undefined);
+  if (head) announceTo(shooter.id, ANNOUNCER_HEADSHOT);
+}
 
 // ---------------------------------------------------------------------------
 // THE ANNOUNCER

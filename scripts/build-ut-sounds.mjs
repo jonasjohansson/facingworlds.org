@@ -130,6 +130,10 @@ out.announcer = {
   spree: spreeSounds,
   match: { start: "prepare", won: "winner", lost: "lostmatch" },
   capture: "capture",
+  // Both the Sniper Rifle and the Ripper decide a headshot with the same line —
+  // HitLocation.Z - Other.Location.Z > 0.62 * Other.CollisionHeight — so one word covers
+  // both. It goes to the shooter, the way a multi-kill does.
+  headshot: "headshot",
   dir: "assets/audio/ut/announcer",
 };
 const announcerJobs = [
@@ -140,6 +144,7 @@ const announcerJobs = [
   out.announcer.match.won,
   out.announcer.match.lost,
   out.announcer.capture,
+  out.announcer.headshot,
 ];
 
 fs.mkdirSync(path.join(OUT_DIR, "announcer"), { recursive: true });

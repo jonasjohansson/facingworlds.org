@@ -90,7 +90,7 @@ AFRAME.registerComponent("bullet", {
       spawnImpact(scene, result.point, result.normal, true);
       if (this.data.reportHits) {
         // Only report the victim; the server decides the damage
-        scene.emit("local-hit", { victimId: result.playerId });
+        scene.emit("local-hit", { victimId: result.playerId, point: result.point });
       }
     } else if (result.type === "world") {
       spawnImpact(scene, result.point, result.normal, false);

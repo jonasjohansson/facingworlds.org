@@ -756,13 +756,21 @@ export function startNetwork() {
   }
 
   function onLocalHit(ev) {
-    const { victimId, dmg } = ev.detail || {};
+    const { victimId, dmg, point } = ev.detail || {};
     if (!victimId) return;
+    // WHERE the trace stopped, so the server can tell a headshot from a body hit. It is
+    // a claim, not a fact: the server accepts it only if it lies on the ray of the shot
+    // paying for it and inside the victim. A point that fails either test is treated as
+    // a body hit, so sending a flattering one costs the sender the bonus.
+    const at =
+      point && Number.isFinite(point.x)
+        ? { x: +point.x.toFixed(2), y: +point.y.toFixed(2), z: +point.z.toFixed(2) }
+        : undefined;
     // The hitscan weapon resolves the trace and emits 'local-hit' BEFORE it emits the
     // 'local-fire' for the same shot. The server only credits a hit against a shot it
     // has already seen, so defer by one microtask: anything emitted synchronously
     // after us — the matching 'local-fire' — goes out on the wire first.
-    queueMicrotask(() => send({ type: "clientHit", victimId, dmg }));
+    queueMicrotask(() => send({ type: "clientHit", victimId, dmg, point: at }));
   }
 
   function onNameChange(ev) {

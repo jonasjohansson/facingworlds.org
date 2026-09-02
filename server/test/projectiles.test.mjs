@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { createProjectiles } = require("../projectiles.js");
+const { createProjectiles, isHeadshot } = require("../projectiles.js");
 const { WEAPONS, PAWN } = require("../weapons.js");
 const mc = require("../map-collision.js");
 const surf = require("../navmesh-surface.js");
@@ -197,4 +197,62 @@ test("clear() empties the air", () => {
   r.projectiles.clear();
   assert.equal(r.projectiles.count(), 0);
   assert.ok(r.sent.some((m) => m.type === "projectile-gone" && m.why === "reset"));
+});
+
+// ---------------------------------------------------------------- headshots
+
+test("the headshot line sits where UT99 puts it, not where the head looks", () => {
+  // UT99: HitLocation.Z - Other.Location.Z > 0.62 * Other.CollisionHeight, and Location
+  // is the CENTRE of the cylinder. Reading that as "above the feet" would make an ankle
+  // shot a headshot, which is exactly the mistake this pins.
+  const victim = { y: 0 };
+  const line = PAWN.height / 2 + PAWN.headshotAboveCentre;
+  assert.ok(line > PAWN.height * 0.75, `the line at ${line} is too low on a ${PAWN.height} body`);
+  assert.ok(line < PAWN.height, `the line at ${line} is above the top of the body`);
+  assert.equal(isHeadshot(line - 0.01, victim), false);
+  assert.equal(isHeadshot(line + 0.01, victim), true);
+  // And it moves with the body, rather than being an absolute height in the world.
+  assert.equal(isHeadshot(line + 0.01, { y: 10 }), false, "the line did not follow the body up");
+  assert.equal(isHeadshot(10 + line + 0.01, { y: 10 }), true);
+});
+
+test("a ripper blade to the head does 3.5x, and to the chest does not", () => {
+  const a = openGround();
+  const head = PAWN.height / 2 + PAWN.headshotAboveCentre;
+  const shots = [
+    { at: head + 0.1, want: WEAPONS.ripper.headshotDamage, what: "head" },
+    { at: PAWN.height / 2, want: WEAPONS.ripper.damage, what: "chest" },
+  ];
+  for (const shot of shots) {
+    const r = rig([
+      { id: "s", x: a.x, y: a.y, z: a.z, weapon: "ripper" },
+      { id: "v", x: a.x + 6, y: a.y, z: a.z, weapon: "enforcer", team: "blue" },
+    ]);
+    // Fire flat at the chosen height. The blade travels level, so where it leaves is
+    // where it arrives.
+    r.fire("s", { x: 1, y: 0, z: 0 }, { x: a.x, y: a.y + shot.at, z: a.z });
+    r.run(200);
+    const dealt = r.dealt.filter((d) => d.to === "v").map((d) => d.amount);
+    assert.deepEqual(dealt, [shot.want], `a ${shot.what} hit dealt ${JSON.stringify(dealt)}`);
+  }
+});
+
+test("a headshot is reported so the announcer can say so", () => {
+  const a = openGround();
+  const head = PAWN.height / 2 + PAWN.headshotAboveCentre;
+  const players = new Map([
+    ["s", { id: "s", hp: 100, armor: 0, team: "red", udamageUntil: 0, weapon: "ripper", x: a.x, y: a.y, z: a.z }],
+    ["v", { id: "v", hp: 100, armor: 0, team: "blue", udamageUntil: 0, weapon: "enforcer", x: a.x + 6, y: a.y, z: a.z }],
+  ]);
+  const heads = [];
+  const pr = createProjectiles({
+    players,
+    broadcast: () => {},
+    damage: (shooter, victim, amount) => { victim.hp -= amount; },
+    onHeadshot: (shooter, victim) => heads.push([shooter.id, victim.id]),
+  });
+  let t = 1_000_000;
+  pr.spawn(players.get("s"), { x: a.x, y: a.y + head + 0.1, z: a.z }, { x: 1, y: 0, z: 0 }, t);
+  for (let i = 0; i < 200 && pr.count() > 0; i++) { t += 50; pr.tick(t); }
+  assert.deepEqual(heads, [["s", "v"]], "the headshot was not reported to the caller");
 });

@@ -562,7 +562,7 @@ AFRAME.registerComponent("first-person-weapon", {
       if (result.type === "player") {
         spawnImpact(scene, result.point, result.normal, true);
         // Server decides the damage; keep the payload shape other listeners expect.
-        scene.emit("local-hit", { victimId: result.playerId });
+        scene.emit("local-hit", { victimId: result.playerId, point: result.point });
       } else if (result.type === "world") {
         spawnImpact(scene, result.point, result.normal, false);
       }

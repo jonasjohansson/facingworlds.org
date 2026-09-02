@@ -23,6 +23,7 @@ const WEAPONS = {
     "fireRate": 0.6666666666666666,
     "model": "assets/3d/pickups/SniperRifle/SniperRifle.gltf",
     "pickup": "weapon-sniper",
+    "headshotDamage": 100,
     "sound": "assets/audio/ut/sniperfire.mp3"
   },
   "shock": {
@@ -66,6 +67,7 @@ const WEAPONS = {
     "model": "assets/3d/pickups/ripper/ripper.gltf",
     "pickup": "weapon-ripper",
     "sound": "assets/audio/ut/startblade.mp3",
+    "headshotDamage": 105,
     "projectile": {
       "type": "ripper",
       "speed": 30.55,
@@ -111,7 +113,7 @@ const WEAPON_BY_PICKUP = {
   "weapon-ripper": "ripper",
   "weapon-redeemer": "redeemer"
 };
-const PAWN = {"radius":0.4,"height":1.833};
+const PAWN = {"radius":0.4,"height":1.833,"headshotAboveCentre":0.568};
 const PICKUP_SOUND = "assets/audio/ut/weaponpickup.mp3";
 
 /** The weapon for an id, falling back to the one everyone spawns with. */

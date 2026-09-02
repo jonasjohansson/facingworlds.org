@@ -24,7 +24,7 @@
 const ANNOUNCER_DIR = "assets/audio/ut/announcer";
 
 /** Every sound, for preloading. */
-const ANNOUNCEMENTS = ["firstblood","doublekill","multikill","ultrakill","monsterkill","killingspree","rampage","dominating","unstoppable","godlike","prepare","winner","lostmatch","capture"];
+const ANNOUNCEMENTS = ["firstblood","doublekill","multikill","ultrakill","monsterkill","killingspree","rampage","dominating","unstoppable","godlike","prepare","winner","lostmatch","capture","headshot"];
 
 const FIRST_BLOOD = "firstblood";
 const MULTI_KILL = ["doublekill","multikill","ultrakill","monsterkill"];
@@ -33,6 +33,7 @@ const SPREE_AT = [5,10,15,20,25];
 const SPREE = ["killingspree","rampage","dominating","unstoppable","godlike"];
 const MATCH = {"start":"prepare","won":"winner","lost":"lostmatch"};
 const CAPTURE = "capture";
+const HEADSHOT = "headshot";
 
 /** The file for a key, or null if it is not one of ours. */
 function announcementUrl(key) {
@@ -64,6 +65,7 @@ module.exports = {
   MULTI_KILL_WINDOW_MS,
   MATCH,
   CAPTURE,
+  HEADSHOT,
   announcementUrl,
   multiKillSound,
   spreeSound,

@@ -33,6 +33,19 @@ const STEP_MS = 50;
 const MAX_LIFE_MS = 10000;
 
 /**
+ * UT99's headshot test, which the Sniper Rifle and the Ripper share word for word:
+ *
+ *     HitLocation.Z - Other.Location.Z > 0.62 * Other.CollisionHeight
+ *
+ * A UE1 actor's Location is the CENTRE of its cylinder. Here a player's y is their feet,
+ * so the centre has to be found first — reading this as "above the feet" would make every
+ * hit above the ankles a headshot.
+ */
+function isHeadshot(hitY, victim) {
+  return hitY - (victim.y + PAWN.height / 2) > PAWN.headshotAboveCentre;
+}
+
+/**
  * Where a segment first enters a player's collision cylinder, as a fraction of the
  * segment, or null. The cylinder is upright, so this is a circle test in plan with a
  * height check at the answer.
@@ -72,7 +85,7 @@ function sweepCylinder(x0, y0, z0, dx, dy, dz, cx, cy, cz, radius, height) {
  *                armour, the amplifier, kills, flags and respawns all behave identically
  *                whether the hit came from a bullet or a blast.
  */
-function createProjectiles({ players, broadcast, damage }) {
+function createProjectiles({ players, broadcast, damage, onHeadshot = () => {} }) {
   const live = new Map();
   let nextId = 1;
 
@@ -96,6 +109,7 @@ function createProjectiles({ players, broadcast, damage }) {
       dz: dir.z / len,
       speed: w.projectile.speed,
       damage: w.damage,
+      headshotDamage: w.headshotDamage || 0,
       splash: w.projectile.splashRadius,
       wallHits: 0,
       maxWallHits: w.projectile.bounces,
@@ -195,7 +209,15 @@ function createProjectiles({ players, broadcast, damage }) {
   function hit(p, victim, now) {
     if (victim) {
       const shooter = players.get(p.owner);
-      if (shooter) damage(shooter, victim, p.damage);
+      if (shooter) {
+        // A HEADSHOT needs no trust at all here: the server worked out where this thing
+        // met that body, so it can apply UT99's own test directly. Razor2 does
+        // TakeDamage(3.5 * damage) with damage type 'decapitated' when the impact is more
+        // than 0.62 of a half-height above the body's CENTRE.
+        const head = p.headshotDamage > 0 && isHeadshot(p.y, victim);
+        damage(shooter, victim, head ? p.headshotDamage : p.damage);
+        if (head) onHeadshot(shooter, victim);
+      }
     }
     if (p.splash > 0) hurtRadius(p, now);
     retire(p, "hit");
@@ -254,4 +276,4 @@ function createProjectiles({ players, broadcast, damage }) {
 const r2 = (n) => Math.round(n * 100) / 100;
 const r3 = (n) => Math.round(n * 1000) / 1000;
 
-module.exports = { createProjectiles, sweepCylinder, STEP_MS };
+module.exports = { createProjectiles, sweepCylinder, isHeadshot, STEP_MS };
