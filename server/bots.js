@@ -53,6 +53,11 @@ const { NODES, WALKABLE_MAIN, nearestNode, aStar } = require("./nav-graph.js");
 // scripts/gen-navmesh-surface.mjs. It is what keeps a bot's feet on the rock (the GROUND
 // block in step()) and what stands in for a line-of-sight test (canSee()).
 const { surfaceNear, groundRisesAbove } = require("./navmesh-surface.js");
+const { blocked } = require("./map-collision.js");
+// BOT_LOS=walls swaps the terrain occlusion test below for a real one against every
+// triangle of the map. Off by default: see the note in canSee about why that is a
+// measurement and not an oversight.
+const LOS_WALLS = process.env.BOT_LOS === "walls";
 const { pickCharacter } = require("./characters.js");
 const { DEFAULT_WEAPON } = require("./weapons.js");
 
@@ -192,7 +197,11 @@ const AIM_CONE = Math.cos((55 * Math.PI) / 180);
 // A floor separation gate, kept alongside canSee(): two players 6 units apart
 // vertically inside a tower are on different storeys. It is cheap and it runs first,
 // so most pairs never reach the line-of-sight sampling at all.
-const MAX_FIGHT_DY = 6;
+// Overridable so the pairing can be measured against a real occlusion test: with
+// BOT_LOS=walls the reason this gate exists — that a height field cannot see the floor
+// between two storeys — is gone, and the gate can be widened without bots shooting
+// through a deck.
+const MAX_FIGHT_DY = Number(process.env.BOTS_MAX_FIGHT_DY) || 6;
 // A bot does not open fire the instant a target appears. Longer than it was (300),
 // and this is one of the two numbers the roster change had to be paid for with: at
 // five a side you are simply seen more often, so the window you get to break contact
@@ -305,6 +314,42 @@ const BOT_NAMES = [
  * server rather than the navmesh, which is a much larger thing than this.
  */
 function canSee(from, fromY, to, toY) {
+  // A REAL occlusion test, against every triangle of the map including its walls — which
+  // the terrain rule below cannot see at all. Off unless BOT_LOS=walls. It is not a bug
+  // fix that can simply be applied, and the reasons are measured rather than felt:
+  //
+  //   IT IS CORRECT ABOUT THE MESH. On the pairs a bot can actually engage the terrain
+  //   rule blocks 0.7% and this blocks 69.7%, and 71.3% of those blocks are a genuine
+  //   WALL (normal.y under 0.5) against 0.3% that are a grazed floor. Bots have been
+  //   shooting through the towers; this is not an artifact of the navmesh and map mesh
+  //   disagreeing about heights.
+  //
+  //   THE COST IS RECOVERABLE. Standing a motionless player on the enemy flag for 180 s
+  //   (scripts are gone but the numbers are not):
+  //
+  //     terrain rule, as shipped                     15 deaths  0.50 hits/s
+  //     walls, no other change                        3 deaths  0.10 hits/s   unplayable
+  //     walls + MAX_FIGHT_DY 30, acc 0.45, react 350 10 deaths  0.36 hits/s
+  //     walls + MAX_FIGHT_DY 30, acc 0.36, react 450 14 deaths  0.47 hits/s   ~as shipped
+  //
+  //   ONE 180 s sample per row, 3-15 deaths each. The ordering is solid; the last row is
+  //   a single sample and its second decimal is not to be leaned on.
+  //
+  //   Most of that recovery is the height gate, not the accuracy: MAX_FIGHT_DY exists
+  //   only because a height field cannot see the floor between two storeys, so with a
+  //   real test its reason is gone and widening it is removing a workaround.
+  //
+  //   WHAT STOPS IT SHIPPING is neither of those. Four of the eight cases in
+  //   bots-los.test.mjs fail under it, and two of them matter: a defender cannot see
+  //   their own flag, and one pair of nav nodes 3.1 m apart is separated by a wall. The
+  //   cause is that Epic's actor and nav placements and the FAN-MADE map mesh disagree
+  //   in specific spots — FlagBase1 sits boxed in on 7 of 8 sides, the only one of 112
+  //   walkable nodes that does. Adopting this trades old wrong answers for new ones at
+  //   exactly the places bots and flags stand, which is the same failure the height-field
+  //   version was fixed for once already. Fixing it means reconciling the two assets, not
+  //   turning a knob.
+  if (LOS_WALLS) return !blocked(from.x, fromY, from.z, to.x, toY, to.z);
+
   const ox = from.x;
   const oz = from.z;
   const dx = to.x - ox;

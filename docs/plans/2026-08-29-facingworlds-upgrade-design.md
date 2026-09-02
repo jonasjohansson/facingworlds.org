@@ -354,3 +354,52 @@ the footprint probe cannot cross a storey, and that ground directly underfoot al
 the rim. The safety claim in the generated header — that the 4.0 window both callers pass
 is narrower than the 6.07 two stacked surfaces ever come to each other — is now read out
 of `bots.js` and `server.js` at generation time and **throws** if someone widens either.
+
+## Landed 2026-09-02, later — the weapons, the voice, and one thing that did not land
+
+Six weapons now, not three. The Rocket Launcher, Ripper and Redeemer fly, every weapon
+has UT99's own sound, the announcer is back, and headshots work. All of it derived from
+the retail packages rather than typed — `scripts/lib/upkg.mjs` reads UE1 class defaults
+and the UnrealScript source Epic shipped inside each `.u`, which turned out to be the key
+that made everything else honest.
+
+- **The numbers are Epic's.** Rocket 900 uu/s, 75 damage, 220 splash; ripper 1300, 30, six
+  wall hits; Redeemer 600, 1000, 300. The falloff curve too — `Razor2Alt`'s own `BlowUp()`
+  spells it as `1 - FMax(0, (dist - Victims.CollisionRadius) / radius)`, which is why
+  splash measures from the edge of a collision cylinder rather than its centre.
+- **The explosions are not shaders, because UT99's were not.** A rocket blast is eight
+  frames over 0.7 s on a camera-facing quad; the Redeemer's is eighteen over one second.
+  Both classes are `Style STY_TRANSLUCENT`, and in UE1 a translucent sprite's brightness
+  IS its opacity — `WarExplosion`'s last frame is fully opaque near-black, so alpha
+  blending ends the Redeemer on a black square. The procedural FireTexture smoke is
+  deliberately absent: it is a cellular automaton over a palette, a few hundred bytes of
+  parameters rather than an image.
+- **Headshots are the one number a client has a say in.** A hitscan shot resolves on the
+  client, so the server now takes the point its trace stopped at — and accepts it only if
+  it lies on the ray of the shot being spent and inside the victim. A point failing either
+  gets a body hit, so a flattering lie costs the liar their own bonus and nothing else.
+
+### canSee against real walls: measured, and NOT adopted
+
+`server/map-collision.js` gives the server all 3,240 map triangles and a 2.4 us raycast,
+which is what `canSee` has wanted since it was written. It is behind `BOT_LOS=walls` and
+staying there. The reasoning is in `canSee`'s own comment; the short version:
+
+- It is **right about the mesh**. On engageable pairs the terrain rule blocks 0.7% and
+  this blocks 69.7%, and 71.3% of those are a genuine wall against 0.3% grazed floor.
+  Bots have been shooting through the towers.
+- The **cost is recoverable**: 0.50 hits/s as shipped, 0.10 with walls alone, 0.47 with
+  walls plus a widened height gate and a modest accuracy bump. Most of the recovery is the
+  gate — `MAX_FIGHT_DY` exists only because a height field cannot see the floor between
+  two storeys, so a real test removes its reason.
+- What stops it is **neither of those**. Four of eight cases in `bots-los.test.mjs` fail,
+  two of them badly: a defender cannot see their own flag, and two nav nodes 3.1 m apart
+  are separated by a wall. Epic's actor placements and the FAN-MADE map mesh disagree in
+  specific spots — `FlagBase1` is boxed in on 7 of 8 sides, the only one of 112 walkable
+  nodes that is. Adopting it would trade old wrong answers for new ones at exactly the
+  places bots and flags stand, which is the failure the height-field version was already
+  fixed for once.
+
+Reconciling the two assets is the actual next piece of work, and it is a bigger one than
+this switch.
+
