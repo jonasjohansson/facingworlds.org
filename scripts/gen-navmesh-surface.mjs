@@ -59,6 +59,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadNavmesh } from "./lib/navmesh.mjs";
 import { WORLD_SCALE } from "../src/shared/map-transform.js";
+import { GAME_CONFIG } from "../src/game/config/game-config.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
@@ -81,12 +82,54 @@ const CHECK = process.argv.includes("--check");
 // limit so the tower ramps survive, tight enough that a wall never becomes ground.
 const PATCH_MIN_UP = 0.5;
 
+// How close the navmesh has to run to a map triangle before that triangle is dead
+// weight. Not a tuned figure: surfaceNear() consults the patch only when the navmesh
+// has nothing within `window` of the height being asked about, so anything nearer than
+// the widest window it will ever use can never be reached through the patch. Keep this
+// equal to that default.
+const PATCH_REDUNDANT = 8;
+
+// surfaceNear() probes the rim of the body's own footprint when nothing is directly
+// underfoot. Taken from the game's hitbox rather than picked: it is the same radius
+// src/game/config/game-config.js gives the hitscan capsule, so "what am I standing on"
+// and "what can be shot" agree about how wide a body is. Eight compass points is enough
+// for holes of this size — the ones being crossed are narrower than the body itself.
+const BODY_RADIUS = GAME_CONFIG.HITBOX.RADIUS;
+const BODY_RIM_POINTS = 8;
+
+// The window server/bots.js and server/server.js actually pass. The generated header
+// makes a safety claim about it — that it is narrower than the closest two stacked
+// surfaces on the map ever come — so it is READ OUT OF THOSE FILES rather than typed
+// here. If someone widens either one past the storey gap this run fails and says so,
+// instead of the file quietly going on claiming something that stopped being true.
+const GROUND_WINDOW_IN_USE = (() => {
+  const sources = [
+    ["server/bots.js", /const GROUND_WINDOW = ([\d.]+);/],
+    ["server/server.js", /const PICKUP_SNAP_WINDOW = ([\d.]+);/],
+  ];
+  const found = sources.map(([rel, re]) => {
+    const m = re.exec(fs.readFileSync(path.join(ROOT, rel), "utf8"));
+    if (!m) throw new Error(`${rel}: could not find the window surfaceNear is called with`);
+    return [rel, Number(m[1])];
+  });
+  const widest = Math.max(...found.map(([, v]) => v));
+  if (new Set(found.map(([, v]) => v)).size !== 1) {
+    console.warn(`[warn] callers disagree about the ground window: ${JSON.stringify(found)}`);
+  }
+  return widest;
+})();
+
 // Plan-space bucket size for the index the runtime builds. 6 units is a little over
 // half the median triangle's plan extent here, which keeps the average bucket at a
 // handful of triangles without exploding the bucket count.
 const CELL = 6;
 
 const r3 = (n) => Math.round(n * 1000) / 1000;
+
+const bodyRim = Array.from({ length: BODY_RIM_POINTS }, (_, i) => {
+  const a = (i * 2 * Math.PI) / BODY_RIM_POINTS;
+  return `${r3(BODY_RADIUS * Math.cos(a))}, ${r3(BODY_RADIUS * Math.sin(a))}`;
+}).join(", ");
 
 const nav = loadNavmesh(INPUT, WORLD_SCALE);
 
@@ -130,15 +173,27 @@ for (const t of mapMesh.tris) {
     patchTooSteep++;
     continue;
   }
-  // Dropped only when the navmesh already covers the WHOLE triangle. A triangle that
-  // merely overlaps covered ground is kept, because the fallback is consulted per
-  // query and only where the navmesh answered nothing — so the part of it lying over
-  // a hole is the only part anyone can ever reach. Testing `some` instead of `every`
-  // here threw away every triangle that straddled the edge of a hole, which is most
-  // of the ones that matter: it left 146 patches and the bridge still bare.
-  const mid = [(a[0] + b[0] + c[0]) / 3, 0, (a[2] + b[2] + c[2]) / 3];
+  // Dropped only when the navmesh already answers the query this triangle would answer.
+  // That takes two conditions, and the second one is the entire tower interior.
+  //
+  // COVERED IN PLAN. A triangle that merely overlaps covered ground is kept, because
+  // the fallback is consulted per query and only where the navmesh answered nothing —
+  // so the part of it lying over a hole is the only part anyone can ever reach. Testing
+  // `some` instead of `every` here threw away every triangle that straddled the edge of
+  // a hole, which is most of the ones that matter: it left 146 patches and the bridge
+  // still bare.
+  //
+  // COVERED IN HEIGHT. Asking only whether the navmesh has *something* at an x/z is a
+  // plan question, and CTF-Face's towers are stacked: a lift-shaft floor 14 units up
+  // sits directly over the outdoor terrain, and the flag deck sits 72 units over it. So
+  // every storey inside both towers was being thrown away as already covered by ground
+  // it is nowhere near, which is why a bot in a tower had no floor to snap to. Compare
+  // the triangle's own height, not just its footprint.
+  const mid = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
   const probes = [a, b, c, mid];
-  if (probes.every((p) => nav.heightsAt(p[0], p[2]).length)) {
+  const navAnswers = (p) =>
+    nav.heightsAt(p[0], p[2]).some((h) => Math.abs(h - p[1]) <= PATCH_REDUNDANT);
+  if (probes.every(navAnswers)) {
     patchAlreadyCovered++;
     continue;
   }
@@ -237,6 +292,17 @@ for (let x = -40; x <= 60; x += 0.5) {
 }
 const maxTerrainRise = ridgeMaxY - minWalkY;
 const minOverheadRise = minOverheadY - minWalkY;
+
+// The safety claim the generated surfaceNear() makes about its callers, checked here so
+// the file cannot ship asserting it while it is false. A window as wide as the gap
+// between two stacked surfaces could hand a body the floor of the storey above.
+if (!(GROUND_WINDOW_IN_USE < minStoreyGap)) {
+  throw new Error(
+    `a caller asks surfaceNear for a ${GROUND_WINDOW_IN_USE} window, but two walkable ` +
+      `surfaces on this map come within ${r3(minStoreyGap)} of each other — that window ` +
+      `can return the floor above. Narrow the caller, or drop the claim from the header.`,
+  );
+}
 if (!(minOverheadRise > maxTerrainRise)) {
   console.error(
     `REFUSING TO WRITE: terrain rises ${r3(maxTerrainRise)} above the lowest walkable height, but the ` +
@@ -315,9 +381,11 @@ ${rows.join("\n")}
 // (assets/3d/map/FacingWorlds_tex_5.gltf) for the places the navmesh has no floor at
 // all: the centre of the bridge, most of the lift shafts, and the alcove floors inside
 // the towers. Every one of them is level enough to stand on (|normal.y| >= ${PATCH_MIN_UP}) AND
-// has no navmesh under any of its corners or its centre, so this layer can only add
-// ground where there was none. ${patchAlreadyCovered} map triangles were dropped as already covered
-// and ${patchTooSteep} as too steep.
+// has no navmesh running within ${PATCH_REDUNDANT} of it at any of its corners or its centre, so
+// this layer can only add ground where there was none. Within, not merely underneath:
+// the towers are stacked, and a footprint test discarded every interior storey as
+// covered by the outdoor terrain up to 72 units below it. ${patchAlreadyCovered} map triangles were
+// dropped as already covered and ${patchTooSteep} as too steep.
 //
 // Only surfaceNear() reads it. heightsAt() and groundRisesAbove() are questions about
 // the navmesh and still answer from the navmesh alone.
@@ -417,6 +485,16 @@ function heightsAt(x, z) {
   return out;
 }
 
+// The rim of the player's own footprint, as (dx, dz) pairs — eight compass points at
+// HITBOX.RADIUS from src/game/config/game-config.js, the same radius the hitscan
+// capsule uses. Not a search radius chosen to make a number look better: it is how wide
+// the thing standing on the ground is.
+const BODY_RIM = [${bodyRim}];
+
+// Half the closest two walkable surfaces come to each other anywhere on this map. A
+// footprint answer nearer than this is the floor; anything further is another level.
+const HALF_STOREY = ${r3(minStoreyGap / 2)};
+
 /**
  * The one surface a body at height \`y\` is standing on, or null if the mesh has
  * nothing to say here.
@@ -424,10 +502,37 @@ function heightsAt(x, z) {
  * \`window\` bounds how far it is willing to look. Outdoors it never matters (there is
  * one surface); inside a tower it is what stops a bot on the ground floor being
  * "snapped" onto the deck 23 units above it. Left generous by default because the
- * fitted nav-graph placements it corrects are themselves up to a couple of units out,
- * and every tower storey is more than 17 units from the next.
+ * fitted nav-graph placements it corrects are themselves up to a couple of units out.
+ * Both callers pass ${r3(GROUND_WINDOW_IN_USE)}, which is inside the ${r3(minStoreyGap)} the two closest stacked
+ * surfaces on this map ever come to each other, so neither can be handed another
+ * storey. The default of 8 is wider than that gap and nothing uses it; a new caller
+ * wanting it should say why.
  */
 function surfaceNear(x, z, y, window = 8) {
+  const under = surfaceUnder(x, z, y, window);
+  if (under !== null) return under;
+  // Nothing directly underfoot — but a body is not a point. It stands on whatever lies
+  // within its own footprint, and both meshes have pinholes narrower than a pawn. One
+  // of them sits on the ramp at PathNode7, which was the ONLY place on the corridor
+  // bots can actually walk that had no floor at all: the ground runs at about 10 on
+  // every side of it and the triangles simply stop at that x/z. Probe the rim before
+  // answering "no ground".
+  //
+  // This cannot reach onto a different storey, and that is enforced rather than hoped:
+  // a rim answer is accepted only within HALF_STOREY of the height asked about, so the
+  // nearest thing it could confuse a floor with is still half a storey further away.
+  let best = null;
+  const rim = Math.min(window, HALF_STOREY);
+  for (let i = 0; i < BODY_RIM.length; i += 2) {
+    const h = surfaceUnder(x + BODY_RIM[i], z + BODY_RIM[i + 1], y, rim);
+    if (h === null) continue;
+    if (best === null || Math.abs(h - y) < Math.abs(best - y)) best = h;
+  }
+  return best;
+}
+
+/** surfaceNear's answer for one exact point: the navmesh, then the map-mesh patch. */
+function surfaceUnder(x, z, y, window) {
   const best = nearestIn(TRIS, GRID, x, z, y, window);
   if (best !== null) return best;
   // The navmesh has nothing here. Before answering "no ground", ask the map mesh:

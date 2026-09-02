@@ -313,3 +313,44 @@ made the game less lethal, and it is documented as not being that.
 - The 12 nav nodes with no navmesh under them (the fan model has no lift platforms) keep
   their fitted `y`, and a bot standing there keeps its interpolated height — 1,234 of
   ~6,400 sampled poses were over such a hole.
+
+## Landed 2026-09-02 — the navmesh
+
+The last open item from 2026-09-01 said 12 nav nodes had no navmesh under them and that
+"the fan model has no lift platforms". Half of that was true. The other half was a bug in
+our own code, and it had been throwing away geometry we already shipped.
+
+- **The patch layer was asking a plan question about a stacked map.** A map triangle was
+  dropped as redundant when the navmesh had *something* at each of its corners — any
+  height at all. CTF-Face is two towers: a lift-shaft floor 14 units up sits directly over
+  the outdoor terrain, and the red flag deck sits 72 units over it. So every storey inside
+  both towers was discarded as "already covered" by ground it was nowhere near. Comparing
+  the triangle's own height instead took the patch from 891 triangles to 1,280, and with
+  it **10 more pickups off their collision origin and onto a floor** (26 snapped → 36).
+- **A body is not a point.** Both meshes have pinholes narrower than a pawn. `surfaceNear`
+  now probes the rim of the player's own footprint — `HITBOX.RADIUS`, read out of
+  `game-config.js` so the ground test and the hitscan capsule agree how wide a body is —
+  before it answers "no ground". Three more pickups placed (36 → 39), and the last bare
+  spot on the walkable corridor closed.
+- **Honest scope: the first fix changed nothing bots can reach.** Measured on Epic's own
+  graph, walk-edge coverage went 10.1% → 6.2% ungrounded, but flooding the graph from the
+  PlayerStarts *without* lift, teleporter or translocator edges — the routes `aStar`
+  refuses — shows why: the tower interiors are not reachable on foot. Bots never went
+  there. **Humans do**, and the pickups are theirs. On the corridor bots actually walk the
+  number moved only with the footprint probe: **1.77% → 0.95%**, and the count of nav
+  nodes with no floor under them that a bot can reach went **1 → 0**.
+- **What is left is not ours to fix.** 43 of the 166 nav nodes had no ground under them
+  before this; 23 still do. Eleven of those are `LiftExit`, `Teleporter` and
+  `translocdest`, which are *supposed* to hang over a shaft or an arc — a lift's floor is
+  the moving platform, and the static mesh has none. The other twelve are tower-interior
+  item and defence spots the fan map simply does not build. Exactly one sits over a
+  surface the map mesh has and the patch layer rejects, and it is an 80° face nobody could
+  stand on; **zero have a level floor the patch layer is missing.** That last one is the
+  property worth re-checking if any of this looks wrong later.
+
+`server/test/navmesh-surface.test.mjs` pins all of it: that every bot-reachable waypoint
+has ground, that the tower tops have a floor while the navmesh alone still does not, that
+the footprint probe cannot cross a storey, and that ground directly underfoot always beats
+the rim. The safety claim in the generated header — that the 4.0 window both callers pass
+is narrower than the 6.07 two stacked surfaces ever come to each other — is now read out
+of `bots.js` and `server.js` at generation time and **throws** if someone widens either.

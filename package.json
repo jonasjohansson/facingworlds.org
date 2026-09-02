@@ -12,6 +12,7 @@
     "test": "node src/shared/net/interpolation.test.mjs",
     "test:ctf": "node --test server/test/ctf.test.mjs",
     "test:bots": "node --test server/test/bots.test.mjs server/test/bots-gate.test.mjs server/test/bots-los.test.mjs",
+    "test:surface": "node --test server/test/navmesh-surface.test.mjs",
     "test:server": "node --test server/test/*.test.mjs",
     "gen:map-actors": "node scripts/gen-map-actors.mjs",
     "gen:map-actors:check": "node scripts/gen-map-actors.mjs --check",
