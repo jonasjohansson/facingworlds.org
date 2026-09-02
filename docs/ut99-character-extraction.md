@@ -3,9 +3,16 @@
 The eight playable Unreal Tournament characters, out of the retail packages and into
 `assets/3d/characters/` as glTF with `Idle`/`Walk`/`Run` animations.
 
-The extractor itself is not in this repo — it is throwaway tooling that ran once. This
-file is the part worth keeping: **what the format actually does**, because almost none
-of it is guessable and every wrong guess renders as something that looks nearly right.
+The mesh extractor itself is not in this repo — it is throwaway tooling that ran once.
+This file is the part worth keeping: **what the format actually does**, because almost
+none of it is guessable and every wrong guess renders as something that looks nearly
+right.
+
+The **package reader is** in the repo, at `scripts/lib/upkg.mjs`, because throwing it away
+turned out to be a mistake: it was needed again for the projectile numbers and had to be
+rebuilt from nothing. It reads the header, name, import and export tables, a class's
+default properties, and the UnrealScript source UT99 ships inside each package. See
+[the class defaults section](#reading-a-classs-default-properties) below.
 
 ## Where the characters live
 
@@ -85,3 +92,39 @@ The assets are committed; the roster that indexes them is generated:
 
 These are Epic's assets, from a retail install. Shipping them is a deliberate choice
 for this fan project, taken knowingly — see also the note in README.md.
+
+
+## Reading a class's default properties
+
+`scripts/lib/upkg.mjs` answers "what does UT99 say this class's numbers are", which is
+where every projectile figure in `scripts/data/ut-projectiles.json` comes from. Two
+things about it are not guessable either.
+
+**The script cannot be skipped by its length.** `UStruct` writes a `ScriptSize`, but that
+is how much room the bytecode takes *in memory*; on disk UE1 serializes it token by token
+and the two differ. Skipping `ScriptSize` bytes works perfectly for a class whose script
+is all in child functions (`ripper`, `RocketMk2` — `ScriptSize` 0) and lands mid-bytecode
+for one with any class-level script (`UT_Eightball` — 22), where the parse reads garbage
+and reports a class with **no defaults at all** rather than failing.
+
+**Finding the properties by scanning is not enough.** They are last in the export and end
+at the name `None`, so a scan for "a property list that ends exactly on the export
+boundary" looks like the answer. It is not: a start a few bytes inside the bytecode can
+resynchronise onto the real list part-way through and end in the same place. `RocketMk2`
+has one that is *both earlier and longer* than the truth — it gains `ProcessTouch`, `Core`
+and `Palette` and loses `speed` — so neither "first match" nor "longest match" picks
+correctly, and both fail silently.
+
+What works is structure. Between the bytecode and the properties sits a fixed UClass
+tail: `UState`'s two masks, a label offset and state flags, then `ClassFlags`, a 16-byte
+GUID, the dependency and package-import lists, `ClassWithin` and `ClassConfigName`. So
+guess where the *script* ends rather than where the properties start, parse that tail, and
+see where it delivers you. Only a real script end produces a tail that parses and hands
+over a property list terminating exactly on the boundary.
+
+**The source is in the package.** Each class carries a `TextBuffer` child named
+`ScriptText` holding its `.uc` text, so numbers that live in code rather than in defaults
+can be read instead of disassembled — `HurtRadius(Damage, 220.0, ...)` is how the rocket's
+blast radius was obtained. Mind *which* call: `WarShell` has one radius in `Explode()` for
+hitting something (300) and a larger one in `TakeDamage()` for being shot out of the air
+(350).

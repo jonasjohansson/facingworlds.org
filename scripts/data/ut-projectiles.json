@@ -1,0 +1,54 @@
+{
+  "source": "UT99 retail BotPack.u",
+  "packageVersion": 69,
+  "weapons": {
+    "rocket": {
+      "pickup": "weapon-rocket",
+      "weaponClass": "UT_Eightball",
+      "projectileClass": "RocketMk2",
+      "refireRate": 0.25,
+      "speed": 900,
+      "maxSpeed": 1600,
+      "damage": 75,
+      "momentumTransfer": 80000,
+      "lifeSpan": 6,
+      "splashRadius": 220,
+      "mesh": "UTRocket",
+      "drawScale": 0.019999999552965164,
+      "bounces": true,
+      "damageType": "RocketDeath"
+    },
+    "ripper": {
+      "pickup": "weapon-ripper",
+      "weaponClass": "ripper",
+      "projectileClass": "Razor2",
+      "refireRate": 1,
+      "speed": 1300,
+      "maxSpeed": 1200,
+      "damage": 30,
+      "momentumTransfer": 15000,
+      "lifeSpan": 6,
+      "splashRadius": null,
+      "mesh": "RazorBlade",
+      "drawScale": 1,
+      "bounces": true,
+      "damageType": null
+    },
+    "redeemer": {
+      "pickup": "weapon-redeemer",
+      "weaponClass": "WarheadLauncher",
+      "projectileClass": "WarShell",
+      "refireRate": 0.25,
+      "speed": 600,
+      "maxSpeed": null,
+      "damage": 1000,
+      "momentumTransfer": 100000,
+      "lifeSpan": null,
+      "splashRadius": 300,
+      "mesh": "missile",
+      "drawScale": 1,
+      "bounces": false,
+      "damageType": "RedeemerDeath"
+    }
+  }
+}
