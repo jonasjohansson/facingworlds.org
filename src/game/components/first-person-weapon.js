@@ -7,6 +7,37 @@ import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
 import { hitscan } from "./hitscan.js";
 import { spawnTracer, spawnImpact, getFlashTexture } from "./impact-effects.js";
 
+// ---------------------------------------------------------------------------
+// WHERE A HELD WEAPON SITS
+// ---------------------------------------------------------------------------
+// The three numbers below are the ONLY part of first-person weapon placement that is not
+// Epic's. Everything else — the mesh, its scale, its rotation — comes out of the weapon's
+// own class defaults through scripts/build-ut-viewmodels.mjs.
+//
+// They cannot be derived, and the reason is worth stating so nobody "fixes" it by
+// converting the raw numbers: UE1 draws the view weapon through its own near-field
+// projection, not through world space. Epic's PlayerViewOffset for the Enforcer is
+// (3.30, -2.00, -3.00) Unreal Units, which at pawn scale is about 8 cm from the eye,
+// against the 0.2/-0.3/-0.5 m this game has always drawn it at. The view meshes come out
+// the same way: 0.12 m for the Enforcer, 0.35 m for the Sniper Rifle — right relative to
+// each other, an order of magnitude off in absolute terms.
+//
+// So the relative information is used and the absolute is fitted. MODEL_SCALE brings the
+// whole set up to the size the Enforcer has always been; OFFSET_SCALE turns Epic's
+// offsets into metres of DELTA from the Enforcer. Adjust these two by eye, together, and
+// all six weapons keep their relationship to one another.
+const VIEW = {
+  // Chosen so the Enforcer's 0.12 m view mesh lands at about the 0.45 m the markup
+  // weapon in index.html measures. One number for all six, so relative sizes survive.
+  MODEL_SCALE: 3.75,
+  // Unreal Units of PlayerViewOffset -> metres of offset from the Enforcer's position.
+  OFFSET_SCALE: 0.02,
+  // The Enforcer's own PlayerViewOffset, which every other weapon is measured against.
+  // Mirrored from scripts/data/ut-viewmodels.json; it is the origin of the delta, not a
+  // placement, so it never moves the Enforcer itself.
+  ENFORCER_OFFSET_UU: [3.3, -2, -3],
+};
+
 // Shared audio pool for weapon sounds
 const WEAPON_POOL_SIZE = 4;
 let weaponAudioPool = null;
@@ -431,20 +462,46 @@ AFRAME.registerComponent("first-person-weapon", {
     if (this.leftWeapon) this.leftWeapon.setAttribute("visible", false);
 
     const held = document.createElement("a-entity");
-    held.setAttribute("gltf-model", `url(${spec.model})`);
+    // UT99's own first-person mesh, WITH the arm — not the pickup mesh that spins on the
+    // floor, which is what this used to draw and why a picked-up weapon read as an object
+    // hanging in front of the camera rather than a gun in a hand.
+    const view = spec.view;
+    held.setAttribute("gltf-model", `url(${view ? view.model : spec.model})`);
+
     // Read off the Enforcer rather than written by hand: index.html owns where a
     // weapon sits relative to the eye, and weapon-sway moves it at runtime, so any
     // constant typed here goes stale the first time either changes.
     const ref = this._gltfWeapon || this.weapon;
-    if (ref) {
-      const p = ref.object3D.position;
-      held.setAttribute("position", `${p.x} ${p.y} ${p.z}`);
+    const base = ref ? ref.object3D.position : { x: 0.2, y: -0.3, z: -0.5 };
+
+    if (view) {
+      // Epic's PlayerViewOffset is used as a DELTA FROM THE ENFORCER, never as an
+      // absolute position. The raw numbers are Unreal Units in UE1's own view
+      // projection — the Enforcer's (3.30, -2.00, -3.00) is about 8 cm at pawn scale,
+      // against the 0.2/-0.3/-0.5 m this game has always used — so they do not convert
+      // directly and pretending they do would move all six somewhere wrong. What they
+      // ARE good for is how the weapons sit relative to each other, which is exactly
+      // what a delta uses. The Enforcer therefore keeps the placement index.html gives
+      // it, whatever happens here, and the other five differ from it by Epic's amounts.
+      const ref0 = VIEW.ENFORCER_OFFSET_UU;
+      const d = view.offsetUU;
+      // UT axes (x forward, y right, z up) -> scene axes (x right, y up, z back).
+      const dx = (d[1] - ref0[1]) * VIEW.OFFSET_SCALE;
+      const dy = (d[2] - ref0[2]) * VIEW.OFFSET_SCALE;
+      const dz = -(d[0] - ref0[0]) * VIEW.OFFSET_SCALE;
+      held.setAttribute("position", `${base.x + dx} ${base.y + dy} ${base.z + dz}`);
+      held.setAttribute("scale", `${VIEW.MODEL_SCALE} ${VIEW.MODEL_SCALE} ${VIEW.MODEL_SCALE}`);
+      // Epic's RotOrigin, per weapon. The old single "0 90 0" had the Rocket Launcher
+      // turned the wrong way (its RotOrigin is -90) and could not express the Redeemer,
+      // which turns on all three axes.
+      const r = view.rotationDeg;
+      held.setAttribute("rotation", `${r[0]} ${r[1]} ${r[2]}`);
+    } else {
+      // No view model for this weapon: fall back to the old pickup-mesh placement.
+      held.setAttribute("position", `${base.x} ${base.y} ${base.z}`);
+      held.setAttribute("scale", "0.32 0.32 0.32");
+      held.setAttribute("rotation", "0 90 0");
     }
-    // The pickup meshes are sized in metres for the map, which is far too big in
-    // first person; this brings a 1.15 m rifle to about the 0.37 m the Enforcer
-    // measures at index.html's scale.
-    held.setAttribute("scale", "0.32 0.32 0.32");
-    held.setAttribute("rotation", "0 90 0");
     this.el.appendChild(held);
     this.pickupWeapon = held;
     this.weapon = held;

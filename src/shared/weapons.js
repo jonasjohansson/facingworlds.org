@@ -15,7 +15,30 @@ const WEAPONS = {
     "fireRate": 4,
     "model": null,
     "pickup": null,
-    "sound": "assets/audio/ut/e_shot.mp3"
+    "sound": "assets/audio/ut/e_shot.mp3",
+    "view": {
+      "model": "assets/3d/viewmodels/enforcer/enforcer.gltf",
+      "rotationDeg": [
+        0,
+        90,
+        0
+      ],
+      "offsetUU": [
+        3.3,
+        -2,
+        -3
+      ],
+      "fireOffsetUU": [
+        0,
+        -10,
+        -4
+      ],
+      "sizeM": [
+        0.0281,
+        0.0556,
+        0.1227
+      ]
+    }
   },
   "sniper": {
     "name": "Sniper Rifle",
@@ -24,7 +47,30 @@ const WEAPONS = {
     "model": "assets/3d/pickups/SniperRifle/SniperRifle.gltf",
     "pickup": "weapon-sniper",
     "headshotDamage": 100,
-    "sound": "assets/audio/ut/sniperfire.mp3"
+    "sound": "assets/audio/ut/sniperfire.mp3",
+    "view": {
+      "model": "assets/3d/viewmodels/sniper/sniper.gltf",
+      "rotationDeg": [
+        0,
+        90,
+        0
+      ],
+      "offsetUU": [
+        5,
+        -1.6,
+        -1.7
+      ],
+      "fireOffsetUU": [
+        0,
+        -5,
+        -2
+      ],
+      "sizeM": [
+        0.3527,
+        0.0835,
+        0.1028
+      ]
+    }
   },
   "shock": {
     "name": "Shock Rifle",
@@ -32,7 +78,30 @@ const WEAPONS = {
     "fireRate": 1.6666666666666667,
     "model": "assets/3d/pickups/ShockRifle/ShockRifle.gltf",
     "pickup": "weapon-shock",
-    "sound": "assets/audio/ut/tazerfire.mp3"
+    "sound": "assets/audio/ut/tazerfire.mp3",
+    "view": {
+      "model": "assets/3d/viewmodels/shock/shock.gltf",
+      "rotationDeg": [
+        0,
+        90,
+        0
+      ],
+      "offsetUU": [
+        4.4,
+        -1.7,
+        -1.6
+      ],
+      "fireOffsetUU": [
+        10,
+        -5,
+        -8
+      ],
+      "sizeM": [
+        0.1797,
+        0.0372,
+        0.0489
+      ]
+    }
   },
   "rocket": {
     "name": "Rocket Launcher",
@@ -58,6 +127,29 @@ const WEAPONS = {
       "size": 4.211,
       "blend": "additive",
       "sound": "assets/audio/ut/explo1.mp3"
+    },
+    "view": {
+      "model": "assets/3d/viewmodels/rocket/rocket.gltf",
+      "rotationDeg": [
+        0,
+        -90,
+        0
+      ],
+      "offsetUU": [
+        2.4,
+        -1,
+        -2.2
+      ],
+      "fireOffsetUU": [
+        10,
+        -5,
+        -8.8
+      ],
+      "sizeM": [
+        0.1658,
+        0.0682,
+        0.0854
+      ]
     }
   },
   "ripper": {
@@ -75,6 +167,29 @@ const WEAPONS = {
       "lifeMs": 6000,
       "bounces": 6,
       "model": "assets/3d/projectiles/ripper/ripper.gltf"
+    },
+    "view": {
+      "model": "assets/3d/viewmodels/ripper/ripper.gltf",
+      "rotationDeg": [
+        0,
+        90,
+        0
+      ],
+      "offsetUU": [
+        3,
+        -1.6,
+        -2.4
+      ],
+      "fireOffsetUU": [
+        0,
+        -15,
+        -13
+      ],
+      "sizeM": [
+        0.1598,
+        0.0632,
+        0.0219
+      ]
     }
   },
   "redeemer": {
@@ -101,6 +216,29 @@ const WEAPONS = {
       "size": 8.422,
       "blend": "additive",
       "sound": "assets/audio/ut/warexplo.mp3"
+    },
+    "view": {
+      "model": "assets/3d/viewmodels/redeemer/redeemer.gltf",
+      "rotationDeg": [
+        22.5,
+        90,
+        -87.1875
+      ],
+      "offsetUU": [
+        1.8,
+        1,
+        -1.89
+      ],
+      "fireOffsetUU": [
+        18,
+        0,
+        -10
+      ],
+      "sizeM": [
+        0.1393,
+        0.0911,
+        0.0516
+      ]
     }
   }
 };

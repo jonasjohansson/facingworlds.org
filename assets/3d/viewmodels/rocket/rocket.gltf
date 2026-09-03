@@ -1,0 +1,281 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "build-ut-viewmodels.mjs"
+ },
+ "extensionsUsed": [
+  "KHR_materials_unlit"
+ ],
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0,
+   "name": "rocket"
+  }
+ ],
+ "meshes": [
+  {
+   "name": "rocket",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "TEXCOORD_0": 1
+     },
+     "indices": 2,
+     "material": 0
+    },
+    {
+     "attributes": {
+      "POSITION": 0,
+      "TEXCOORD_0": 1
+     },
+     "indices": 3,
+     "material": 1
+    },
+    {
+     "attributes": {
+      "POSITION": 0,
+      "TEXCOORD_0": 1
+     },
+     "indices": 4,
+     "material": 2
+    },
+    {
+     "attributes": {
+      "POSITION": 0,
+      "TEXCOORD_0": 1
+     },
+     "indices": 5,
+     "material": 3
+    },
+    {
+     "attributes": {
+      "POSITION": 0,
+      "TEXCOORD_0": 1
+     },
+     "indices": 6,
+     "material": 4
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "slot0",
+   "doubleSided": false,
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 0
+    },
+    "metallicFactor": 0,
+    "roughnessFactor": 1
+   }
+  },
+  {
+   "name": "slot1",
+   "doubleSided": false,
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 1
+    },
+    "metallicFactor": 0,
+    "roughnessFactor": 1
+   }
+  },
+  {
+   "name": "slot2",
+   "doubleSided": false,
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 2
+    },
+    "metallicFactor": 0,
+    "roughnessFactor": 1
+   }
+  },
+  {
+   "name": "slot3",
+   "doubleSided": false,
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 3
+    },
+    "metallicFactor": 0,
+    "roughnessFactor": 1
+   }
+  },
+  {
+   "name": "slot4",
+   "doubleSided": false,
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 4
+    },
+    "metallicFactor": 0,
+    "roughnessFactor": 1
+   },
+   "extensions": {
+    "KHR_materials_unlit": {}
+   }
+  }
+ ],
+ "textures": [
+  {
+   "source": 0,
+   "sampler": 0
+  },
+  {
+   "source": 1,
+   "sampler": 0
+  },
+  {
+   "source": 2,
+   "sampler": 0
+  },
+  {
+   "source": 3,
+   "sampler": 0
+  },
+  {
+   "source": 4,
+   "sampler": 0
+  }
+ ],
+ "images": [
+  {
+   "uri": "s0.png"
+  },
+  {
+   "uri": "s1.png"
+  },
+  {
+   "uri": "s2.png"
+  },
+  {
+   "uri": "s3.png"
+  },
+  {
+   "uri": "s4.png"
+  }
+ ],
+ "samplers": [
+  {
+   "magFilter": 9729,
+   "minFilter": 9987,
+   "wrapS": 10497,
+   "wrapT": 10497
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 635,
+   "type": "VEC3",
+   "min": [
+    -0.05301600551427335,
+    -0.047940004986311006,
+    -0.08375400871137864
+   ],
+   "max": [
+    0.11280001173249649,
+    0.020304002111849368,
+    0.0016920001759874474
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 635,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5123,
+   "count": 531,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5123,
+   "count": 360,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 4,
+   "componentType": 5123,
+   "count": 372,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 5,
+   "componentType": 5123,
+   "count": 315,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 6,
+   "componentType": 5123,
+   "count": 6,
+   "type": "SCALAR"
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 7620,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 7620,
+   "byteLength": 5080,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 12700,
+   "byteLength": 1062,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 13764,
+   "byteLength": 720,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 14484,
+   "byteLength": 744,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 15228,
+   "byteLength": 630,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 15860,
+   "byteLength": 12,
+   "target": 34963
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "rocket.bin",
+   "byteLength": 15872
+  }
+ ]
+}

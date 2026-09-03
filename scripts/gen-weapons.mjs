@@ -133,6 +133,36 @@ const WEAPONS = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// THE FIRST-PERSON VIEW MODEL
+// ---------------------------------------------------------------------------
+// Until now a picked-up weapon was drawn with its PICKUP mesh at one hardcoded scale and
+// one hardcoded rotation, both fitted to the Enforcer — so it had no arm and every weapon
+// was wrong in its own direction. UT99 ships a separate PlayerViewMesh per weapon with
+// the arm as part of it, plus that weapon's own scale and RotOrigin.
+//
+// scripts/build-ut-viewmodels.mjs extracts those; this only attaches them. `view.offset`
+// stays in RAW Unreal Units on purpose: UE1 draws the view weapon through its own
+// projection, so the numbers are trustworthy relative to each other and not directly
+// convertible to metres. first-person-weapon.js maps them through one fitted constant.
+const VIEWMODELS = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "scripts", "data", "ut-viewmodels.json"), "utf8"),
+).weapons;
+for (const [id, w] of Object.entries(WEAPONS)) {
+  const v = VIEWMODELS[id];
+  if (!v) throw new Error(`${id}: no view model in ut-viewmodels.json — rerun build-ut-viewmodels.mjs`);
+  w.view = {
+    model: v.model,
+    // Epic's own mesh rotation, in degrees. The Rocket Launcher's is -90 where every
+    // other rifle's is +90, and the Redeemer turns on all three axes; a single constant
+    // could express neither.
+    rotationDeg: v.rotOriginDeg,
+    offsetUU: v.playerViewOffsetUU,
+    fireOffsetUU: v.fireOffsetUU,
+    sizeM: v.sizeM,
+  };
+}
+
 // The body a projectile has to hit, and the radius HurtRadius measures its falloff
 // against. UT99's CollisionHeight is a HALF height, so 39 is a body 1.83 m tall.
 const PAWN = {
