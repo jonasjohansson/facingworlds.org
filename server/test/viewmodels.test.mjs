@@ -87,3 +87,26 @@ test("the Redeemer turns on all three axes", () => {
   assert.equal(r[1], 90, "yaw -> scene y");
   assert.notEqual(r[2], 0, "pitch -> scene z");
 });
+
+// ---------------------------------------------------------------------------
+// The other thing that faces the wrong way.
+// ---------------------------------------------------------------------------
+test("the two bonus-pack bodies carry the yaw their RotOrigin does not", async () => {
+  const { MODELS, VARIANTS, CHARACTER_COUNT, modelYaw } = await import(
+    "../../src/shared/characters.js"
+  );
+  // Six UT99 meshes carry RotOrigin [0, 90, -90]; the bonus-pack ones carry [0, 0, 0].
+  // The extraction used RotOrigin only to pick the UP axis — which is why all eight
+  // stand 1.830 m tall — and never applied the yaw, so these two ran sideways.
+  assert.equal(MODELS.skaarj.yawDeg, 90);
+  assert.equal(MODELS.warcow.yawDeg, 90);
+  for (const id of ["boss", "commando", "fcommando", "nali", "sgirl", "soldier"]) {
+    assert.equal(MODELS[id].yawDeg, 0, `${id} should need no correction`);
+  }
+  // Every variant resolves to a number, including the ones needing nothing: a silent
+  // undefined here would be applied as a rotation of NaN.
+  for (let i = 0; i < CHARACTER_COUNT; i++) {
+    assert.equal(typeof modelYaw(i), "number", `variant ${i} (${VARIANTS[i]})`);
+    assert.ok(Number.isFinite(modelYaw(i)), `variant ${i} yaw is not finite`);
+  }
+});

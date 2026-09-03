@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { clone as cloneSkinned } from "../vendor/utils/SkeletonUtils.js";
 import { AR_CONFIG } from "../config/ar-config.js";
 import { createGLTFLoader, loadFirstAvailable, disposeModel } from "./assets.js";
-import { modelUrl, skinUrls } from "../../shared/characters.js";
+import { modelUrl, skinUrls, modelYaw } from "../../shared/characters.js";
 
 // The live spectator table.
 //
@@ -247,6 +247,10 @@ export class SpectatorTable {
     // pose, the bob state and the name label all carry straight over.
     entry.tilt.remove(entry.capsuleBody);
     entry.tilt.remove(entry.capsuleNose);
+    // The model's own yaw, not the player's. Five of the 23 variants are authored 90
+    // degrees off the rest, and the heading lives on entry.group — which is rewritten
+    // from every pose, so the correction has to sit on the model itself or be erased.
+    skinned.root.rotation.y = (modelYaw(entry.character) * Math.PI) / 180;
     entry.tilt.add(skinned.root);
 
     entry.skinned = skinned;
@@ -741,6 +745,7 @@ export class SpectatorTable {
       // are relative to the site root, the same reason ar-config.js prefixes its own.
       entry.modelUrl = modelUrl(player.character, "../");
       entry.skinUrls = skinUrls(player.character, "../");
+      entry.character = player.character;
       if (entry.modelUrl) {
         this._loadModelFor(entry.modelUrl).then(() => {
           if (!this.disposed) this._upgradeToModel(entry);

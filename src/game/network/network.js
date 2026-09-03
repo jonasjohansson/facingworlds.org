@@ -1,6 +1,6 @@
 // network.js (ES module) — robust init: waits for DOM, scene, and #soldier
 import { waitForElement, waitForSceneLoaded as waitForScene, createEntity, addClass, setDataAttribute } from "../utils/dom-helpers.js";
-import { modelUrl, skinUrls } from "../../shared/characters.js";
+import { modelUrl, skinUrls, modelYaw } from "../../shared/characters.js";
 import { createEuler } from "../utils/three-helpers.js";
 import { getWebSocketUrl, log } from "../utils/environment.js";
 import { handleError, wrapAsync } from "../utils/error-handler.js";
@@ -832,12 +832,20 @@ export function startNetwork() {
     const skins = skinUrls(p.character);
     if (skins.length) setDataAttribute(rig, "skin", skins.join(","));
 
-    // Create soldier entity inside rig
+    // Create soldier entity inside rig.
+    //
+    // The MODEL carries a yaw of its own, and the rig carries the player's heading. They
+    // are different things and must stay on different entities: the rig's rotation.y is
+    // overwritten from the wire on every pose, so a correction written there would be
+    // erased on the next packet. Five of the 23 variants — the Skaarj skins and the cow —
+    // are authored 90 degrees off the rest and used to run sideways.
+    const yaw = modelYaw(p.character);
     const soldier = createEntity("a-entity", {
       "gltf-model": url ? `url(${url})` : "#soldier-model",
       shadow: "cast:true; receive:true",
       "remote-avatar": "",
       health: "max:100; current:100",
+      ...(yaw ? { rotation: `0 ${yaw} 0` } : {}),
     });
 
     rig.appendChild(soldier);

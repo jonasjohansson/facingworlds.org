@@ -16,6 +16,7 @@ const BASE = "assets/3d/characters";
 const MODELS = {
   "boss": {
     "gltf": "boss.gltf",
+    "yawDeg": 0,
     "skins": {
       "xan": [
         "s0.png",
@@ -28,6 +29,7 @@ const MODELS = {
   },
   "commando": {
     "gltf": "commando.gltf",
+    "yawDeg": 0,
     "skins": {
       "gorn": [
         "s0.png",
@@ -57,6 +59,7 @@ const MODELS = {
   },
   "fcommando": {
     "gltf": "fcommando.gltf",
+    "yawDeg": 0,
     "skins": {
       "gromida": [
         "s0.png",
@@ -82,6 +85,7 @@ const MODELS = {
   },
   "nali": {
     "gltf": "nali.gltf",
+    "yawDeg": 0,
     "skins": {
       "default": [
         "s0.png",
@@ -91,6 +95,7 @@ const MODELS = {
   },
   "sgirl": {
     "gltf": "sgirl.gltf",
+    "yawDeg": 0,
     "skins": {
       "aryss": [
         "s0.png",
@@ -120,6 +125,7 @@ const MODELS = {
   },
   "skaarj": {
     "gltf": "skaarj.gltf",
+    "yawDeg": 90,
     "skins": {
       "baetal": [
         "s0.png",
@@ -145,6 +151,7 @@ const MODELS = {
   },
   "soldier": {
     "gltf": "soldier.gltf",
+    "yawDeg": 0,
     "skins": {
       "malcom": [
         "s0.png",
@@ -174,6 +181,7 @@ const MODELS = {
   },
   "warcow": {
     "gltf": "warcow.gltf",
+    "yawDeg": 90,
     "skins": {
       "default": [
         "s0.png",
@@ -209,4 +217,18 @@ function skinUrls(index, prefix = "") {
 
 const CHARACTER_COUNT = VARIANTS.length;
 
-export { BASE, MODELS, VARIANTS, CHARACTER_COUNT, modelUrl, skinUrls };
+/**
+ * Degrees to turn this model so it faces the way the game thinks it does.
+ *
+ * Zero for six of the eight. The two bonus-pack meshes are authored standing and carry
+ * no RotOrigin yaw, so they arrive 90 degrees off the others — see the note in
+ * scripts/gen-characters.mjs. Apply it to the MODEL, never to the rig: the rig's yaw is
+ * the player's heading and comes off the wire.
+ */
+function modelYaw(index) {
+  const v = VARIANTS[index];
+  if (!v) return 0;
+  return MODELS[v[0]].yawDeg || 0;
+}
+
+export { BASE, MODELS, VARIANTS, CHARACTER_COUNT, modelUrl, skinUrls, modelYaw };
