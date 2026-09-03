@@ -426,3 +426,67 @@ scratchpad for the same reason the UE1 package reader does: this is the second t
 throwing the tooling away cost real work, and the first time it produced confidently wrong
 numbers rather than merely absent ones.
 
+
+## Landed 2026-09-03 — Epic's own level, read and then declined
+
+The last open item said `canSee` "knows floors, not walls" and that closing it "needs the
+map mesh on the server, not the navmesh". The obvious next move was to stop approximating
+CTF-Face and use Epic's own level file. That now reads, in full — and it is not adopted,
+for a reason worth writing down before someone tries it again.
+
+`scripts/lib/ubsp.mjs` + `scripts/build-ut-bsp.mjs` lift the BSP out of `CTF-Face.unr`:
+6,749 triangles from 2,868 node polygons, with the two backdrop rooms dropped as
+connected components (they sit 140+ m outside the actor box, so no threshold between 40
+and 200 m changes the answer) and `PF_NotSolid`/`PF_Portal` surfaces dropped as
+non-blocking. `PF_Semisolid` and `PF_FakeBackdrop` are kept: semisolid is about how the
+BSP is *cut*, not whether you can walk through it, and a fake backdrop is still a wall —
+you cannot rocket-jump out of CTF-Face in UT99 either.
+
+**Epic's geometry is the better description of the level, and that was never in doubt.**
+Dropping a ray from each of the 166 NavigationPoints, Epic puts 151 within 2 m of the node
+at a median of 1.24 m — which is what a NavigationPoint *should* read, since a pawn's
+half-height is 39 UU = 0.92 m. The fan model manages 129, with a p90 of 9.13 m and 15
+nodes more than 10 m out. Fourteen of the ones it puts on the wrong storey are
+InventorySpots; Epic's geometry puts **every** InventorySpot on real floor.
+
+**It still cannot be adopted on its own,** because collision has to agree with what the
+player sees, and what the player sees is the fan model. Against the *rendered* mesh at
+those same points:
+
+| | |
+|---|---|
+| within 0.5 m of the visible floor | 36 / 166 |
+| Epic below it by >0.5 m — a rocket sinks into the ground | 95 |
+| Epic above it by >0.5 m — an invisible ledge | 35 |
+
+p25 −1.19 m, median −0.53 m, p75 +0.18 m, p95 +10.0 m. **That spread is the finding.** It
+is not a constant offset a single number could absorb; it is genuine disagreement about
+where the floor is, nearly everywhere rather than only in the tower interiors. The cause
+is in `map-transform.js`: `WORLD_SCALE` and `OFFSET` were fitted to land Epic's *actors*
+on the *fan* model, so the fit has already absorbed the difference between the two, and
+Epic's geometry pushed through that same transform lands consistently wrong.
+
+So the geometry is a package deal — render and collide from one asset, or keep both from
+the other. Moving the visuals across needs the textures out of a dozen `.utx` packages and
+the lightmaps UT99 bakes into the Model; without them the level renders flat and looks
+*worse* than the fan model, which is the opposite of the goal. `gen-map-collision.mjs`
+therefore stays on the mesh the game draws, and `scripts/data/ctf-face-bsp.json` is
+committed as groundwork with nothing consuming it.
+
+### A correction
+
+The section above replaces an earlier verbal recommendation to "adopt Epic's BSP for
+collision now, keep the fan map for rendering", which claimed the invisible-wall objection
+"barely applies here". It applies squarely. That conclusion came from comparing the two
+assets at ±1.5 m and ±2.0 m tolerance bands — coarse enough to hide a 0.5–1.2 m systematic
+disagreement — and from a "10 nodes with nothing beneath" figure measured against the
+navmesh rather than against the rendered mesh. Measured against what is actually drawn,
+only 36 of 166 points agree to half a metre. **A tolerance chosen loosely enough to make
+two assets look interchangeable will do exactly that.**
+
+One real bug came out of the exercise and is worth keeping even though its caller is
+reverted: `uuToScene` maps (x, y, z) -> (x, z, y), a swap with determinant −1, so it flips
+handedness and **reverses the winding of every triangle**. Floor normals come out pointing
+at the floor. It is silent — the geometry lands in exactly the right place and raycasts
+still hit, so only whoever asks for a normal ever finds out. `lib/ubsp.mjs` documents it at
+the point the loops are handed over.
