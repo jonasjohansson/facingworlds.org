@@ -104,8 +104,64 @@ function vec(v) {
   return b.length >= 12 ? [b.readFloatLE(0), b.readFloatLE(4), b.readFloatLE(8)] : null;
 }
 
+/**
+ * Rotate a point by an XYZ Euler in degrees, exactly as three.js does.
+ *
+ * This has to match A-Frame's `rotation` component or the muzzle lands somewhere the
+ * barrel is not: A-Frame writes rotation straight into object3D.rotation, whose default
+ * Euler order is XYZ, and the composed matrix below is three.js's own for that order.
+ * Nothing here is free to be "equivalent but different".
+ */
+function rotateXYZ([x, y, z], degrees) {
+  const [a, b, c] = degrees.map((d) => (d * Math.PI) / 180);
+  const c1 = Math.cos(a), s1 = Math.sin(a);
+  const c2 = Math.cos(b), s2 = Math.sin(b);
+  const c3 = Math.cos(c), s3 = Math.sin(c);
+  return [
+    c2 * c3 * x - c2 * s3 * y + s2 * z,
+    (c1 * s3 + s1 * s2 * c3) * x + (c1 * c3 - s1 * s2 * s3) * y - s1 * c2 * z,
+    (s1 * s3 - c1 * s2 * c3) * x + (s1 * c3 + c1 * s2 * s3) * y + c1 * c2 * z,
+  ];
+}
+
+/**
+ * The barrel tip, in the mesh's own unrotated coordinates.
+ *
+ * Derived, not measured by hand: rotate the mesh the way the game will, take the
+ * vertices at the FRONT of it (scene forward is -Z), and average them. The frontmost
+ * geometry of a held weapon is its muzzle — the arm is always behind the gun — so this
+ * needs no per-weapon knowledge and cannot drift when a mesh or a rotation changes.
+ *
+ * Returned unrotated because #weapon-muzzle is a CHILD of the weapon entity and inherits
+ * its rotation and scale; handing back the rotated point would apply the rotation twice.
+ */
+function barrelTip(pos, rotationDeg) {
+  const rotated = pos.map((p) => rotateXYZ(p, rotationDeg));
+  let minZ = Infinity, maxZ = -Infinity;
+  for (const p of rotated) {
+    if (p[2] < minZ) minZ = p[2];
+    if (p[2] > maxZ) maxZ = p[2];
+  }
+  // The frontmost 6% of the weapon's length. Wide enough to average a ring of muzzle
+  // vertices rather than latch onto one stray point, narrow enough not to creep back
+  // down the barrel.
+  const cutoff = minZ + (maxZ - minZ) * 0.06;
+  let n = 0;
+  const sum = [0, 0, 0];
+  for (let i = 0; i < pos.length; i++) {
+    if (rotated[i][2] > cutoff) continue;
+    sum[0] += pos[i][0];
+    sum[1] += pos[i][1];
+    sum[2] += pos[i][2];
+    n++;
+  }
+  if (!n) throw new Error("no vertices at the front of the mesh");
+  return [sum[0] / n, sum[1] / n, sum[2] / n];
+}
+
 const r4 = (n) => Math.round(n * 10000) / 10000;
 const manifest = {};
+const facingAnomalies = [];
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
@@ -121,13 +177,19 @@ for (const spec of WEAPONS) {
   const mesh = readMesh(pkg, meshName);
   const raw = mesh.frame(0);
 
-  // Mesh-local -> Unreal units (the mesh's own Scale and Origin), times PlayerViewScale,
-  // then to metres, then Unreal axes (x fwd, y right, z up) -> scene axes (x, z, y).
+  // Mesh-local -> Unreal units (the mesh's own Scale), times PlayerViewScale, then to
+  // metres, then Unreal axes (x fwd, y right, z up) -> scene axes (x, z, y).
+  //
+  // Mesh.Origin is deliberately NOT applied. It places a mesh relative to the ACTOR
+  // carrying it, which is not the question a first-person view mesh answers, and five of
+  // these six have an Origin of exactly zero — so it is inert for everything except
+  // WarHead, whose (0, -210, -50) throws the Redeemer about 5 metres from the camera.
+  // Where the weapon sits is handled by the offsets in first-person-weapon.js instead.
   const k = UU_TO_M * viewScale;
   const pos = raw.map((v) => {
-    const x = (v[0] * mesh.scale[0] + mesh.origin[0]) * k;
-    const y = (v[1] * mesh.scale[1] + mesh.origin[1]) * k;
-    const z = (v[2] * mesh.scale[2] + mesh.origin[2]) * k;
+    const x = v[0] * mesh.scale[0] * k;
+    const y = v[1] * mesh.scale[1] * k;
+    const z = v[2] * mesh.scale[2] * k;
     return [x, z, y];
   });
 
@@ -253,16 +315,50 @@ for (const spec of WEAPONS) {
   // UE1 rotator: (Pitch, Yaw, Roll) about (Y, Z, X) in UT's axes. Emitted in degrees
   // rather than baked into the vertices so that the one thing still being fitted by eye
   // — see the header — stays visible and adjustable instead of frozen into geometry.
+  // UE1 stores an FRotator as (Pitch, Yaw, Roll), and those turn about UT's OWN axes:
+  // Pitch about Y (right), Yaw about Z (up), Roll about X (forward). The (x, z, y) swap
+  // above sends UT's Y to scene Z and UT's Z to scene Y, so the components do not stay
+  // in place on the way across:
+  //
+  //     UT Roll  (about UT X, forward)  ->  scene X
+  //     UT Yaw   (about UT Z, up)       ->  scene Y
+  //     UT Pitch (about UT Y, right)    ->  scene Z
+  //
+  // Emitting them in Epic's own order would be right only for the four weapons whose
+  // pitch and roll are zero, and silently wrong for the Redeemer, which is the one
+  // weapon that turns on all three.
   const ro = mesh.rotOrigin;
+  const rotationDeg = [r4(rotDeg(ro[2])), r4(rotDeg(ro[1])), r4(rotDeg(ro[0]))];
+  const muzzle = barrelTip(pos, rotationDeg);
   manifest[spec.id] = {
     model: `assets/3d/viewmodels/${spec.id}/${spec.id}.gltf`,
     mesh: meshName,
     viewScale,
-    rotOriginDeg: [r4(rotDeg(ro[0])), r4(rotDeg(ro[1])), r4(rotDeg(ro[2]))],
+    rotOriginDeg: rotationDeg,
+    // The barrel tip in the mesh's own units, for #weapon-muzzle. Every weapon used to
+    // borrow the Enforcer's, so a Redeemer's flash and tracer came off a point over a
+    // metre from its actual muzzle.
+    muzzleLocal: muzzle.map(r4),
     playerViewOffsetUU: (vec(defaults.PlayerViewOffset) || [0, 0, 0]).map(r4),
     fireOffsetUU: (vec(defaults.FireOffset) || [0, 0, 0]).map(r4),
     sizeM: [r4(max[0] - min[0]), r4(max[1] - min[1]), r4(max[2] - min[2])],
+    // The mesh's actual box, not just its extents. server/test/viewmodels.test.mjs uses
+    // it to assert the muzzle lies INSIDE the weapon — the check that catches a mesh
+    // being displaced wholesale, which is exactly what applying WarHead's Origin did
+    // (it put the Redeemer's barrel tip about 5 m from a mesh 5 cm deep).
+    bboxM: { min: min.map(r4), max: max.map(r4) },
   };
+
+  // A held weapon should be longest along Z, because scene forward is -Z and a gun
+  // points away from the eye. This is not enforced — it is REPORTED — because Epic's own
+  // rotation is better evidence than this heuristic and two of the six disagree with it;
+  // see the note printed at the end.
+  const rotatedExtent = (() => {
+    const r = pos.map((p) => rotateXYZ(p, rotationDeg));
+    return [0, 1, 2].map((a) => Math.max(...r.map((p) => p[a])) - Math.min(...r.map((p) => p[a])));
+  })();
+  const longest = "XYZ"[rotatedExtent.indexOf(Math.max(...rotatedExtent))];
+  if (longest !== "Z") facingAnomalies.push(`${spec.id} (longest along ${longest})`);
 
   console.log(
     `${spec.id.padEnd(9)} ${meshName.padEnd(9)} ${String(mesh.wedges.length).padStart(4)} wedges, ` +
@@ -290,3 +386,12 @@ fs.writeFileSync(
   ) + "\n",
 );
 console.log(`\nwrote ${path.relative(ROOT, manifestPath)}`);
+if (facingAnomalies.length) {
+  console.log(
+    `\nNOTE: ${facingAnomalies.length} of ${WEAPONS.length} do not end up longest along Z:\n` +
+      facingAnomalies.map((a) => `  ${a}`).join("\n") +
+      `\n  Epic's RotOrigin is kept anyway — it is better evidence than "the long axis is\n` +
+      `  the barrel", which is only a heuristic and is wrong for a pistol whose arm is the\n` +
+      `  long part. Confirm these two in the browser rather than by argument.`,
+  );
+}

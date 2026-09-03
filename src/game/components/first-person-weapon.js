@@ -496,6 +496,22 @@ AFRAME.registerComponent("first-person-weapon", {
       // which turns on all three axes.
       const r = view.rotationDeg;
       held.setAttribute("rotation", `${r[0]} ${r[1]} ${r[2]}`);
+
+      // This weapon's OWN barrel tip. Without it every picked-up weapon fell back to
+      // `data.muzzleOffset` — the Enforcer's, written in index.html — because the
+      // entity built here has no #weapon-muzzle child and setupMuzzlePosition's
+      // querySelector quietly returned null. So a Redeemer's tracer and muzzle flash
+      // came off a point that had nothing to do with the Redeemer.
+      //
+      // The position is in the MESH's own units and unrotated, because this is a child:
+      // it inherits the rotation and scale set above. build-ut-viewmodels.mjs derives it
+      // by rotating the mesh the way the game will and averaging the frontmost vertices.
+      const m = view.muzzleLocal;
+      const muzzle = document.createElement("a-entity");
+      muzzle.setAttribute("id", "weapon-muzzle");
+      muzzle.setAttribute("position", `${m[0]} ${m[1]} ${m[2]}`);
+      muzzle.setAttribute("visible", false);
+      held.appendChild(muzzle);
     } else {
       // No view model for this weapon: fall back to the old pickup-mesh placement.
       held.setAttribute("position", `${base.x} ${base.y} ${base.z}`);
@@ -507,6 +523,17 @@ AFRAME.registerComponent("first-person-weapon", {
     this.weapon = held;
     this.weaponRestRotation = null;
     this.weaponKick = 0;
+
+    // Re-read the muzzle once the model is in. setupMuzzlePosition walks the entity's
+    // world transform, so it needs the mesh attached and the matrices updated — and
+    // nothing used to call it on this path at all, which is the other half of why every
+    // picked-up weapon fired from the Enforcer's barrel.
+    held.addEventListener("model-loaded", () => {
+      if (this.weapon !== held) return; // switched again while this was loading
+      this.setupMuzzlePosition();
+      this.captureWeaponRest();
+      this.setupMuzzleFlash();
+    });
   },
 
   /**

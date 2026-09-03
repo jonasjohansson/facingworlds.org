@@ -157,9 +157,14 @@ for (const [id, w] of Object.entries(WEAPONS)) {
     // other rifle's is +90, and the Redeemer turns on all three axes; a single constant
     // could express neither.
     rotationDeg: v.rotOriginDeg,
+    // The barrel tip in the mesh's own unrotated units, for the #weapon-muzzle child.
+    // Every weapon used to borrow the Enforcer's, because the entity built for a
+    // picked-up weapon had no muzzle child at all.
+    muzzleLocal: v.muzzleLocal,
     offsetUU: v.playerViewOffsetUU,
     fireOffsetUU: v.fireOffsetUU,
     sizeM: v.sizeM,
+    bboxM: v.bboxM,
   };
 }
 
