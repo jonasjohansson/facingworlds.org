@@ -57,6 +57,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { loadNavmesh } from "./lib/navmesh.mjs";
 import { WORLD_SCALE } from "../src/shared/map-transform.js";
 import { GAME_CONFIG } from "../src/game/config/game-config.js";
@@ -97,6 +98,16 @@ const PATCH_REDUNDANT = 8;
 const BODY_RADIUS = GAME_CONFIG.HITBOX.RADIUS;
 const BODY_RIM_POINTS = 8;
 
+// How much clear air a triangle needs above it to count as somewhere a body can stand,
+// which is how a floor is told from a ceiling here. HEAD_HEIGHT is the top of the
+// hitbox, read from the same config the hitscan capsule uses so the two cannot drift.
+const PAWN_HEIGHT = GAME_CONFIG.HITBOX.HEAD_HEIGHT;
+
+// server/map-collision.js is CommonJS and generated from the SAME map mesh this reads,
+// so it must be regenerated first if the map asset ever changes. It is used here only to
+// ask what is above a triangle.
+const require_ = createRequire(import.meta.url);
+
 // The window server/bots.js and server/server.js actually pass. The generated header
 // makes a safety claim about it — that it is narrower than the closest two stacked
 // surfaces on the map ever come — so it is READ OUT OF THOSE FILES rather than typed
@@ -132,7 +143,35 @@ const bodyRim = Array.from({ length: BODY_RIM_POINTS }, (_, i) => {
 }).join(", ");
 
 const nav = loadNavmesh(INPUT, WORLD_SCALE);
+const mapMesh = loadNavmesh(MAP_INPUT, WORLD_SCALE);
 
+// ---------------------------------------------------------------------------
+// TWO SURFACES, TWO QUESTIONS
+// ---------------------------------------------------------------------------
+// These are not the same job and used to be answered by the same triangles.
+//
+//   WHERE DO I STAND?      -> the mesh on SCREEN. Anything else and bodies wade
+//                             through the floor, which is what they were doing.
+//   WHAT IS IN THE WAY?    -> the NAVMESH, which is a continuous walkable sheet.
+//
+// The standing surface came off assets/3d/navmesh.gltf, and that mesh disagrees with the
+// one the game draws: measured at Epic's 166 NavigationPoints, only 47 of 143 put a body
+// within 10 cm of the drawn floor, 32 floated more than 0.3 m above it and 15 sank more
+// than 0.3 m below, the worst by 3.17 m. Taking the standing surface from the map mesh
+// instead puts 116 of 143 within 10 cm and leaves 8 floating.
+//
+// OCCLUSION STAYS ON THE NAVMESH, and that is not conservatism — it was tried the other
+// way and the ridge between the two towers stopped blocking a flag-to-flag shot, which
+// is the single most obvious occluder on CTF-Face. Sampling ten points along that line,
+// the map-derived surface answers at ONE of them: the ridge's flanks are steeper than
+// the 60-degree walkable filter, so they are dropped, and a height field with holes in
+// it cannot report that the ground came up. The navmesh has no such holes because being
+// a continuous sheet is the whole reason it exists.
+//
+// So the map answers "what am I standing on" and the navmesh answers "did the ground
+// rise between us", and neither is asked the other's question.
+
+// --- the navmesh: occlusion and heightsAt (unchanged) ---
 // Vertical walls contribute nothing to a "height under this point" query and would
 // only ever answer with a degenerate barycentric, so they are dropped here rather
 // than skipped on every lookup for the life of the process.
@@ -148,57 +187,51 @@ for (const t of nav.tris) {
   kept.push([a, b, c]);
 }
 
-// ---------------------------------------------------------------------------
-// THE PATCH LAYER
-// ---------------------------------------------------------------------------
-// Map triangles for the places the navmesh forgot. A triangle is kept only when it is
-// level enough to stand on AND the navmesh has nothing under any of its three corners
-// or its centre — so this can only ever ADD ground where there was none, never argue
-// with the navmesh about ground it already has. surfaceNear() reads it as a fallback;
-// heightsAt() and the line-of-sight rule do not see it at all, because those two answer
-// questions about the navmesh and changing what they mean is a separate decision.
-const mapMesh = loadNavmesh(MAP_INPUT, WORLD_SCALE);
-const patch = [];
-let patchTooSteep = 0;
-let patchAlreadyCovered = 0;
+// --- the map mesh: what a body stands on ---
+//
+// TWO FILTERS, and the second is not optional.
+//
+// LEVEL ENOUGH. |normal.y| >= PATCH_MIN_UP. 3,240 map triangles -> 2,940 with any plan
+// area -> 1,402 level enough to stand on.
+//
+// ROOM TO STAND. The winding of this mesh is not trustworthy — gen-map-collision.mjs
+// says so and raycasts it two-sided for that reason — so a normal cannot tell a floor
+// from a CEILING and |normal.y| accepts both. A ceiling admitted here is a surface
+// bodies get snapped onto from below. What separates them is the space above: stand on a
+// floor and there is a room over your head; stand on the top face of a ceiling and you
+// are inside the slab above it. Casting up from just above each triangle and keeping
+// only those with a pawn's height of clear air takes 1,402 to 1,041. The threshold is
+// not delicate — 1.2 m keeps 1,063 and 2.2 m keeps 1,007 — because ceilings have almost
+// no headroom and floors have metres of it. That is a gap, not a cutoff on a slope.
+const STAND_HEADROOM = PAWN_HEIGHT;
+const collision = require_("../server/map-collision.js");
+
+const stand = [];
+let standNotLevel = 0;
+let standNoHeadroom = 0;
 for (const t of mapMesh.tris) {
   const { a, b, c } = t;
   const area2 = Math.abs((b[2] - c[2]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[2] - c[2]));
-  if (area2 < 1e-6) continue; // vertical in plan: a wall, no height to report
+  if (area2 < 1e-6) continue; // vertical in plan: a wall, with no height to report
   const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
   const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
   const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
   const len = Math.hypot(nx, ny, nz) || 1;
   if (Math.abs(ny / len) < PATCH_MIN_UP) {
-    patchTooSteep++;
+    standNotLevel++;
     continue;
   }
-  // Dropped only when the navmesh already answers the query this triangle would answer.
-  // That takes two conditions, and the second one is the entire tower interior.
-  //
-  // COVERED IN PLAN. A triangle that merely overlaps covered ground is kept, because
-  // the fallback is consulted per query and only where the navmesh answered nothing —
-  // so the part of it lying over a hole is the only part anyone can ever reach. Testing
-  // `some` instead of `every` here threw away every triangle that straddled the edge of
-  // a hole, which is most of the ones that matter: it left 146 patches and the bridge
-  // still bare.
-  //
-  // COVERED IN HEIGHT. Asking only whether the navmesh has *something* at an x/z is a
-  // plan question, and CTF-Face's towers are stacked: a lift-shaft floor 14 units up
-  // sits directly over the outdoor terrain, and the flag deck sits 72 units over it. So
-  // every storey inside both towers was being thrown away as already covered by ground
-  // it is nowhere near, which is why a bot in a tower had no floor to snap to. Compare
-  // the triangle's own height, not just its footprint.
   const mid = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
-  const probes = [a, b, c, mid];
-  const navAnswers = (p) =>
-    nav.heightsAt(p[0], p[2]).some((h) => Math.abs(h - p[1]) <= PATCH_REDUNDANT);
-  if (probes.every(navAnswers)) {
-    patchAlreadyCovered++;
+  if (collision.raycast(mid[0], mid[1] + 0.05, mid[2], 0, 1, 0, STAND_HEADROOM)) {
+    standNoHeadroom++;
     continue;
   }
-  patch.push([a, b, c]);
+  stand.push([a, b, c]);
 }
+if (!stand.length) throw new Error("no walkable map triangles survived — the filters are wrong");
+const patch = stand;
+const patchTooSteep = standNotLevel;
+const patchAlreadyCovered = standNoHeadroom;
 
 let minX = Infinity,
   maxX = -Infinity,
@@ -485,6 +518,27 @@ function heightsAt(x, z) {
   return out;
 }
 
+/**
+ * Every height the STANDING surface has at (x, z) — the map mesh, not the navmesh.
+ *
+ * heightsAt() is its twin for the navmesh, and the two answer different questions on
+ * purpose: this is the floor you are drawn standing on, that one is the sheet occlusion
+ * is reasoned about. They disagree, which is the whole reason the layers were split, so
+ * asking the wrong one is a real mistake and not a stylistic one.
+ */
+function standHeightsAt(x, z) {
+  const k = cellOf(x, z);
+  if (k < 0) return [];
+  const bucket = PATCH_GRID[k];
+  if (!bucket) return [];
+  const out = [];
+  for (let n = 0; n < bucket.length; n++) {
+    const y = triHeightIn(PATCH, bucket[n], x, z);
+    if (y !== null) out.push(y);
+  }
+  return out;
+}
+
 // The rim of the player's own footprint, as (dx, dz) pairs — eight compass points at
 // HITBOX.RADIUS from src/game/config/game-config.js, the same radius the hitscan
 // capsule uses. Not a search radius chosen to make a number look better: it is how wide
@@ -531,15 +585,26 @@ function surfaceNear(x, z, y, window = 8) {
   return best;
 }
 
-/** surfaceNear's answer for one exact point: the navmesh, then the map-mesh patch. */
+/**
+ * surfaceNear's answer for one exact point: the MAP first, the navmesh only after.
+ *
+ * The map mesh is what the player sees, so a body standing on it cannot be visibly in
+ * the wrong place. PATCH holds it. TRIS — the navmesh — is consulted only where the map
+ * has no floor at all, which is mostly the lift platforms the fan model does not build.
+ *
+ * FIRST LAYER WINS rather than "whichever floor is nearer the body". That was tried:
+ * letting the two compete, which is the same rule nearestIn uses within a layer and so
+ * the obvious generalisation, makes it WORSE — agreement with the drawn floor within
+ * 10 cm falls from 116 of 143 nav nodes to 110 and the count floating more than 0.3 m
+ * rises from 8 to 10, while fixing none of the sunk ones. The navmesh disagrees with the
+ * mesh on screen, so any rule letting it win somewhere puts a body off the visible floor
+ * somewhere. It is here to supply ground the map does not build, not to have an opinion
+ * about ground the map does build.
+ */
 function surfaceUnder(x, z, y, window) {
-  const best = nearestIn(TRIS, GRID, x, z, y, window);
+  const best = nearestIn(PATCH, PATCH_GRID, x, z, y, window);
   if (best !== null) return best;
-  // The navmesh has nothing here. Before answering "no ground", ask the map mesh:
-  // PATCH holds the level map triangles standing over the navmesh's holes, and a hole
-  // is the difference between a bot walking the bridge and a bot dead-reckoning its
-  // height across the middle of the map.
-  return nearestIn(PATCH, PATCH_GRID, x, z, y, window);
+  return nearestIn(TRIS, GRID, x, z, y, window);
 }
 
 /** The height in \`tris\` closest to \`y\` at (x, z), within \`window\`, or null. */
@@ -616,6 +681,7 @@ const BOUNDS = { minX: MIN_X, maxX: MAX_X, minY: MIN_Y, maxY: MAX_Y, minZ: MIN_Z
 
 module.exports = {
   heightsAt,
+  standHeightsAt,
   surfaceNear,
   groundRisesAbove,
   BOUNDS,

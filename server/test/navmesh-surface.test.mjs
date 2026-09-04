@@ -83,13 +83,20 @@ test("the towers have floors, not just outdoor terrain far below them", () => {
 });
 
 test("a pinhole narrower than a body is not a hole", () => {
-  // PathNode7 sits on the ramp down from the red tower. The triangles stop at exactly
-  // its x/z; the ground runs at about 10 on every side of it.
-  const n = NODES.find((n) => n.name === "PathNode7");
+  // InventorySpot140. The triangles stop at exactly its x/z while the ground runs on
+  // every side of it, so a body of nonzero width is standing on something even though a
+  // point query finds nothing.
+  //
+  // This used to be PathNode7, on the ramp down from the red tower. That hole was in the
+  // NAVMESH, and the navmesh is no longer the surface bodies stand on — the map mesh is,
+  // and it has ground at PathNode7. The case did not stop being worth testing, it just
+  // moved: two nav nodes still sit over a pinhole, and this is one of them.
+  const n = NODES.find((n) => n.name === "InventorySpot140");
+  assert.ok(n, "InventorySpot140 is missing from the nav graph");
   assert.equal(
-    surf.heightsAt(n.x, n.z).length,
+    surf.standHeightsAt(n.x, n.z).length,
     0,
-    "the mesh is expected to have nothing at this exact point — that is the case being tested",
+    "the standing surface is expected to have nothing at this exact point — that is the case being tested",
   );
   const ground = surf.surfaceNear(n.x, n.z, n.y, WINDOW);
   assert.notEqual(ground, null, "a body of nonzero width is standing on something here");
@@ -98,7 +105,6 @@ test("a pinhole narrower than a body is not a hole", () => {
     `footprint answer ${ground} is outside the window asked for around ${n.y}`,
   );
 });
-
 test("no answer is ever further away than the window the caller asked for", () => {
   // The bound every caller relies on, checked over points that fall in holes as well as
   // points that do not — the footprint probe added a second way to answer and it has to
@@ -132,9 +138,14 @@ test("the window callers pass is inside the map's own tightest storey gap", () =
 });
 
 test("ground directly underfoot always wins over the footprint rim", () => {
-  // The rim is a fallback, never a vote. Where the navmesh answers, its answer stands.
+  // The rim is a fallback, never a vote. Where the surface answers underfoot, that stands.
+  //
+  // Asked of standHeightsAt, not heightsAt. surfaceNear reads the MAP mesh and heightsAt
+  // reports the NAVMESH, and since the two disagree — which is why they were split —
+  // comparing surfaceNear against heightsAt tests neither thing. It failed exactly that
+  // way at InventorySpot145, where the two meshes are 0.23 m apart.
   for (const n of NODES) {
-    const direct = surf.heightsAt(n.x, n.z);
+    const direct = surf.standHeightsAt(n.x, n.z);
     if (!direct.length) continue;
     const nearest = direct.reduce((a, b) => (Math.abs(b - n.y) < Math.abs(a - n.y) ? b : a));
     if (Math.abs(nearest - n.y) > WINDOW) continue; // out of window: the rim may answer
