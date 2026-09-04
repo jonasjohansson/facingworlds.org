@@ -490,3 +490,70 @@ handedness and **reverses the winding of every triangle**. Floor normals come ou
 at the floor. It is silent — the geometry lands in exactly the right place and raycasts
 still hit, so only whoever asks for a normal ever finds out. `lib/ubsp.mjs` documents it at
 the point the loops are handed over.
+
+## Landed 2026-09-04 — the ground, the facing, and a measurement that lied twice
+
+Two visible bugs, and then a longer lesson about how they were checked.
+
+**Five of 23 avatars ran sideways.** `docs/ut99-character-extraction.md` already held the
+cause without drawing the consequence out of it: six UT99 meshes carry
+`RotOrigin [0, 90, -90]` and are authored lying down, the bonus-pack ones carry `[0,0,0]`
+and are authored standing, and the extraction "read the axis off RotOrigin and asserted it
+matched the tallest axis". That fixes UP — every model measures exactly 1.830 m — and
+never applies the YAW. Measured on the committed geometry as the direction the feet sit
+forward of the body, six models cluster at about −162° with 44° of pose noise, and skaarj
+(+78°) and warcow (+86°) sit 90° outside it. The correction goes on the MODEL, never the
+rig: the rig's `rotation.y` is the player's heading and is overwritten by every pose
+packet.
+
+**Bodies waded through the map,** because "where do I stand" was answered by
+`assets/3d/navmesh.gltf` while the eye looked at `assets/3d/map/`. Only 47 of 143 nav
+nodes put a body within 10 cm of the drawn floor; 32 floated above it and 15 sank below,
+the worst by 3.17 m. Taking the standing surface from the map mesh gives **116 of 143**
+within 10 cm and 8 floating.
+
+Getting a floor out of a *visual* mesh needs two filters, and the second is not optional.
+Level-enough takes 3,240 triangles to 1,402 — but this mesh's winding is not trustworthy
+(`gen-map-collision.mjs` raycasts it two-sided for that reason), so a normal cannot tell a
+floor from a **ceiling**. What separates them is the space above: cast up, keep only what
+has a pawn's height of clear air, 1,402 → 1,041. Not a delicate threshold — 1.2 m keeps
+1,063 and 2.2 m keeps 1,007.
+
+**Occlusion stays on the navmesh,** which was learned by breaking it. Moving that across
+too made the ridge between the towers stop blocking a flag-to-flag shot — the most obvious
+occluder on the map. Along that line the map-derived surface answers at one sample point
+in ten: the ridge flanks are steeper than the walkable filter, so they are dropped, and a
+height field with holes cannot report that the ground came up. So the map answers "what am
+I standing on" and the navmesh answers "did the ground rise between us", and
+`standHeightsAt()` exists so that split is visible in the API rather than implicit.
+
+### The measurement lied twice, in opposite directions
+
+Re-running the lethality harness after the surface change gave 0.386 hits/s against a
+shipped baseline of 0.79. **That was reported as a regression. It was not one.** The
+baseline had been measured on a different day, and this harness interleaves its
+configurations *because* absolute rates drift with whatever else the machine is doing —
+so cross-session is the one comparison it cannot support.
+
+Then it was reported as exonerated, on a `groundRisesAbove` comparison that agreed on
+595 of 595 pairs. **That was not a result either.** `groundRisesAbove(x, z, limit)` takes
+three arguments and the test passed six, so both builds computed the same nonsense and
+agreed perfectly about it.
+
+A back-to-back control run then showed 0.964 against 0.386 and looked decisive. It was the
+first mistake again in better clothes: minutes apart on one machine is not interleaved.
+
+`scripts/measure-lethality.mjs` now takes `SURFACE_A`/`SURFACE_B` and interleaves two
+builds of a generated file the way it interleaves configurations, restoring the tracked
+file on exit. Run that way at n=5 the two surfaces are **0.697 ± 0.364 against
+0.739 ± 0.274** — indistinguishable, with the new one marginally ahead.
+
+The number worth keeping is the spread: **one build scored between 0.422 and 1.330 hits/s
+within a single interleaved session.** Threefold, same code, twenty minutes apart. A mean
+of three samples from that carries almost no information, which is why two separate
+careful-looking comparisons both produced confident nonsense.
+
+What survived scrutiny, and is now measured with the right function signature: `canSee`
+agrees 47.5% against 47.6% over 3,744 engageable pairs (8 flips), coverage loses 141
+points and gains 57 of 16,130, and the new surface is *smoother* along a bot's path
+(median step 0.001 m against 0.055 m). Nothing in the mechanism ever supported a halving.

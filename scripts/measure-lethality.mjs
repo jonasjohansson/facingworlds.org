@@ -18,6 +18,7 @@
 //     still be holding. Two earlier runs produced nothing at all that way, and one
 //     returned "0 deaths, 0 hits", which looks like a result and is not.
 //   - the server is killed and WAITED FOR before the next run starts.
+import fs from "node:fs";
 import { spawn } from "node:child_process";
 import net from "node:net";
 import path from "node:path";
@@ -206,10 +207,53 @@ const stats = (xs) => {
   return { mean, sd, min: s[0], max: s[s.length - 1], median: s[s.length >> 1] };
 };
 
-const results = new Map(CONFIGS.map((c) => [c.name, []]));
-console.log(`${CONFIGS.length} configs x ${RUNS} runs x ${SECONDS}s, interleaved. ~${Math.round((CONFIGS.length * RUNS * (SECONDS + 6)) / 60)} min.\n`);
+// ---------------------------------------------------------------------------
+// COMPARING TWO BUILDS OF A GENERATED FILE, not two settings
+// ---------------------------------------------------------------------------
+// Set SURFACE_A and SURFACE_B to two copies of server/navmesh-surface.js and this
+// compares THOSE instead of the configurations above, copying the right one into place
+// before each run so the two are interleaved exactly as configurations are.
+//
+// It exists because comparing them any other way does not work, and here is the number
+// that says so: interleaved at n=5, ONE build of the surface scored between 0.422 and
+// 1.330 hits/s. A threefold spread, same code, same machine, twenty minutes apart.
+//
+// Two separate non-interleaved comparisons of that same pair each looked like a halving
+// of bot lethality and each was noise. The first ran the two builds on different DAYS.
+// The second ran them back to back on the same machine minutes apart, which felt
+// rigorous and was the same mistake: a mean of three samples drawn from that spread
+// carries almost no information. Interleaved, the two builds come out 0.697 +/- 0.364
+// against 0.739 +/- 0.274 — indistinguishable.
+//
+// If you are about to compare two builds by running one and then the other, don't.
+//
+// The file is restored on the way out, including on Ctrl-C. It is a tracked, generated
+// file and leaving someone's checkout holding a stale build would be worse than the
+// measurement is useful.
+const SURFACE = path.join(R, "server", "navmesh-surface.js");
+let ACTIVE_CONFIGS = CONFIGS;
+if (process.env.SURFACE_A && process.env.SURFACE_B) {
+  const original = fs.readFileSync(SURFACE);
+  const restore = () => fs.writeFileSync(SURFACE, original);
+  process.on("exit", restore);
+  process.on("SIGINT", () => {
+    restore();
+    process.exit(130);
+  });
+  ACTIVE_CONFIGS = [
+    { name: "surface A", env: {}, setup: () => fs.copyFileSync(process.env.SURFACE_A, SURFACE) },
+    { name: "surface B", env: {}, setup: () => fs.copyFileSync(process.env.SURFACE_B, SURFACE) },
+  ];
+  console.log(`comparing two builds of server/navmesh-surface.js:`);
+  console.log(`  A = ${process.env.SURFACE_A}`);
+  console.log(`  B = ${process.env.SURFACE_B}`);
+}
+
+const results = new Map(ACTIVE_CONFIGS.map((c) => [c.name, []]));
+console.log(`${ACTIVE_CONFIGS.length} configs x ${RUNS} runs x ${SECONDS}s, interleaved. ~${Math.round((ACTIVE_CONFIGS.length * RUNS * (SECONDS + 6)) / 60)} min.\n`);
 for (let r = 0; r < RUNS; r++) {
-  for (const cfg of CONFIGS) {
+  for (const cfg of ACTIVE_CONFIGS) {
+    if (cfg.setup) cfg.setup();
     const got = await oneRun(cfg);
     if (!got) {
       console.log(`  run ${r + 1} ${cfg.name}: FAILED to start or connect — discarded`);
