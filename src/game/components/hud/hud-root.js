@@ -952,6 +952,68 @@ function createHud() {
   // ---- damage vignette ----
   const vignette = div("ut-vignette", root);
 
+  // ---- PlayerPawn.ClientInstantFlash ----
+  // Not a HUD element at all in UT99 — it is an ENGINE fog, a flat tint blended over the
+  // whole rendered view for the frame a weapon fires and gone again immediately after.
+  // Botpack gives each weapon a scale and an RGB (Enforcer: -0.2 with a warm
+  // 0.325/0.225/0.095), and the tint is what makes a shot light the screen without a
+  // muzzle LIGHT existing anywhere in the scene.
+  //
+  // `screen` blend rather than an alpha wash, because the fog ADDS: a dark room brightens
+  // and a bright one barely moves, which is the behaviour you want from a gun flash.
+  //
+  // THE DEVIATION: UE1 drops the flash back toward zero over the next few frames on its
+  // own schedule, which is frame-rate dependent and not worth reproducing. This is a flat
+  // 0.1 s LINEAR fade — long enough to survive a 60 Hz frame, short enough to still read
+  // as a single flash rather than a glow.
+  //
+  // ---- Engine.Weapon.RenderOverlays' muzzle flash ----
+  // A 2D CANVAS ICON, drawn by Canvas.DrawIcon(MFTexture, MuzzleScale) in Style 3
+  // (STY_Translucent, i.e. black is transparent — a screen blend), NOT a quad in the
+  // world and NOT a point light. Only the Enforcer and the Sniper Rifle have one at all;
+  // Shock, Rocket, Ripper and Redeemer have none, so most weapons never call this.
+  //
+  // ---- and why BOTH of these are body children, not children of `root` ----
+  //
+  // `.ut-hud` is `position: fixed; z-index: 900`, which makes it a STACKING CONTEXT, and
+  // a stacking context is exactly what mix-blend-mode cannot see out of: a `screen` blend
+  // inside it would composite against the HUD's own transparent background instead of
+  // against the rendered game, and the muzzle texture's black field — the part that is
+  // supposed to disappear — would stay black. So both live beside the HUD in the root
+  // stacking context, where their backdrop is the A-Frame canvas.
+  //
+  // At z-index 899 they sit UNDER the whole HUD, which is also the order UE1 draws them
+  // in: PlayerPawn.PostRender runs Weapon.RenderOverlays first and the HUD paints on top.
+  //
+  // `display: block !important` is set INLINE and never changed, because A-Frame's
+  // fullscreen mode hides body children that are not the canvas and styles.css has to
+  // list each overlay by name to bring it back (see the html.a-fullscreen block there).
+  // An inline !important wins without needing to be on that list — which is why hiding
+  // the flash below uses `visibility`, not `display`.
+  const LAYER =
+    "position:fixed;pointer-events:none;z-index:899;mix-blend-mode:screen;";
+
+  // Styled inline rather than from styles.css on purpose: these two elements have no
+  // states, no breakpoints and no theme, and every value on them is written per shot.
+  const instFlash = document.createElement("div");
+  instFlash.className = "ut-inst-flash";
+  instFlash.style.cssText = LAYER + "inset:0;opacity:0;background:#000;";
+  instFlash.style.setProperty("display", "block", "important");
+  document.body.appendChild(instFlash);
+
+  const muzzle = document.createElement("img");
+  muzzle.className = "ut-muzzle";
+  muzzle.alt = "";
+  muzzle.decoding = "async";
+  muzzle.style.cssText =
+    LAYER +
+    "left:0;top:0;visibility:hidden;" +
+    // The source art is a 128px UT99 texture shown at up to 2x on a 1280 viewport; a
+    // smooth upscale turns a hard flash into a smudge.
+    "image-rendering:pixelated;";
+  muzzle.style.setProperty("display", "block", "important");
+  document.body.appendChild(muzzle);
+
   // ---- death screen ----
   const death = div("ut-death", root);
   death.innerHTML =
@@ -970,6 +1032,7 @@ function createHud() {
   let dead = false;
   let reloadTimer = 0;
   let vignetteTimer = 0;
+  let muzzleTimer = 0;
   let fragTimer = 0;
   let lastFrags = 0;
 
@@ -1170,6 +1233,59 @@ function createHud() {
       dollHit(20);
     },
 
+    /**
+     * PlayerPawn.ClientInstantFlash(scale, fog) — the one-frame screen tint a weapon
+     * throws when it fires. See the element's own comment for the blend and the fade.
+     * @param {number} scale strength; UT99 ships these NEGATIVE (the Enforcer is -0.2),
+     *   so only the magnitude is used.
+     * @param {number[]} fog RGB in 0..1 — the manifest has already applied Epic's x0.001.
+     */
+    instantFlash(scale, fog) {
+      const strength = Math.min(1, Math.abs(Number(scale) || 0));
+      if (!(strength > 0)) return;
+      const c = Array.isArray(fog) ? fog : [1, 1, 1];
+      const ch = (v) => Math.max(0, Math.min(255, Math.round((Number(v) || 0) * 255)));
+      // Snap on with no transition, then let the next frame animate it back down — the
+      // same remove/reflow/add shape the vignette uses, because a CSS transition will not
+      // restart on an element that is already at the target value.
+      instFlash.style.transition = "none";
+      instFlash.style.background = `rgb(${ch(c[0])},${ch(c[1])},${ch(c[2])})`;
+      instFlash.style.opacity = String(strength);
+      void instFlash.offsetWidth;
+      instFlash.style.transition = "opacity 100ms linear";
+      instFlash.style.opacity = "0";
+    },
+
+    /**
+     * Engine.Weapon.RenderOverlays' muzzle icon.
+     *
+     * @param {string} textureUrl one of the weapon's MFTexture PNGs (the Enforcer picks
+     *   among five at random per shot; that choice is the caller's).
+     * @param {number} screenX centre, CSS px from the left of the viewport
+     * @param {number} screenY centre, CSS px from the top
+     * @param {number} sizePx FlashS * MuzzleScale * (viewportWidth / 640)
+     * @param {number} seconds FlashLength — 0.02 for the Enforcer, i.e. sub-frame
+     */
+    muzzleFlash(textureUrl, screenX, screenY, sizePx, seconds) {
+      if (!textureUrl || !(sizePx > 0)) return;
+      if (muzzle.getAttribute("src") !== textureUrl) muzzle.setAttribute("src", textureUrl);
+      muzzle.style.width = `${sizePx}px`;
+      muzzle.style.height = `${sizePx}px`;
+      // transform rather than left/top: this moves every shot and a transform stays off
+      // the layout path.
+      muzzle.style.transform = `translate(${Math.round(screenX - sizePx / 2)}px,${Math.round(
+        screenY - sizePx / 2
+      )}px)`;
+      muzzle.style.visibility = "visible";
+      clearTimeout(muzzleTimer);
+      // FlashLength is 0.02 s — one frame at 50 Hz and LESS than one at 60, so a literal
+      // timeout would sometimes hide the flash before a frame ever drew it. Floored at
+      // ~two frames, which is the shortest thing a 60 Hz display can actually show.
+      muzzleTimer = setTimeout(() => {
+        muzzle.style.visibility = "hidden";
+      }, Math.max((Number(seconds) || 0) * 1000, 34));
+    },
+
     showDeath() {
       dead = true;
       death.classList.add("is-on");
@@ -1210,7 +1326,12 @@ function createHud() {
       while (msgTimers.length) clearTimeout(msgTimers.pop());
       clearTimeout(reloadTimer);
       clearTimeout(vignetteTimer);
-        clearTimeout(fragTimer);
+      clearTimeout(muzzleTimer);
+      clearTimeout(fragTimer);
+      // Both of these are body children rather than children of root (see their comment
+      // above), so root.remove() does not take them with it.
+      if (instFlash.parentNode) instFlash.remove();
+      if (muzzle.parentNode) muzzle.remove();
       if (root.parentNode) root.remove();
       instance = null;
     },

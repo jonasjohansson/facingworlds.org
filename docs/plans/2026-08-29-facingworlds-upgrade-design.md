@@ -557,3 +557,106 @@ What survived scrutiny, and is now measured with the right function signature: `
 agrees 47.5% against 47.6% over 3,744 engageable pairs (8 flips), coverage loses 141
 points and gains 57 of 16,130, and the new surface is *smoother* along a bot's path
 (median step 0.001 m against 0.055 m). Nothing in the mechanism ever supported a halving.
+
+## Landed 2026-09-05 — three invented firing systems, replaced with Epic's
+
+Everything a shot did on screen was made up here. Reading UnrealScript instead produced
+three separate replacements, and one of them is a straight deletion.
+
+**There is no aim recoil in UT99.** `GAME_CONFIG.WEAPON.RECOIL_PITCH/YAW` pushed the
+camera up and sideways on every shot with a partial recovery, and `KICK_PITCH/KICK_ROLL`
+rotated the weapon model to fake a snap. Neither exists in the engine: firing never touches
+`ViewRotation.Pitch` or `.Yaw`, so **the crosshair does not move when you fire**. What a
+weapon calls is `PlayerPawn.ShakeView(time, RollMag, vertMag)` — a cosmetic ROLL of the
+view plus a vertical jolt of the eye, both decaying on their own, neither affecting where
+the trace goes. Ported verbatim in `src/game/components/view-shake.js`, integer UE1 rotator
+and all (65536 units to a turn, the roll hunted between a random 0.5x–1.5x reversal
+threshold and hard-clamped at 1.3x the magnitude, plus a 3·dt chance per frame of flipping
+direction for no reason). Ten `node:test` cases in `server/test/view-shake.test.mjs` pin
+the arithmetic with an injected `FRand()`. The one thing not Epic's is the unwind after the
+timer runs out: a flat linear decay sized so a full excursion at the default magnitude is
+gone in ~0.2 s.
+
+**Applying that roll took a new node in the markup, and the reason is worth writing down.**
+UE1 draws the view weapon with the player's whole `ViewRotation` applied to it, roll
+included — so a rolling view carries the gun with it and the gun looks *nailed to the
+screen* while the world tilts. Reproducing that needs the roll on two transforms, not one:
+the `PerspectiveCamera` (`el.getObject3D("camera")`, so the world moves) and a new
+`#view-shake` entity that parents the gun (so the gun cancels it out). It cannot go on
+`#cam` itself: **look-controls rewrites `#cam`'s rotation every frame** from its own
+pitch/yaw objects, and **ut-jump owns `#cam`'s `position.y`** — the camera is a direct
+child of the rig and the hop is applied to the rig's children, caching their rest heights.
+Either would have eaten the shake, and the second could have baked it in permanently.
+
+**The gun animates now, and the Enforcer was the one weapon that could not.** UE1 view
+weapons are baked vertex animations — `PlayAnim('Shoot', 0.81)`, `LoopAnim('Sway', 0.2)`
+with a 4% chance of a one-shot `'Twiddle'` at each loop end, `'Select'` on bring-up with
+the class's `SelectSound`. They arrive as glTF morph-target clips (82 targets on the
+Enforcer) and are driven through `THREE.AnimationMixer` in
+`src/game/components/view-weapon-anim.js`, one mixer per drawn gun. Transitions are hard
+cuts on purpose: `PlayAnim` replaces the running sequence outright, and the snap between
+Sway and Shoot is a lot of why UT99 weapons read as fast. The Enforcer's exclusion was
+structural — `setWeapon()` returned early because `spec.model` is null (it has no floor
+pickup) and index.html put the static *pickup* mesh in your hands. All six now go through
+one `refitWeapons()` → `dressSlot()` path, and the slots are permanent entities whose
+`gltf-model` changes, so a weapon you have held before comes back without a reload.
+
+`'Down'` is deliberately **not** played, and the manifest's clip is deliberately unused:
+A-Frame's `gltf-model` detaches the outgoing mesh synchronously inside the same
+`setAttribute`, so the pose would have zero frames to be seen in — and holding the new
+weapon back behind an animation would be a visible lie about what the server already thinks
+you are shooting.
+
+**Handedness, and why the rifles are drawn inside-out.** UT99 puts the single Enforcer in
+the LEFT hand (AutoML is a left-hand mesh) and the five rifles on the right — but the
+rifles are *also* authored as left-hand meshes, because UE1 mirrors the view weapon for a
+right-handed player. Drawing them where UT99 draws them therefore means `scale.x =
+-MODEL_SCALE`, which inverts triangle winding. three.js compensates on its own — the
+renderer reads the determinant of `matrixWorld` and swaps the front face — so the
+`THREE.DoubleSide` applied to mirrored guns is belt and braces, not what keeps them
+visible; remove it and nothing should change. The barrel-tip child is stored
+**unmirrored**: it inherits the negative scale, so a point at +x lands at -x, which is
+already where the mirrored tip is. Negating it as well would put the muzzle on the wrong
+side of the gun. Dual Enforcers use two different meshes (AutoMR on the right, AutoML on
+the left), each with its own mixer, and only the gun that actually fired animates.
+
+**The muzzle flash was a 3D object pretending to be a 2D one.** `Engine.Weapon.
+RenderOverlays` draws `Canvas.DrawIcon(MFTexture, MuzzleScale)` in Style 3 — a screen-space
+icon where black is transparent — and **only the Enforcer and the Sniper Rifle have one at
+all**. The procedural quad, its canvas texture and the `PointLight` beside it are gone;
+what replaced the light is `PlayerPawn.ClientInstantFlash`, the engine fog that tints the
+whole view for a frame (the Enforcer's is −0.2 at a warm 0.325/0.225/0.095). Both are DOM
+overlays owned by `hud-root.js` (`muzzleFlash()`, `instantFlash()`).
+
+They are body children rather than children of `.ut-hud`, which is not a stylistic choice:
+`.ut-hud` is `position: fixed; z-index: 900` and therefore a **stacking context**, and
+`mix-blend-mode` cannot see out of one. A `screen` blend inside it would composite against
+the HUD's own transparent background, and the muzzle texture's black field — the part that
+is supposed to disappear — would have stayed black. At `z-index: 899` they also land in
+UE1's own draw order, under the HUD.
+
+**Two things the extraction had wrong, both found by rendering the meshes and looking.**
+None of the six view weapons had ever been seen: the Enforcer pointed sideways and the
+five rifles pointed at the player's face, and every numeric check passed because the
+checks only asked whether the long axis was Z, never which way along it. The first cause
+is that **frame 0 of a UE1 view mesh is not its resting pose** — every one of them opens
+with its `Select` sequence, so `frame(0)` is a gun mid-swing, and `Rifle2m`'s long axis
+at frame 0 is not even the same axis as at rest. The second is that **`RotOrigin` is
+applied as the inverse**: `FRotationMatrix`'s rows are the rotated frame's axes, so mesh
+→ actor is `Mᵀv`. With both fixed, Epic's own rotators orient all six correctly — the
+Redeemer's three-axis one included — and this was checked against animation the meshes
+carry rather than by eye: a fired gun recoils along −X and a holstered one drops along −Z
+on all six. Orientation is now baked into the glTFs (barrel −Z) and `rotationDeg` is zero.
+
+Separately, **every held-weapon skin had been decoded through the wrong palette**. UE1
+names palettes `Palette<N>` per texture group, `Botpack.u` holds four `Palette75`s, and
+`utex.mjs` looked them up by name and took the first. The Enforcer's flash came out
+lightning green (the BoltHit group), the guns posterised, and the byte-exact umodel check
+could not see it because its reference texture's palette name is unique. Properties now
+keep the raw object reference and the palette is resolved through it. See
+`docs/ut99-character-extraction.md` for both.
+
+The one deviation: UT99 positions the icon at a fixed screen fraction (`FlashY`/`FlashO`)
+tied to handedness bookkeeping this build does not have, so the slot's own barrel tip is
+projected from world space instead. The flash sits where the barrel is, and tracks it
+through sway, the shake and the hand swap.

@@ -53,6 +53,10 @@ const SOUND_DATA = JSON.parse(
   fs.readFileSync(path.join(ROOT, "scripts", "data", "ut-sounds.json"), "utf8"),
 );
 const fireSound = (id) => SOUND_DATA.fire[id]?.file ?? null;
+// The noise a weapon makes as it is raised. TournamentWeapon.PlaySelect plays it in the
+// same function as PlayAnim('Select'), so it belongs beside the fire sound rather than
+// inside `view` — the sound is not a rendering detail, it is the other half of an event.
+const selectSound = (id) => SOUND_DATA.select?.[id]?.file ?? null;
 
 // A projectile weapon's own numbers, converted once here so neither process converts.
 // `bounces` is the wall-hit budget: Razor2's HitWall destroys the blade at NumWallHits
@@ -79,6 +83,7 @@ const WEAPONS = {
     model: null, // the markup weapon in index.html; every player spawns holding it
     pickup: null, // CTF-Face has no Enforcer pickup, as in the original
     sound: fireSound("enforcer"),
+    selectSound: selectSound("enforcer"),
   },
   sniper: {
     name: "Sniper Rifle",
@@ -90,6 +95,7 @@ const WEAPONS = {
     // against TakeDamage(45, ...) for a body hit. A flat number, not a multiplier.
     headshotDamage: 100,
     sound: fireSound("sniper"),
+    selectSound: selectSound("sniper"),
   },
   shock: {
     name: "Shock Rifle",
@@ -98,6 +104,7 @@ const WEAPONS = {
     model: "assets/3d/pickups/ShockRifle/ShockRifle.gltf",
     pickup: "weapon-shock",
     sound: fireSound("shock"),
+    selectSound: selectSound("shock"),
   },
   rocket: {
     name: "Rocket Launcher",
@@ -106,6 +113,7 @@ const WEAPONS = {
     model: "assets/3d/pickups/UT_Eightball/UT_Eightball.gltf",
     pickup: "weapon-rocket",
     sound: fireSound("rocket"),
+    selectSound: selectSound("rocket"),
     projectile: projectile("rocket", { type: "rocket", bounces: 0 }),
     explosion: explosion("rocket"),
   },
@@ -116,6 +124,7 @@ const WEAPONS = {
     model: "assets/3d/pickups/ripper/ripper.gltf",
     pickup: "weapon-ripper",
     sound: fireSound("ripper"),
+    selectSound: selectSound("ripper"),
     // Razor2: TakeDamage(3.5 * damage, ...) with damage type 'decapitated'. A multiplier
     // rather than a number, so it is computed from the damage above rather than restated.
     headshotDamage: Math.round(3.5 * PROJECTILE_DATA.weapons.ripper.damage),
@@ -128,6 +137,7 @@ const WEAPONS = {
     model: "assets/3d/pickups/WarheadLauncher/WarheadLauncher.gltf",
     pickup: "weapon-redeemer",
     sound: fireSound("redeemer"),
+    selectSound: selectSound("redeemer"),
     projectile: projectile("redeemer", { type: "redeemer", bounces: 0 }),
     explosion: explosion("redeemer"),
   },
@@ -139,32 +149,72 @@ const WEAPONS = {
 // Until now a picked-up weapon was drawn with its PICKUP mesh at one hardcoded scale and
 // one hardcoded rotation, both fitted to the Enforcer — so it had no arm and every weapon
 // was wrong in its own direction. UT99 ships a separate PlayerViewMesh per weapon with
-// the arm as part of it, plus that weapon's own scale and RotOrigin.
+// the arm as part of it, its own scale and RotOrigin, and its own baked vertex animation.
 //
-// scripts/build-ut-viewmodels.mjs extracts those; this only attaches them. `view.offset`
-// stays in RAW Unreal Units on purpose: UE1 draws the view weapon through its own
-// projection, so the numbers are trustworthy relative to each other and not directly
-// convertible to metres. first-person-weapon.js maps them through one fitted constant.
+// scripts/build-ut-viewmodels.mjs extracts all of that; this only attaches it, and
+// attaches EXACTLY the fields the client codes against — a pass-through of the whole
+// manifest would put the extractor's working notes (which mesh, which frame, how many
+// morph targets) into a table both processes load.
+//
+// `rotationDeg` is [0, 0, 0] for every weapon and stays in the table on purpose. The
+// orientation is baked into the geometry now; the field is kept so that anything still
+// reading it gets a harmless identity rather than an undefined it silently applies as NaN.
+//
+// `offsetUU` stays in RAW Unreal Units, also on purpose: UE1 draws the view weapon
+// through its own projection, so the numbers are trustworthy relative to each other and
+// not directly convertible to metres. The client maps them through one fitted constant.
 const VIEWMODELS = JSON.parse(
   fs.readFileSync(path.join(ROOT, "scripts", "data", "ut-viewmodels.json"), "utf8"),
 ).weapons;
 for (const [id, w] of Object.entries(WEAPONS)) {
   const v = VIEWMODELS[id];
   if (!v) throw new Error(`${id}: no view model in ut-viewmodels.json — rerun build-ut-viewmodels.mjs`);
+  // Two files, two generators, one fact: the select sound is named in the view manifest
+  // (off the weapon class) and extracted by build-ut-sounds.mjs. If they ever disagree,
+  // one of the two was regenerated against a different install.
+  const named = SOUND_DATA.select?.[id]?.sound;
+  if (v.selectSoundName && named && v.selectSoundName !== named) {
+    throw new Error(
+      `${id}: ut-viewmodels says SelectSound is ${v.selectSoundName}, ut-sounds says ${named}`,
+    );
+  }
   w.view = {
     model: v.model,
-    // Epic's own mesh rotation, in degrees. The Rocket Launcher's is -90 where every
-    // other rifle's is +90, and the Redeemer turns on all three axes; a single constant
-    // could express neither.
-    rotationDeg: v.rotOriginDeg,
-    // The barrel tip in the mesh's own unrotated units, for the #weapon-muzzle child.
-    // Every weapon used to borrow the Enforcer's, because the entity built for a
-    // picked-up weapon had no muzzle child at all.
+    // The Enforcer alone has two meshes: UT99 mirrors AutoML/AutoMR for the left and
+    // right hand, and a dual pair uses both at once. Undefined for the other five.
+    dualModel: v.dualModel,
+    // Which hand UT99 draws it in. The Enforcer is drawn LEFT (enforcer.RenderOverlays
+    // forces Handedness = 1 for a single one); the other five are authored left-handed
+    // and mirrored by the engine for a right-handed player, so they read "right" here and
+    // the client decides whether to mirror.
+    hand: v.hand,
+    rotationDeg: v.rotationDeg,
+    // The barrel tip in the model's own metres, for the #weapon-muzzle child. Every
+    // weapon used to borrow the Enforcer's, because the entity built for a picked-up
+    // weapon had no muzzle child at all.
     muzzleLocal: v.muzzleLocal,
-    offsetUU: v.playerViewOffsetUU,
-    fireOffsetUU: v.fireOffsetUU,
     sizeM: v.sizeM,
     bboxM: v.bboxM,
+    offsetUU: v.playerViewOffsetUU,
+    fireOffsetUU: v.fireOffsetUU,
+    // The clips, by the name they carry in the glTF. `rate` is UnrealScript's multiplier
+    // on the clip's own authored fps (which is already baked into the keyframe times), so
+    // playing a clip at UT99's speed means setting the action's timeScale to `rate`.
+    // `fire` is a LIST because the Sniper Rifle picks one of five at random per shot and
+    // the Enforcer alternates 'Shoot' with 'shot2' on repeat fire; `fireLoops` says
+    // whether it runs once per shot or loops for as long as the trigger is held.
+    anims: v.anims,
+    // ShakeView(time, mag, vert), fired on every shot by TournamentWeapon.ClientFire.
+    shake: v.shake,
+    // ClientInstantFlash — a full-screen tint, with the fog already through PlayerPawn's
+    // 0.001. Null for the Sniper Rifle, which is the one weapon with no InstFlash. Rebuilt
+    // rather than passed through so the manifest's provenance note (`from`, on the Rocket
+    // Launcher, whose flash lives in code rather than in defaults) stays out of the table.
+    instFlash: v.instFlash ? { scale: v.instFlash.scale, fog: v.instFlash.fog } : null,
+    // A 2D canvas icon, not geometry: flashS * muzzleScale * ClipX/640 pixels across for
+    // flashLength seconds, drawn translucent so black is transparent — blend additively.
+    // Null for four of the six: only the Enforcer and the Sniper Rifle have an MFTexture.
+    muzzleFlash: v.muzzleFlash,
   };
 }
 

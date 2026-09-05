@@ -100,11 +100,17 @@ export function readTexture(pkg, name, { masked = false } = {}) {
 
   // The palette is an object reference in the properties. Without one there is nothing
   // to resolve the indices against and the texture cannot be read at all.
-  const palRef = props.Palette;
-  const palName = typeof palRef === "string" ? palRef : pkg.resolve(palRef);
+  //
+  // Resolved by REFERENCE, not by name. UE1 auto-names palettes "Palette<N>" per texture
+  // group, so Botpack.u holds four different `Palette75`s; a lookup by name took the
+  // first one and gave the Enforcer's Muz1..5 the BoltHit group's green. The name is
+  // kept only for the error message.
+  const palName = props.Palette;
   if (!palName) throw new Error(`${name}: no Palette property`);
-  const palExp = pkg.exports.find((e) => e.name === palName && pkg.classOf(e) === "Palette");
-  if (!palExp) throw new Error(`${name}: palette ${palName} not in this package`);
+  const palExp = pkg.refExport(props.$refs?.Palette);
+  if (!palExp || pkg.classOf(palExp) !== "Palette") {
+    throw new Error(`${name}: palette ${palName} is not an export of this package`);
+  }
   const palette = readPalette(pkg, palExp);
 
   const mipCount = compactIndex(buf, o);

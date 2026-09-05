@@ -529,39 +529,51 @@
           pointer-lock-prompt
           position="0 1.4 0"
           first-person-weapon="enabled: true; muzzleOffset: 0.8 0.1 0">
-          <!-- Weapon (child of camera, follows look direction) -->
           <!--
-            Resolved through the #enforcer-weapon asset item rather than by raw URL,
-            so this entity and the preloader cannot drift onto different paths. It is
-            also the form first-person-weapon.js's `weaponModel` default assumes.
-            NOTE: this is not a download saving. A-Frame sets THREE.Cache.enabled and
-            <a-asset-item> caches by exact URL string, so the previous raw-URL form
-            was already served from cache - measured as one network request either
-            way. The win is consistency, not bytes.
+            THE VIEW-SHAKE NODE.
+
+            UT99's ShakeView rolls the whole VIEW and jitters the eye vertically; it does
+            not move the aim, and it does not move the gun ON SCREEN either. In UE1 the
+            view weapon is drawn by Weapon.RenderOverlays with the player's full
+            ViewRotation applied to it, roll included, so a rolling view carries the gun
+            around with it and the gun appears nailed to the screen while the WORLD tilts.
+
+            That is what this otherwise-empty entity is for. first-person-weapon.js writes
+            the same roll and the same vertical offset to two places every frame:
+
+              * the PerspectiveCamera itself, el.getObject3D("camera") - which tilts and
+                lifts the eye, so the world moves;
+              * this node - which tilts and lifts the gun by exactly as much, so relative
+                to the camera the gun has not moved at all.
+
+            Neither of those transforms is written by anything else, which is the whole
+            reason the shake is not applied to #cam directly: look-controls rewrites #cam's
+            rotation every single frame from its own pitch/yaw objects, and ut-jump owns
+            #cam's position.y (the camera is a direct child of the rig, and the hop is
+            applied to the rig's children). Both would eat the shake, or worse, bake it in.
           -->
-          <a-entity
-            id="player-weapon"
-            gltf-model="#enforcer-weapon"
-            scale="0.025 0.025 0.025"
-            position="0.2 -0.3 -0.5"
-            weapon-sway="enabled: true; swayIntensity: 0.001; swaySpeed: 6.0; bobIntensity: 0.0; bobSpeed: 0.0; walkMultiplier: 1.0; runMultiplier: 1.5; smoothing: 0.2">
+          <a-entity id="view-shake">
             <!--
-              Muzzle point: where the tracer starts and the muzzle flash sits.
+              The held weapon. Deliberately EMPTY of a model: gltf-model, scale and the
+              #weapon-muzzle child are all set by first-person-weapon.js from the weapon
+              manifest (src/shared/weapons.js), because they are per-weapon now - the
+              Enforcer goes through the same view-model path as everything you pick up,
+              including its Select/Sway/Shoot animations, and it is drawn LEFT-handed the
+              way UT99 draws it.
 
-              MEASURED, not eyeballed. The weapon mesh's local bounding box runs
-              z -10.8..+10.8, so the previous (0, 1, -1) sat essentially at the
-              gun's CENTRE and the flash appeared to come out of the middle of
-              the weapon rather than the barrel. Sampling the 247 vertices at
-              z <= -10 puts the barrel tip's centroid at (0.35, 1.4, -10.59),
-              with the bore axis around y = 1.4.
+              What stays in the markup is what the markup owns: where a weapon rests
+              relative to the eye (see the VIEW block's comment in
+              first-person-weapon.js for why 0.2/-0.3/-0.5 is fitted and not converted -
+              the x is mirrored to -0.2 for a left-hand weapon), and the sway settings.
 
-              These are the weapon's LOCAL units, so #player-weapon's 0.025 scale
-              applies on top: this is ~0.27 world units ahead of the old point.
+              The #enforcer-weapon asset item above is still used - by weapon-pickup.js for
+              the gun standing on the floor, and by first-person-weapon.js as the fallback
+              held model if the manifest ever ships without a view mesh.
             -->
             <a-entity
-              id="weapon-muzzle"
-              position="0.2 1.4 -10.7"
-              visible="false">
+              id="player-weapon"
+              position="0.2 -0.3 -0.5"
+              weapon-sway="enabled: true; swayIntensity: 0.001; swaySpeed: 6.0; bobIntensity: 0.0; bobSpeed: 0.0; walkMultiplier: 1.0; runMultiplier: 1.5; smoothing: 0.2">
             </a-entity>
           </a-entity>
         </a-entity>

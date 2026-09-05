@@ -174,29 +174,36 @@ export const GAME_CONFIG = {
     // alternately, so the rate doubles while each shot is individually worse.
     DUAL_FIRE_RATE: 8,
     DUAL_SPREAD_MULTIPLIER: 1.9, // accuracy is what you trade for the rate
-    DUAL_OFFSET_X: 0.42, // how far the second gun sits to the other side
     // Metres a trace travels before it is called a miss. The map's full diagonal at world
     // scale is 298 m, so this covers everything reachable with a third to spare. It is
     // held EQUAL to the server's MAX_HIT_RANGE rather than scaled to 500 * k = 1168: a
     // client trace longer than the server's gate just produces hits the server refuses.
     MAX_RANGE: 400,
     SPREAD: 0.006, // tangent of the cone half-angle applied per shot
-    // Camera kick, in radians. A fraction of each kick is recovered so the aim drifts up
-    // under sustained fire the way UT99's does, without walking off to the ceiling.
-    RECOIL_PITCH: 0.022,
-    RECOIL_YAW: 0.008,
-    RECOIL_RECOVER_FRACTION: 0.8,
-    RECOIL_RECOVER_SPEED: 0.35, // radians per second
-    // Weapon model kick. Applied to rotation only so it composes with weapon-sway,
-    // which owns the weapon's position.
-    KICK_PITCH: 0.24,
-    KICK_ROLL: 0.07,
-    KICK_RECOVER: 0.13, // seconds back to rest
-    // Muzzle flash
-    MUZZLE_FLASH_LIFE: 0.05,
-    MUZZLE_FLASH_SIZE: 0.1,
-    MUZZLE_LIGHT_INTENSITY: 14,
-    MUZZLE_LIGHT_RANGE: 6,
+    //
+    // WHAT USED TO BE HERE, AND WHY IT IS NOT
+    //
+    // Three tuned blocks — a camera aim kick (pitch/yaw written into look-controls with a
+    // partial recovery), a synthetic rotation kick on the weapon model, and a procedural
+    // muzzle flash quad with a point light beside it. All three were invented for this
+    // build. UT99 has none of them:
+    //
+    //   * firing never moves ViewRotation.Pitch or .Yaw, so the crosshair does not drift.
+    //     What a shot does is PlayerPawn.ShakeView — a cosmetic ROLL plus a vertical eye
+    //     jitter that leaves the aim alone. Ported in src/game/components/view-shake.js,
+    //     with each weapon's own numbers coming from its manifest `view.shake` block.
+    //   * the weapon does not rotate when it fires either; it plays a baked vertex
+    //     ANIMATION (PlayAnim('Shoot', rate)) off its own view mesh. See
+    //     src/game/components/view-weapon-anim.js.
+    //   * the muzzle flash is a 2D canvas icon in Weapon.RenderOverlays, not geometry, and
+    //     four of the six weapons do not have one at all. It is drawn by the HUD now
+    //     (hud-root.js muzzleFlash), and the screen brightening that used to come from the
+    //     point light is PlayerPawn.ClientInstantFlash (hud-root.js instantFlash).
+    //
+    // None of those have knobs here on purpose: every number they use is Epic's, read per
+    // weapon out of src/shared/weapons.js, so a constant in this file could only disagree
+    // with the source.
+    //
     // Crosshair bloom
     CROSSHAIR_BLOOM: 1.0,
     CROSSHAIR_BLOOM_DECAY: 7.0, // per second

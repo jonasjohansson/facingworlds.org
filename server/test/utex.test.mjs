@@ -108,3 +108,26 @@ test("the UE1 texture reader reproduces umodel's own export exactly", { skip: !h
       `cannot detect a channel swap, so the match above proves less than it appears to`,
   );
 });
+
+test("a texture whose palette shares its name with others gets ITS OWN palette", { skip: !haveRetail && "no retail UT99 install" }, () => {
+  // UE1 auto-names palettes "Palette<N>" per texture GROUP, so one package holds several
+  // unrelated objects called Palette75. The reader used to look the palette up by name
+  // and take the first, which handed the Enforcer's muzzle flash (Muz1, group Skins) the
+  // BoltHit group's palette and drew it green. JuRocket1 above cannot catch that: its
+  // Palette681 is the only one of that name. Muz1's is the fourth of four.
+  const pkg = loadPackage(fs.readFileSync(BOTPACK));
+  const namesakes = pkg.exports.filter((e) => e.name === "Palette75" && pkg.classOf(e) === "Palette");
+  assert.ok(namesakes.length > 1, `expected several Palette75 exports, found ${namesakes.length}`);
+
+  const img = readTexture(pkg, "Muz1");
+  // A muzzle flash is a warm burst: over the lit pixels red must dominate green, and
+  // green blue. Under the BoltHit palette green dominated everything.
+  let r = 0, g = 0, b = 0, lit = 0;
+  for (let i = 0; i < img.width * img.height; i++) {
+    const R = img.rgba[i * 4], G = img.rgba[i * 4 + 1], B = img.rgba[i * 4 + 2];
+    if (R + G + B < 60) continue;
+    r += R; g += G; b += B; lit++;
+  }
+  assert.ok(lit > 100, "the flash has lit pixels");
+  assert.ok(r >= g && g > b, `expected a warm burst, got mean rgb ${(r / lit).toFixed(0)} ${(g / lit).toFixed(0)} ${(b / lit).toFixed(0)}`);
+});

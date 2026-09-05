@@ -58,6 +58,33 @@ AFRAME.registerComponent("weapon-sway", {
     this.hasRestPosition = true;
   },
 
+  /**
+   * Tell the sway where the weapon now rests.
+   *
+   * This exists because the rest position is no longer a constant. first-person-weapon
+   * moves the held entity every time the loadout changes: each weapon carries its own
+   * PlayerViewOffset delta, and a left-handed weapon (UT99 draws the single Enforcer in
+   * the LEFT hand) sits on the mirrored side of the screen entirely.
+   *
+   * Without this the sway would keep oscillating around whatever position it happened to
+   * latch onto on its FIRST tick — so picking up a Sniper Rifle would move the gun for
+   * exactly one frame and then be dragged straight back to the Enforcer's spot, every
+   * frame, forever. It is the same failure mode the `hasRestPosition` deferral was added
+   * to avoid at startup, just triggered by a pickup instead of by load order.
+   *
+   * @param {number} x @param {number} y @param {number} z the new rest, in the weapon
+   *   entity's own parent space (i.e. exactly what you would pass to setAttribute).
+   */
+  setRest(x, y, z) {
+    this.originalPosition.x = x;
+    this.originalPosition.y = y;
+    this.originalPosition.z = z;
+    this.hasRestPosition = true;
+    // Land on it now rather than on the next tick, so a caller that reads the entity's
+    // world matrix in the same frame (the muzzle projection does) sees the new place.
+    this.applyMovement();
+  },
+
   tick(time, deltaTime) {
     if (!this.data.enabled || !this.rig || !this.soldier) return;
 
@@ -152,8 +179,9 @@ AFRAME.registerComponent("weapon-sway", {
 
   applyMovement() {
     // Written straight to object3D: this runs every frame, and setAttribute would parse a
-    // freshly built string and push a component update each time. first-person-weapon only
-    // touches the weapon's rotation, so the position is ours alone.
+    // freshly built string and push a component update each time. Nothing else writes this
+    // entity's position — first-person-weapon owns its rotation and scale, and hands us a
+    // new rest through setRest() rather than writing position behind our back.
     this.el.object3D.position.set(
       this.originalPosition.x + this.currentSway.x,
       this.originalPosition.y + this.currentSway.y + this.currentBob,

@@ -16,27 +16,20 @@ const WEAPONS = {
     "model": null,
     "pickup": null,
     "sound": "assets/audio/ut/e_shot.mp3",
+    "selectSound": "assets/audio/ut/cocking.mp3",
     "view": {
       "model": "assets/3d/viewmodels/enforcer/enforcer.gltf",
+      "dualModel": "assets/3d/viewmodels/enforcer/enforcer-right.gltf",
+      "hand": "left",
       "rotationDeg": [
         0,
-        90,
+        0,
         0
       ],
       "muzzleLocal": [
-        0.0005,
-        0.025,
-        0.01
-      ],
-      "offsetUU": [
-        3.3,
-        -2,
-        -3
-      ],
-      "fireOffsetUU": [
-        0,
-        -10,
-        -4
+        -0.0123,
+        0.0406,
+        -0.0638
       ],
       "sizeM": [
         0.0281,
@@ -54,6 +47,75 @@ const WEAPONS = {
           0.057,
           0.0586
         ]
+      },
+      "offsetUU": [
+        3.3,
+        -2,
+        -3
+      ],
+      "fireOffsetUU": [
+        0,
+        -10,
+        -4
+      ],
+      "anims": {
+        "fire": [
+          {
+            "clip": "Shoot",
+            "rate": 0.81
+          },
+          {
+            "clip": "shot2",
+            "rate": 1
+          }
+        ],
+        "fireLoops": false,
+        "idle": {
+          "clip": "Sway",
+          "rate": 0.2,
+          "loop": true
+        },
+        "idleFidget": {
+          "clip": "Twiddle",
+          "rate": 0.6,
+          "chance": 0.04
+        },
+        "select": {
+          "clip": "Select",
+          "rate": 1
+        },
+        "down": {
+          "clip": "Down",
+          "rate": 1
+        }
+      },
+      "shake": {
+        "time": 0.1,
+        "mag": 200,
+        "vert": 4
+      },
+      "instFlash": {
+        "scale": -0.2,
+        "fog": [
+          0.325,
+          0.225,
+          0.095
+        ]
+      },
+      "muzzleFlash": {
+        "textures": [
+          "assets/ut99/BotPack.Skins.Muz1.png",
+          "assets/ut99/BotPack.Skins.Muz2.png",
+          "assets/ut99/BotPack.Skins.Muz3.png",
+          "assets/ut99/BotPack.Skins.Muz4.png",
+          "assets/ut99/BotPack.Skins.Muz5.png"
+        ],
+        "flashS": 128,
+        "muzzleScale": 1,
+        "flashLength": 0.02,
+        "flashY": 0.1,
+        "flashO": 0.02,
+        "flashC": 0.035
       }
     }
   },
@@ -65,18 +127,37 @@ const WEAPONS = {
     "pickup": "weapon-sniper",
     "headshotDamage": 100,
     "sound": "assets/audio/ut/sniperfire.mp3",
+    "selectSound": "assets/audio/ut/riflepickup.mp3",
     "view": {
       "model": "assets/3d/viewmodels/sniper/sniper.gltf",
+      "hand": "right",
       "rotationDeg": [
         0,
-        90,
+        0,
         0
       ],
       "muzzleLocal": [
-        0.1778,
-        -0.1334,
-        0.0507
+        -0.0042,
+        -0.0012,
+        -0.1008
       ],
+      "sizeM": [
+        0.0801,
+        0.0827,
+        0.1978
+      ],
+      "bboxM": {
+        "min": [
+          -0.0624,
+          -0.0489,
+          -0.101
+        ],
+        "max": [
+          0.0177,
+          0.0338,
+          0.0968
+        ]
+      },
       "offsetUU": [
         5,
         -1.6,
@@ -87,22 +168,60 @@ const WEAPONS = {
         -5,
         -2
       ],
-      "sizeM": [
-        0.3527,
-        0.0835,
-        0.1028
-      ],
-      "bboxM": {
-        "min": [
-          -0.1681,
-          -0.1775,
-          -0.0432
+      "anims": {
+        "fire": [
+          {
+            "clip": "Fire",
+            "rate": 1
+          },
+          {
+            "clip": "Fire2",
+            "rate": 1
+          },
+          {
+            "clip": "Fire3",
+            "rate": 1
+          },
+          {
+            "clip": "Fire4",
+            "rate": 1
+          },
+          {
+            "clip": "Fire5",
+            "rate": 1
+          }
         ],
-        "max": [
-          0.1846,
-          -0.094,
-          0.0596
-        ]
+        "fireLoops": false,
+        "idle": {
+          "clip": "Still",
+          "rate": 1,
+          "loop": true
+        },
+        "select": {
+          "clip": "Select",
+          "rate": 1
+        },
+        "down": {
+          "clip": "Down",
+          "rate": 1
+        }
+      },
+      "shake": {
+        "time": 0.15,
+        "mag": 400,
+        "vert": 8
+      },
+      "instFlash": null,
+      "muzzleFlash": {
+        "textures": [
+          "assets/ut99/BotPack.Rifle.MuzzleFlash2.png"
+        ],
+        "flashS": 256,
+        "muzzleScale": 1,
+        "flashLength": 0.013,
+        "flashY": 0.11,
+        "flashO": 0.014,
+        "flashC": 0.031
       }
     }
   },
@@ -113,18 +232,37 @@ const WEAPONS = {
     "model": "assets/3d/pickups/ShockRifle/ShockRifle.gltf",
     "pickup": "weapon-shock",
     "sound": "assets/audio/ut/tazerfire.mp3",
+    "selectSound": "assets/audio/ut/tazerselect.mp3",
     "view": {
       "model": "assets/3d/viewmodels/shock/shock.gltf",
+      "hand": "right",
       "rotationDeg": [
         0,
-        90,
+        0,
         0
       ],
       "muzzleLocal": [
-        0.0789,
-        -0.0657,
-        0.0829
+        0.0019,
+        0.0054,
+        -0.0372
       ],
+      "sizeM": [
+        0.0246,
+        0.0376,
+        0.1382
+      ],
+      "bboxM": {
+        "min": [
+          -0.01,
+          -0.0165,
+          -0.0374
+        ],
+        "max": [
+          0.0147,
+          0.0211,
+          0.1008
+        ]
+      },
       "offsetUU": [
         4.4,
         -1.7,
@@ -135,23 +273,42 @@ const WEAPONS = {
         -5,
         -8
       ],
-      "sizeM": [
-        0.1797,
-        0.0372,
-        0.0489
-      ],
-      "bboxM": {
-        "min": [
-          -0.0961,
-          -0.0763,
-          0.0374
+      "anims": {
+        "fire": [
+          {
+            "clip": "Fire1",
+            "rate": 0.6
+          }
         ],
-        "max": [
-          0.0837,
-          -0.0391,
-          0.0863
+        "fireLoops": true,
+        "idle": {
+          "clip": "Still",
+          "rate": 0.04,
+          "loop": true
+        },
+        "select": {
+          "clip": "Select",
+          "rate": 1
+        },
+        "down": {
+          "clip": "Down",
+          "rate": 1
+        }
+      },
+      "shake": {
+        "time": 0.1,
+        "mag": 300,
+        "vert": 5
+      },
+      "instFlash": {
+        "scale": -0.4,
+        "fog": [
+          0,
+          0,
+          0.8
         ]
-      }
+      },
+      "muzzleFlash": null
     }
   },
   "rocket": {
@@ -161,6 +318,7 @@ const WEAPONS = {
     "model": "assets/3d/pickups/UT_Eightball/UT_Eightball.gltf",
     "pickup": "weapon-rocket",
     "sound": "assets/audio/ut/ignite.mp3",
+    "selectSound": "assets/audio/ut/selecting.mp3",
     "projectile": {
       "type": "rocket",
       "speed": 21.15,
@@ -181,16 +339,34 @@ const WEAPONS = {
     },
     "view": {
       "model": "assets/3d/viewmodels/rocket/rocket.gltf",
+      "hand": "right",
       "rotationDeg": [
         0,
-        -90,
+        0,
         0
       ],
       "muzzleLocal": [
-        -0.0513,
-        -0.0257,
-        -0.0594
+        0.02,
+        0.0178,
+        -0.1009
       ],
+      "sizeM": [
+        0.0609,
+        0.0423,
+        0.1684
+      ],
+      "bboxM": {
+        "min": [
+          -0.0039,
+          -0.0113,
+          -0.1072
+        ],
+        "max": [
+          0.057,
+          0.031,
+          0.0612
+        ]
+      },
       "offsetUU": [
         2.4,
         -1,
@@ -201,23 +377,42 @@ const WEAPONS = {
         -5,
         -8.8
       ],
-      "sizeM": [
-        0.1658,
-        0.0682,
-        0.0854
-      ],
-      "bboxM": {
-        "min": [
-          -0.053,
-          -0.0479,
-          -0.0838
+      "anims": {
+        "fire": [
+          {
+            "clip": "Fire1",
+            "rate": 0.6
+          }
         ],
-        "max": [
-          0.1128,
-          0.0203,
-          0.0017
+        "fireLoops": false,
+        "idle": {
+          "clip": "Idle",
+          "rate": 0.1,
+          "loop": true
+        },
+        "select": {
+          "clip": "Select",
+          "rate": 1
+        },
+        "down": {
+          "clip": "Down",
+          "rate": 1
+        }
+      },
+      "shake": {
+        "time": 0.2,
+        "mag": 350,
+        "vert": 7.5
+      },
+      "instFlash": {
+        "scale": -0.4,
+        "fog": [
+          0.65,
+          0.45,
+          0.19
         ]
-      }
+      },
+      "muzzleFlash": null
     }
   },
   "ripper": {
@@ -227,6 +422,7 @@ const WEAPONS = {
     "model": "assets/3d/pickups/ripper/ripper.gltf",
     "pickup": "weapon-ripper",
     "sound": "assets/audio/ut/startblade.mp3",
+    "selectSound": "assets/audio/ut/beam.mp3",
     "headshotDamage": 105,
     "projectile": {
       "type": "ripper",
@@ -238,16 +434,34 @@ const WEAPONS = {
     },
     "view": {
       "model": "assets/3d/viewmodels/ripper/ripper.gltf",
+      "hand": "right",
       "rotationDeg": [
         0,
-        90,
+        0,
         0
       ],
       "muzzleLocal": [
-        0.0775,
-        -0.0563,
-        0.0089
+        -0.0029,
+        0.0261,
+        -0.0651
       ],
+      "sizeM": [
+        0.0519,
+        0.0626,
+        0.1008
+      ],
+      "bboxM": {
+        "min": [
+          -0.0311,
+          -0.0084,
+          -0.0651
+        ],
+        "max": [
+          0.0208,
+          0.0542,
+          0.0357
+        ]
+      },
       "offsetUU": [
         3,
         -1.6,
@@ -258,23 +472,42 @@ const WEAPONS = {
         -15,
         -13
       ],
-      "sizeM": [
-        0.1598,
-        0.0632,
-        0.0219
-      ],
-      "bboxM": {
-        "min": [
-          -0.0819,
-          -0.0879,
-          0.0076
+      "anims": {
+        "fire": [
+          {
+            "clip": "Fire",
+            "rate": 1.3
+          }
         ],
-        "max": [
-          0.0779,
-          -0.0247,
-          0.0294
+        "fireLoops": true,
+        "idle": {
+          "clip": "Idle",
+          "rate": 0.3,
+          "loop": true
+        },
+        "select": {
+          "clip": "Select",
+          "rate": 1
+        },
+        "down": {
+          "clip": "Down",
+          "rate": 1
+        }
+      },
+      "shake": {
+        "time": 0.1,
+        "mag": 120,
+        "vert": 5
+      },
+      "instFlash": {
+        "scale": -0.3,
+        "fog": [
+          0.4,
+          0.2,
+          0
         ]
-      }
+      },
+      "muzzleFlash": null
     }
   },
   "redeemer": {
@@ -284,6 +517,7 @@ const WEAPONS = {
     "model": "assets/3d/pickups/WarheadLauncher/WarheadLauncher.gltf",
     "pickup": "weapon-redeemer",
     "sound": "assets/audio/ut/warheadshot.mp3",
+    "selectSound": "assets/audio/ut/warheadpickup.mp3",
     "projectile": {
       "type": "redeemer",
       "speed": 14.1,
@@ -304,16 +538,34 @@ const WEAPONS = {
     },
     "view": {
       "model": "assets/3d/viewmodels/redeemer/redeemer.gltf",
+      "hand": "right",
       "rotationDeg": [
-        -87.1875,
-        90,
-        22.5
+        0,
+        0,
+        0
       ],
       "muzzleLocal": [
-        0.0509,
-        0.0681,
-        -0.0141
+        -0.0041,
+        0.0036,
+        -0.102
       ],
+      "sizeM": [
+        0.0437,
+        0.0428,
+        0.1436
+      ],
+      "bboxM": {
+        "min": [
+          -0.0256,
+          -0.0132,
+          -0.1028
+        ],
+        "max": [
+          0.0181,
+          0.0296,
+          0.0409
+        ]
+      },
       "offsetUU": [
         1.8,
         1,
@@ -324,23 +576,42 @@ const WEAPONS = {
         0,
         -10
       ],
-      "sizeM": [
-        0.1393,
-        0.0911,
-        0.0516
-      ],
-      "bboxM": {
-        "min": [
-          -0.0746,
-          -0.0206,
-          -0.0563
+      "anims": {
+        "fire": [
+          {
+            "clip": "Fire",
+            "rate": 0.3
+          }
         ],
-        "max": [
-          0.0647,
-          0.0705,
-          -0.0047
+        "fireLoops": false,
+        "idle": {
+          "clip": "Idle",
+          "rate": 1,
+          "loop": true
+        },
+        "select": {
+          "clip": "Select",
+          "rate": 1
+        },
+        "down": {
+          "clip": "Down",
+          "rate": 1
+        }
+      },
+      "shake": {
+        "time": 0.2,
+        "mag": 350,
+        "vert": 7.5
+      },
+      "instFlash": {
+        "scale": -0.4,
+        "fog": [
+          0.95,
+          0.65,
+          0.29
         ]
-      }
+      },
+      "muzzleFlash": null
     }
   }
 };

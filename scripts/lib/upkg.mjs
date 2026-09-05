@@ -106,6 +106,10 @@ export function loadPackage(buf) {
       if (ref < 0) return imports[-ref - 1]?.name ?? null;
       return null;
     },
+    /** The EXPORT a positive package reference points at, or null for imports/none. */
+    refExport(ref) {
+      return ref > 0 ? exports_[ref - 1] ?? null : null;
+    },
     /** The class name of an export, following its class reference. */
     classOf(exp) {
       return pkgObj.resolve(exp.class) ?? "Class";
@@ -149,6 +153,15 @@ const PT = {
 export function readProperties(pkg, o, end) {
   const { buf, names } = pkg;
   const out = {};
+  // Object references are handed back as NAMES, which is what nearly every caller wants
+  // and is also lossy: UE1 auto-names palettes "Palette<N>" per GROUP, so one package
+  // holds several unrelated `Palette75`s, and looking a texture's palette up by name
+  // found the first of them — which is how the Enforcer's muzzle flash came out the
+  // green of the BoltHit group. The raw index is kept beside the names, non-enumerable
+  // so nothing that walks the properties sees it, under `$refs` (keyed by property name,
+  // `name[i]` for array elements). refExport() turns one back into an export.
+  const refs = {};
+  Object.defineProperty(out, "$refs", { value: refs, enumerable: false });
   while (o.p < end) {
     const nameIdx = compactIndex(buf, o);
     const name = names[nameIdx];
@@ -191,7 +204,12 @@ export function readProperties(pkg, o, end) {
       case "int": value = buf.readInt32LE(o.p); break;
       case "bool": value = arrayBit; break;
       case "float": value = buf.readFloatLE(o.p); break;
-      case "object": case "class": value = pkg.resolve(compactIndex(buf, { p: o.p })); break;
+      case "object": case "class": {
+        const ref = compactIndex(buf, { p: o.p });
+        value = pkg.resolve(ref);
+        refs[arrayIndex ? `${name}[${arrayIndex}]` : name] = ref;
+        break;
+      }
       case "name": value = names[compactIndex(buf, { p: o.p })]; break;
       case "vector": value = { x: buf.readFloatLE(o.p), y: buf.readFloatLE(o.p + 4), z: buf.readFloatLE(o.p + 8) }; break;
       case "rotator": value = { pitch: buf.readInt32LE(o.p), yaw: buf.readInt32LE(o.p + 4), roll: buf.readInt32LE(o.p + 8) }; break;
@@ -315,6 +333,8 @@ function structHeaderEnd(pkg, exp) {
 function tryProperties(pkg, o, end) {
   const { buf, names } = pkg;
   const out = {};
+  const refs = {}; // raw object references, as in readProperties
+  Object.defineProperty(out, "$refs", { value: refs, enumerable: false });
   let count = 0;
   while (true) {
     if (o.p >= end) return null; // ran off without a terminator
@@ -329,6 +349,7 @@ function tryProperties(pkg, o, end) {
     const one = readOneProperty(pkg, o, end);
     if (one === null) return null;
     assign(out, one.name, one.arrayIndex, one.value);
+    if (one.ref !== undefined) refs[one.arrayIndex ? `${one.name}[${one.arrayIndex}]` : one.name] = one.ref;
     if (++count > 512) return null;
   }
 }
@@ -387,12 +408,13 @@ function readOneProperty(pkg, o, end) {
   const start = o.p;
   if (type !== "bool" && (size < 0 || start + size > end)) return null;
   let value;
+  let ref;
   switch (type) {
     case "byte": value = buf[o.p]; break;
     case "int": value = buf.readInt32LE(o.p); break;
     case "bool": value = arrayBit; break;
     case "float": value = buf.readFloatLE(o.p); break;
-    case "object": case "class": value = pkg.resolve(compactIndex(buf, { p: o.p })); break;
+    case "object": case "class": ref = compactIndex(buf, { p: o.p }); value = pkg.resolve(ref); break;
     case "name": { const i = compactIndex(buf, { p: o.p }); if (i < 0 || i >= names.length) return null; value = names[i]; break; }
     case "vector": value = { x: buf.readFloatLE(o.p), y: buf.readFloatLE(o.p + 4), z: buf.readFloatLE(o.p + 8) }; break;
     case "rotator": value = { pitch: buf.readInt32LE(o.p), yaw: buf.readInt32LE(o.p + 4), roll: buf.readInt32LE(o.p + 8) }; break;
@@ -401,7 +423,7 @@ function readOneProperty(pkg, o, end) {
     default: value = buf.subarray(o.p, o.p + size);
   }
   if (type !== "bool") o.p = start + size;
-  return { name, arrayIndex, value };
+  return { name, arrayIndex, value, ref };
 }
 
 /**

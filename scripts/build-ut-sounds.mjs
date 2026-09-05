@@ -22,6 +22,10 @@
 // so those two are followed to the projectile rather than guessed. Explosions use their
 // class's EffectSound1, and the pickup blip is the PickupSound every weapon shares.
 //
+// SELECT sounds are the sixth set: TournamentWeapon.PlaySelect plays SelectSound in the
+// same breath as PlayAnim('Select'), so raising a weapon is one event with a picture and
+// a noise. All six name their own; see the SELECT table.
+//
 // A USound holds a format name and a lazy array of bytes which, for format WAV, is a
 // complete RIFF file. scripts/lib/upkg.mjs finds it by its own header rather than by
 // modelling a serialization that shifted across engine versions — a RIFF declares its
@@ -74,14 +78,41 @@ const EXPLODE = [
   { id: "rocket", cls: "UT_SpriteBallExplosion", key: "EffectSound1" },
   { id: "redeemer", cls: "WarExplosion", key: "EffectSound1" },
 ];
+// The noise a weapon makes as it comes UP in your hands. Every one of the six names its
+// own SelectSound, and TournamentWeapon.PlaySelect plays it beside PlayAnim('Select'):
+//
+//     simulated function PlaySelect()
+//     {
+//         ...
+//         PlayAnim('Select',1.0,0.0);
+//         Owner.PlaySound(SelectSound, SLOT_Misc, Pawn(Owner).SoundDampening);
+//     }
+//
+// so the sound and the animation are one event, and the client should start them
+// together. Read off the weapon class, not listed: Cocking, RiflePickup, TazerSelect,
+// Selecting, beam, WarheadPickup.
+const SELECT = [
+  { id: "enforcer", cls: "enforcer" },
+  { id: "sniper", cls: "SniperRifle" },
+  { id: "shock", cls: "ShockRifle" },
+  { id: "rocket", cls: "UT_Eightball" },
+  { id: "ripper", cls: "ripper" },
+  { id: "redeemer", cls: "WarheadLauncher" },
+].map((s) => ({ ...s, key: "SelectSound" }));
 
-const out = { source: "UT99 retail", fire: {}, explode: {}, pickup: null };
+const out = { source: "UT99 retail", fire: {}, select: {}, explode: {}, pickup: null };
 const jobs = [];
 
 for (const f of FIRE) {
   const name = defaults(f.cls)[f.key];
   if (!name) throw new Error(`${f.cls} has no ${f.key}`);
   out.fire[f.id] = { sound: name, file: `assets/audio/ut/${name.toLowerCase()}.mp3`, from: f.cls };
+  jobs.push(name);
+}
+for (const f of SELECT) {
+  const name = defaults(f.cls)[f.key];
+  if (!name) throw new Error(`${f.cls} has no ${f.key}`);
+  out.select[f.id] = { sound: name, file: `assets/audio/ut/${name.toLowerCase()}.mp3`, from: f.cls };
   jobs.push(name);
 }
 for (const e of EXPLODE) {

@@ -32,6 +32,38 @@
       "from": "Razor2"
     }
   },
+  "select": {
+    "enforcer": {
+      "sound": "Cocking",
+      "file": "assets/audio/ut/cocking.mp3",
+      "from": "enforcer"
+    },
+    "sniper": {
+      "sound": "RiflePickup",
+      "file": "assets/audio/ut/riflepickup.mp3",
+      "from": "SniperRifle"
+    },
+    "shock": {
+      "sound": "TazerSelect",
+      "file": "assets/audio/ut/tazerselect.mp3",
+      "from": "ShockRifle"
+    },
+    "rocket": {
+      "sound": "Selecting",
+      "file": "assets/audio/ut/selecting.mp3",
+      "from": "UT_Eightball"
+    },
+    "ripper": {
+      "sound": "beam",
+      "file": "assets/audio/ut/beam.mp3",
+      "from": "ripper"
+    },
+    "redeemer": {
+      "sound": "WarheadPickup",
+      "file": "assets/audio/ut/warheadpickup.mp3",
+      "from": "WarheadLauncher"
+    }
+  },
   "explode": {
     "rocket": {
       "sound": "Explo1",
