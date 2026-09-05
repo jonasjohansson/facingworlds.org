@@ -20,12 +20,21 @@
 //               UT2004 ~0.35; 0.18 was picked by sweeping it in the running scene.
 //               See GAME_CONFIG.MOVEMENT.AIR_CONTROL for the measurements.
 import { GAME_CONFIG } from "../../config/game-config.js";
+import { getWorldColliders } from "../hitscan.js";
 
 const MOVEMENT = GAME_CONFIG.MOVEMENT;
 
 // A single-frame vertical shift larger than this is a respawn, not terrain: at the UT99
 // ground speed the steepest walkable slope moves the rig well under a metre per frame.
 const TELEPORT_THRESHOLD = 3.0;
+// groundToFloor(): how far above the navmesh height the floor probe starts (over the
+// head of a kerb, under the belly of a bridge), and the window of drawn-floor heights it
+// will accept relative to the navmesh. Below: the navmesh's worst measured hang over the
+// drawn floor is ~0.5 m on the ramps. Above: a kerb, not a wall.
+const FLOOR_PROBE_UP = 1.2;
+const FLOOR_BELOW = 0.6;
+const FLOOR_ABOVE = 0.35;
+const FLOOR_LERP = 25.0;
 
 // Velocity provider. Registered as "ut-controls" so movement-controls can find it from the
 // bare name "ut" in its controls list.
@@ -196,6 +205,13 @@ AFRAME.registerComponent("ut-jump", {
     this.airborne = false;
     this.verticalSpeed = 0;
     this.offset = 0;
+    // Drawn-floor correction, metres, added to every child's height beside the hop.
+    // See groundToFloor().
+    this.groundOffset = 0;
+    const T = AFRAME.THREE;
+    this._ray = new T.Raycaster();
+    this._rayOrigin = new T.Vector3();
+    this._down = new T.Vector3(0, -1, 0);
     this.keyHeld = false;
     this.queued = false;
     // { object3D, baseY } for each direct child of the rig, so a hop can be added to and
@@ -262,8 +278,54 @@ AFRAME.registerComponent("ut-jump", {
   applyTargets() {
     for (let i = 0; i < this.hopTargets.length; i++) {
       const target = this.hopTargets[i];
-      target.object3D.position.y = target.baseY + this.offset;
+      target.object3D.position.y = target.baseY + this.offset + this.groundOffset;
     }
+  },
+
+  /** The hop and the floor correction together: what the eye and the body actually got. */
+  visualOffset() {
+    return (this.airborne ? this.offset : 0) + this.groundOffset;
+  },
+
+  // ---------------------------------------------------------------------------
+  // STANDING ON THE FLOOR YOU CAN SEE
+  // ---------------------------------------------------------------------------
+  // The rig is clamped to the NAVMESH (movement-controls, constrainToNavMesh), and the
+  // navmesh is not the floor: it is a coarser surface that sits above the drawn map by
+  // 15-21 cm at the spawns and by up to half a metre on the ramps, and below it in
+  // places. Bots were moved onto the drawn floor (server/navmesh-surface.js) and the
+  // difference showed at once — measured 2026-09-05, the local rig stood 0.209 m above
+  // the visible floor while every bot stood on it — which is what "the avatars don't
+  // follow the ground the way I do" was.
+  //
+  // The rig itself cannot be lowered: the navmesh clamp needs it ON its polygon (see
+  // the hop notes above). So the correction goes where the hop goes — onto the rig's
+  // children, eye and body alike — and out on the wire beside it (network.js reads
+  // visualOffset()), so everyone else draws this player standing where they see the
+  // floor too.
+  //
+  // A floor is sought straight down from a little above the navmesh height, and only
+  // one within a window is accepted: below by at most FLOOR_BELOW (the navmesh hanging
+  // over a dip), above by at most FLOOR_ABOVE (a kerb the navmesh smooths under). Beyond
+  // that the map has no floor where the navmesh has one — a shaft, a lift, a hole in the
+  // fan model — and the navmesh height stands, exactly as before. Eased at the same rate
+  // the server eases bots (GROUND_LERP 25/s) so a step does not pop.
+  groundToFloor(dt) {
+    const meshes = getWorldColliders(this.el.sceneEl);
+    let want = 0;
+    if (meshes.length) {
+      const p = this.el.object3D.position;
+      this._rayOrigin.set(p.x, p.y + FLOOR_PROBE_UP, p.z);
+      this._ray.set(this._rayOrigin, this._down);
+      this._ray.far = FLOOR_PROBE_UP + FLOOR_BELOW;
+      const hits = this._ray.intersectObjects(meshes, false);
+      if (hits.length) {
+        const d = hits[0].point.y - p.y;
+        if (d >= -FLOOR_BELOW && d <= FLOOR_ABOVE) want = d;
+      }
+    }
+    this.groundOffset += (want - this.groundOffset) * (1 - Math.exp(-FLOOR_LERP * dt));
+    if (Math.abs(this.groundOffset - want) < 0.001) this.groundOffset = want;
   },
 
   cancel() {
@@ -293,8 +355,10 @@ AFRAME.registerComponent("ut-jump", {
     if (!this.airborne && (this.queued || (this.data.holdToRepeat && this.keyHeld))) this.jump();
     this.queued = false;
 
+    const dt = Math.min(Math.max((timeDelta || 0) / 1000, 0), 1 / 20);
+    this.groundToFloor(dt);
+
     if (this.airborne) {
-      const dt = Math.min(Math.max((timeDelta || 0) / 1000, 0), 1 / 20);
       this.verticalSpeed -= this.data.gravity * dt;
       this.offset += this.verticalSpeed * dt;
       if (this.offset <= 0) {

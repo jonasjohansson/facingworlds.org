@@ -13,6 +13,32 @@
 // the residual visual smoothing, and writing the result onto the rig.
 import { SnapshotBuffer, lerpYaw } from "../../shared/net/interpolation.js";
 import { GAME_CONFIG } from "../config/game-config.js";
+import { getWorldColliders } from "./hitscan.js";
+
+// ---------------------------------------------------------------------------
+// FEET ON THE FLOOR YOU CAN SEE
+// ---------------------------------------------------------------------------
+// The height on the wire is the server's idea of the ground: the drawn floor where its
+// standing surface has one, the navmesh where it does not (holes in the fan map, the
+// lift shafts), and in between two 20 Hz ticks a straight line across whatever the
+// ground does. Measured 2026-09-05 over 19,000 bot frames against the map the viewer
+// actually sees: median 4 mm off, but 11.6% more than 5 cm above it and 5.9% more than
+// 20 cm off either way — a body hanging over a ramp edge, a body waist-deep at a kerb.
+//
+// So the LAST word on a remote body's height is this client's own floor, exactly as the
+// local player's is (ut-movement.js groundToFloor): probe straight down from a little
+// above the wire height, accept a floor inside the same window, ease onto it at the same
+// rate. Outside the window the wire height stands — a jump is a jump, and a shaft is a
+// shaft. Applied to the RIG, so the hit capsule (hitscan.js reads the rig) follows the
+// body a player is aiming at; the server tolerates half a metre of body slack on a
+// claimed hit, which is more than the window can move anything.
+const FLOOR_PROBE_UP = 1.2;
+const FLOOR_BELOW = 0.6;
+const FLOOR_ABOVE = 0.35;
+const FLOOR_LERP = 25.0;
+const _ray = new AFRAME.THREE.Raycaster();
+const _origin = new AFRAME.THREE.Vector3();
+const _down = new AFRAME.THREE.Vector3(0, -1, 0);
 
 // One buffer per component, so it tracks exactly one entity.
 const SELF = "self";
@@ -350,8 +376,28 @@ AFRAME.registerComponent("remote-avatar", {
   _applyToRig: function () {
     const rig = this.el.parentElement;
     if (!rig || !rig.object3D) return;
-    rig.object3D.position.set(this.lastPosition.x, this.lastPosition.y, this.lastPosition.z);
+    rig.object3D.position.set(this.lastPosition.x, this.lastPosition.y + (this.groundOffset || 0), this.lastPosition.z);
     rig.object3D.rotation.set(0, this.lastRotation, 0);
+  },
+
+  /** See FEET ON THE FLOOR YOU CAN SEE at the top of the file. dt in seconds. */
+  _groundToFloor: function (dt) {
+    let want = 0;
+    const meshes = getWorldColliders(this.el.sceneEl);
+    if (meshes.length) {
+      const p = this.lastPosition;
+      _origin.set(p.x, p.y + FLOOR_PROBE_UP, p.z);
+      _ray.set(_origin, _down);
+      _ray.far = FLOOR_PROBE_UP + FLOOR_BELOW;
+      const hits = _ray.intersectObjects(meshes, false);
+      if (hits.length) {
+        const d = hits[0].point.y - p.y;
+        if (d >= -FLOOR_BELOW && d <= FLOOR_ABOVE) want = d;
+      }
+    }
+    const g = this.groundOffset || 0;
+    const next = g + (want - g) * (1 - Math.exp(-FLOOR_LERP * dt));
+    this.groundOffset = Math.abs(next - want) < 0.001 ? want : next;
   },
 
   tick: function (time, deltaTime) {
@@ -373,6 +419,7 @@ AFRAME.registerComponent("remote-avatar", {
     this.lastRotation = lerpYaw(this.lastRotation, this.targetRotation, lerp);
     this.currentSpeed += (this.targetSpeed - this.currentSpeed) * lerp;
 
+    this._groundToFloor(Math.min(Math.max((deltaTime || 0) / 1000, 0), 1 / 20));
     this._applyToRig();
 
     // Update animations

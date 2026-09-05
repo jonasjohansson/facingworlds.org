@@ -397,12 +397,12 @@ export function startNetwork() {
         }
 
         case "pickup-taken": {
+          // Hides the item, nothing more. This used to also emit local-loadout {dual: true}
+          // whenever WE were the taker — written when the dual Enforcer was the only pickup
+          // on the map. Once health, armour and weapons joined it, walking over a MedBox
+          // while holding a Rocket Launcher put a second, mirrored launcher in the other
+          // hand. What you hold is the server's to say, and it says it in `loadout` below.
           scene.emit("pickup-taken", { id: m.id, by: m.by, respawnInMs: m.respawnInMs });
-          if (m.by === myId) {
-            // Only the server can grant this. The weapon component listens and
-            // switches to two guns; it never decides on its own.
-            scene.emit("local-loadout", { dual: true });
-          }
           break;
         }
 
@@ -589,8 +589,10 @@ export function startNetwork() {
       // players glide along the ground while the local one is in the air. Add
       // the hop back in here; it is well under the buffer's 20 m teleport
       // threshold, so remotes interpolate the arc instead of snapping.
+      // ... and the drawn-floor correction ut-jump applies beside it, or remotes would
+      // draw this player at the navmesh height while its own eye stands on the floor.
       const jump = rig.components["ut-jump"];
-      const hop = jump && jump.airborne ? jump.offset : 0;
+      const hop = jump ? (jump.visualOffset ? jump.visualOffset() : jump.airborne ? jump.offset : 0) : 0;
       const currentPosition = {
         x: o.position.x,
         y: o.position.y + hop,

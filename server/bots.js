@@ -52,7 +52,7 @@ const { NODES, WALKABLE_MAIN, nearestNode, aStar } = require("./nav-graph.js");
 // The walkable surface, baked out of the shipped navmesh by
 // scripts/gen-navmesh-surface.mjs. It is what keeps a bot's feet on the rock (the GROUND
 // block in step()) and what stands in for a line-of-sight test (canSee()).
-const { surfaceNear, groundRisesAbove } = require("./navmesh-surface.js");
+const { surfaceNear, groundRisesAbove, standHeightsAt } = require("./navmesh-surface.js");
 const { blocked } = require("./map-collision.js");
 // BOT_LOS=walls swaps the terrain occlusion test below for a real one against every
 // triangle of the map. Off by default: see the note in canSee about why that is a
@@ -154,9 +154,13 @@ const GROUND_WINDOW = 4.0;
 // that a step or a ramp edge does not pop on the wire. A hard assignment would also
 // hand the pose validator a vertical jump on every kerb.
 const GROUND_LERP = 25.0;
-// Feet-to-navmesh offset. src/game/core/spawn.js lifts the local rig by the same
-// amount and server.js stores every spawn already lifted, so a bot standing still is
-// at exactly the height a human standing on the same polygon is.
+// Feet-to-NAVMESH offset. src/game/core/spawn.js lifts the local rig by the same amount
+// and server.js stores every spawn already lifted, so a bot standing on the navmesh is
+// at exactly the height a human standing on the same polygon is. It applies ONLY where
+// the navmesh is what answered: since the standing surface became the drawn floor
+// (server/navmesh-surface.js, PATCH first), lifting that too put every bot's boots a
+// measured 5 cm above the floor the player sees — median 0.052 m across 19,000 frames,
+// on every model. Feet on the drawn floor sit ON it.
 const GROUND_LIFT = 0.05;
 
 // ---- line of sight ----
@@ -1029,7 +1033,11 @@ function createBots(ctx) {
     // as it did before this existed.
     const ground = surfaceNear(b.x, b.z, b.y, GROUND_WINDOW);
     if (ground !== null) {
-      const want = ground + GROUND_LIFT;
+      // Did the drawn floor answer, or the navmesh fallback? standHeightsAt is the map
+      // layer alone; surfaceNear's answer is one of its heights exactly when it came
+      // from there. See GROUND_LIFT.
+      const fromMap = standHeightsAt(b.x, b.z).some((h) => Math.abs(h - ground) < 1e-6);
+      const want = ground + (fromMap ? 0 : GROUND_LIFT);
       b.y += (want - b.y) * (1 - Math.exp(-GROUND_LERP * dt));
       // The vertical steering term has done its job the moment the ground owns y.
       // Leaving it running would fight the snap and re-accumulate the same drift.
@@ -1097,14 +1105,19 @@ function createBots(ctx) {
     const anim = b.animation || { idle: 1, walk: 0, run: 0 };
     const animKey = `${q2(anim.idle)},${q2(anim.walk)},${q2(anim.run)}`;
     if (qx === b.bx && qy === b.by && qz === b.bz && qry === b.bry && animKey === b.banim) return;
-    const animChanged = animKey !== b.banim;
     b.bx = qx;
     b.by = qy;
     b.bz = qz;
     b.bry = qry;
     b.banim = animKey;
-    const out = { type: "pose", id: b.id, t: now, x: qx, y: qy, z: qz, ry: qry, speed: q2(b.speed || 0) };
-    if (animChanged) out.animation = anim;
+    // The animation block rides on EVERY pose, as it does on a human's. It used to go
+    // out only when it changed against `banim`, and that is per bot, not per client:
+    // a corpse sets its animation to idle without a pose ever leaving, so `banim` kept
+    // saying "run", the respawn roster told clients "idle", and when the bot ran again
+    // nothing was sent — it slid across the map standing still until it next stopped.
+    // Measured at 2 of 9 bots stuck that way for the whole of a 15 s sample. ~25 bytes
+    // more per pose is nothing against a figure that never moves its legs.
+    const out = { type: "pose", id: b.id, t: now, x: qx, y: qy, z: qz, ry: qry, speed: q2(b.speed || 0), animation: anim };
     broadcast(out);
     lastPoseUpdate.set(b.id, now);
   }
