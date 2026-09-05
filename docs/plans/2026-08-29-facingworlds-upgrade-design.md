@@ -660,3 +660,60 @@ The one deviation: UT99 positions the icon at a fixed screen fraction (`FlashY`/
 tied to handedness bookkeeping this build does not have, so the slot's own barrel tip is
 projected from world space instead. The flash sits where the barrel is, and tracks it
 through sway, the shake and the hand swap.
+
+## Landed 2026-09-05, later — "some of the weapons still feel yank", measured
+
+Jonas's report after the firing-feel work landed, and the first time this project has
+had a browser it could drive: Playwright (headed, real GPU) with two probes that are now
+`scripts/measure-frametimes.mjs` and `scripts/measure-weapon-motion.mjs`.
+
+**It was not the frame rate.** Every phase — idle, a burst on each weapon, a weapon switch,
+dual Enforcers — ran at a flat 8.3 ms (120 Hz) with p95 9.3 ms. The only frames over 33 ms
+were exactly two per phase and landed at the instants the probe took its own screenshots.
+Weapon switches loaded in three or four frames. So the yank was **motion**, and the second
+probe measured it: per frame, the morphed mesh's barrel tip and centroid projected to the
+screen, the morph frame showing, the camera's roll and height. The Sniper Rifle was the
+reference — 7 px per frame, no restarts — and four things were not like it:
+
+1. **The Enforcer cut its own fire clip on every shot.** `Shoot` runs 0.41 s and the
+   cadence is 0.25 s, so the gun snapped back to frame 0 mid-recoil each shot — 73 px, six
+   times in seven shots. Worse, `Shoot` and `shot2` had been shipped as a random pair when
+   UnrealScript is explicit: `PlayFiring` plays `Shoot`, `PlayRepeatFiring` plays `shot2`
+   for every shot after the first while the trigger stays down, and the fire state refires
+   only after `FinishAnim`. All three are now in: `anims.fireRepeat`, a burst counter on
+   the trigger, and `fireClipBusy()` holding the cadence until the clip is out. Excursion
+   went from 69 px with a 73 px snap to a 16 px slide kick with none — which is what
+   `shot2` is.
+2. **The Redeemer twitched six times a second.** Its `Idle` had been emitted at an invented
+   rate of 1.0 "so the weapon would not look dead"; five frames at 30 fps loop every 0.17 s,
+   and each wrap was a 201 px jump. `TournamentWeapon.PlayIdleAnim` is empty and
+   `WarheadLauncher` does not override it: UT99 plays no idle. Removed. Dead in the hand is
+   the reference.
+3. **Every clip started with a hard cut.** `PlayAnim`/`LoopAnim`'s third argument is a
+   tween — 0.02–0.05 s into a fire clip, 0.1–0.5 s into an idle — and every call site
+   passes one except the Redeemer's `PlayAnim('Fire', 0.3)`. The Shock Rifle's entry into
+   `Fire1` was a 95 px snap; with the tween carried per clip in the manifest and played as
+   a three.js crossfade it is 19 px per frame over the same 95 px of travel. The Redeemer's
+   201 px cut into its kicked-up tube is Epic's, tween 0, and stays. Finished one-shots now
+   hold their last frame (`clampWhenFinished`) as UE1 does, and the idle tweens from it.
+4. **The eye was teleporting.** `ShakeVert` had been written straight to the camera — a
+   10 cm (Enforcer) to 21 cm (Sniper) drop in one frame. `PlayerPawn.UpdateEyeHeight`
+   never does that: it moves `EyeHeight` toward `BaseEyeHeight + ShakeVert` by
+   `min(1, 10·dt)` per frame, a 0.1 s lag against a jolt armed for 0.1 s. Ported; the eye
+   now glides 1–2.5 cm per frame to the same 7–14 cm depth.
+
+Two smaller things the probe turned up on the way: `setDual(true)` threw in
+`weapon-sway.setRest` because the second slot's component had not run `init()` yet (A-Frame
+defers it to load; the rest is now parked and picked up), and the cadence gate's
+`Math.max(1, rate)` had quietly made the Sniper Rifle and Redeemer one-per-second guns.
+
+**And the placement stopped being fitted.** With screenshots finally available, the two
+by-eye constants (`OFFSET_SCALE`, the markup's 0.2/−0.3/−0.5) were tested against
+`Engine.Inventory.CalcDrawOffset`, which puts the weapon's origin at `PlayerViewOffset`
+from the eye. Read with the `0.9/FOVAngle` factor UnrealScript shows (a hundredth of a UU)
+the eye ends up inside every mesh — screenshotted, it does. Read as plain Unreal Units and
+scaled by the same factor as the mesh, all six land where UT99 has them: Enforcer low left,
+rifles low right with the receiver's side showing and the barrel on the crosshair, within a
+few centimetres of what had been fitted. That is what ships. `MODEL_SCALE` survives only
+as a uniform factor about the eye — it moves nothing on screen and exists for the 0.05 m
+near plane.

@@ -64,25 +64,52 @@ export function createViewAnim(root, clips, anims, random = Math.random) {
   let firing = false; // a LoopAnim'd fire clip is running (Shock, Ripper)
 
   /**
-   * PlayAnim / LoopAnim. `spec` is {clip, rate} straight out of the manifest.
+   * PlayAnim / LoopAnim. `spec` is {clip, rate, tween} straight out of the manifest.
+   *
+   * `tween` is PlayAnim's TweenTime: UE1 blends from the pose the mesh is in to the new
+   * sequence's first frame over that many seconds, and nearly every call site passes one
+   * (0.02-0.05 s into a fire clip, up to 0.5 s into an idle). A hard cut is what UE1 does
+   * when it is 0 — the Redeemer's PlayAnim('Fire', 0.3) — and what this did for everything
+   * before, which put a measured 95 px snap at the start of every Shock Rifle burst.
+   *
+   * three.js expresses the same thing as a crossfade: the outgoing action fades out while
+   * the new one fades in, and since both are one-hot morph weights the mesh passes through
+   * the in-between pose exactly as UE1's tween does. Nothing else may be running during
+   * it, or the fade blends three poses instead of two.
    */
   function play(spec, kind, loop) {
     if (!spec) return false;
     const action = actionFor(spec.clip);
     if (!action) return false;
 
-    mixer.stopAllAction();
-    restPose();
+    const tween = typeof spec.tween === "number" && spec.tween > 0 ? spec.tween : 0;
+    // "The pose the mesh is in" includes a one-shot that has finished and is holding its
+    // last frame (clampWhenFinished below), which is what UE1 tweens from when the idle
+    // follows a fire. A paused action still fades: fades are driven by the mixer's clock.
+    const from =
+      current && current !== action && current.enabled && current.getEffectiveWeight() > 0
+        ? current
+        : null;
+    for (const a of cache.values()) if (a && a !== action && a !== from) a.stop();
+    if (!from) restPose();
 
     action.reset();
     action.timeScale = typeof spec.rate === "number" && spec.rate > 0 ? spec.rate : 1;
     action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
-    // false, per the brief: a one-shot returns to the idle/rest pose rather than holding
-    // its last frame, which is what UE1 does when a sequence ends and nothing follows it.
-    action.clampWhenFinished = false;
+    // UE1 holds the LAST frame of a finished sequence until something else plays: the
+    // Redeemer, which has no idle at all, simply stays where 'Fire' left it. With this
+    // false the mesh snapped back to its rest pose the instant a fire clip ended.
+    action.clampWhenFinished = true;
     action.enabled = true;
-    action.setEffectiveWeight(1);
-    action.play();
+    if (from && tween > 0) {
+      // crossFadeTo fades `from` out and `action` in over the tween, weights summing to 1.
+      from.crossFadeTo(action, tween, false);
+      action.play();
+    } else {
+      if (from) from.stop();
+      action.setEffectiveWeight(1);
+      action.play();
+    }
 
     current = action;
     currentKind = kind;
@@ -93,10 +120,14 @@ export function createViewAnim(root, clips, anims, random = Math.random) {
   function idle() {
     firing = false;
     if (anims && anims.idle && play(anims.idle, "idle", anims.idle.loop !== false)) return;
-    // No idle sequence: the Sniper Rifle and the Redeemer simply sit on their base pose.
-    mixer.stopAllAction();
-    restPose();
-    current = null;
+    // No idle sequence (the Redeemer; TournamentWeapon.PlayIdleAnim is empty). Whatever
+    // one-shot just finished keeps holding its last frame, as in UE1; only a looping fire
+    // that was stopped has to be put down, and it lands on the rest pose.
+    if (current && current.loop === THREE.LoopRepeat) {
+      current.stop();
+      restPose();
+      current = null;
+    }
     currentKind = "none";
   }
 

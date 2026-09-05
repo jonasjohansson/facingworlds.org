@@ -48,8 +48,13 @@ AFRAME.registerComponent("weapon-sway", {
 
     // Rest position is captured on the first tick rather than here: first-person-weapon
     // also writes the weapon's position during setup, and reading it at init could catch
-    // the pre-setup value.
+    // the pre-setup value. Unless setRest() already said where it is (see there).
     this.hasRestPosition = false;
+    if (this._pendingRest) {
+      this.originalPosition = this._pendingRest;
+      this._pendingRest = null;
+      this.hasRestPosition = true;
+    }
   },
 
   captureRestPosition() {
@@ -76,6 +81,14 @@ AFRAME.registerComponent("weapon-sway", {
    *   entity's own parent space (i.e. exactly what you would pass to setAttribute).
    */
   setRest(x, y, z) {
+    // A-Frame runs init() only once the entity has LOADED, but the method is reachable
+    // the moment the component is attached — and first-person-weapon dresses the second
+    // Enforcer's slot in the same call that creates it, so this arrives before init.
+    // Park the rest; init() picks it up. Without this the first dual pickup threw here.
+    if (!this.originalPosition) {
+      this._pendingRest = { x, y, z };
+      return;
+    }
     this.originalPosition.x = x;
     this.originalPosition.y = y;
     this.originalPosition.z = z;

@@ -62,31 +62,37 @@ const WEAPONS = {
         "fire": [
           {
             "clip": "Shoot",
-            "rate": 0.81
-          },
-          {
-            "clip": "shot2",
-            "rate": 1
+            "rate": 0.81,
+            "tween": 0.02
           }
         ],
+        "fireRepeat": {
+          "clip": "shot2",
+          "rate": 1,
+          "tween": 0.05
+        },
         "fireLoops": false,
         "idle": {
           "clip": "Sway",
           "rate": 0.2,
-          "loop": true
+          "loop": true,
+          "tween": 0.1
         },
         "idleFidget": {
           "clip": "Twiddle",
           "rate": 0.6,
-          "chance": 0.04
+          "chance": 0.04,
+          "tween": 0.3
         },
         "select": {
           "clip": "Select",
-          "rate": 1
+          "rate": 1,
+          "tween": 0
         },
         "down": {
           "clip": "Down",
-          "rate": 1
+          "rate": 1,
+          "tween": 0.05
         }
       },
       "shake": {
@@ -172,38 +178,46 @@ const WEAPONS = {
         "fire": [
           {
             "clip": "Fire",
-            "rate": 1
+            "rate": 1,
+            "tween": 0.05
           },
           {
             "clip": "Fire2",
-            "rate": 1
+            "rate": 1,
+            "tween": 0.05
           },
           {
             "clip": "Fire3",
-            "rate": 1
+            "rate": 1,
+            "tween": 0.05
           },
           {
             "clip": "Fire4",
-            "rate": 1
+            "rate": 1,
+            "tween": 0.05
           },
           {
             "clip": "Fire5",
-            "rate": 1
+            "rate": 1,
+            "tween": 0.05
           }
         ],
         "fireLoops": false,
         "idle": {
           "clip": "Still",
           "rate": 1,
-          "loop": true
+          "loop": true,
+          "tween": 0.05
         },
         "select": {
           "clip": "Select",
-          "rate": 1
+          "rate": 1,
+          "tween": 0
         },
         "down": {
           "clip": "Down",
-          "rate": 1
+          "rate": 1,
+          "tween": 0.05
         }
       },
       "shake": {
@@ -277,22 +291,26 @@ const WEAPONS = {
         "fire": [
           {
             "clip": "Fire1",
-            "rate": 0.6
+            "rate": 0.6,
+            "tween": 0.05
           }
         ],
         "fireLoops": true,
         "idle": {
           "clip": "Still",
           "rate": 0.04,
-          "loop": true
+          "loop": true,
+          "tween": 0.3
         },
         "select": {
           "clip": "Select",
-          "rate": 1
+          "rate": 1,
+          "tween": 0
         },
         "down": {
           "clip": "Down",
-          "rate": 1
+          "rate": 1,
+          "tween": 0.05
         }
       },
       "shake": {
@@ -381,22 +399,26 @@ const WEAPONS = {
         "fire": [
           {
             "clip": "Fire1",
-            "rate": 0.6
+            "rate": 0.6,
+            "tween": 0.05
           }
         ],
         "fireLoops": false,
         "idle": {
           "clip": "Idle",
           "rate": 0.1,
-          "loop": true
+          "loop": true,
+          "tween": 0.5
         },
         "select": {
           "clip": "Select",
-          "rate": 1
+          "rate": 1,
+          "tween": 0
         },
         "down": {
           "clip": "Down",
-          "rate": 1
+          "rate": 1,
+          "tween": 0.05
         }
       },
       "shake": {
@@ -476,22 +498,26 @@ const WEAPONS = {
         "fire": [
           {
             "clip": "Fire",
-            "rate": 1.3
+            "rate": 1.3,
+            "tween": 0.05
           }
         ],
         "fireLoops": true,
         "idle": {
           "clip": "Idle",
           "rate": 0.3,
-          "loop": true
+          "loop": true,
+          "tween": 0.4
         },
         "select": {
           "clip": "Select",
-          "rate": 1
+          "rate": 1,
+          "tween": 0
         },
         "down": {
           "clip": "Down",
-          "rate": 1
+          "rate": 1,
+          "tween": 0.05
         }
       },
       "shake": {
@@ -580,22 +606,20 @@ const WEAPONS = {
         "fire": [
           {
             "clip": "Fire",
-            "rate": 0.3
+            "rate": 0.3,
+            "tween": 0
           }
         ],
         "fireLoops": false,
-        "idle": {
-          "clip": "Idle",
-          "rate": 1,
-          "loop": true
-        },
         "select": {
           "clip": "Select",
-          "rate": 1
+          "rate": 1,
+          "tween": 0
         },
         "down": {
           "clip": "Down",
-          "rate": 1
+          "rate": 1,
+          "tween": 0.05
         }
       },
       "shake": {

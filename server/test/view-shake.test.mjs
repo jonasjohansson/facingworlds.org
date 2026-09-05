@@ -33,11 +33,33 @@ test("ShakeView maps seconds and UU onto ClientShake's hundredths", () => {
   // ClientShake(vect(300, 10, 500)) -> shakemag 300, shaketimer 0.1, maxshake 5.
   assert.equal(shake.magnitude(), 300);
   assert.equal(shake.active(), true);
-  // The arming jolt is straight down at 1.1x the vertical amplitude.
+  // The arming jolt is straight down at 1.1x the vertical amplitude — as a TARGET.
   assert.equal(shake.vertUU(), -1.1 * DEFAULT_SHAKE.vert);
-  assert.equal(shake.vertM(), -1.1 * DEFAULT_SHAKE.vert * UU_TO_M);
-  // Nothing has ticked, so the view is still level.
+  // Nothing has ticked, so the view is still level, and the eye has not moved yet:
+  // PlayerPawn.UpdateEyeHeight chases ShakeVert with smooth = min(1, 10*dt) per frame.
+  assert.equal(shake.vertM(), 0);
   assert.equal(shake.rollUU(), 0);
+  shake.tick(1 / 60);
+  // One 60 Hz frame closes 1/6 of the gap.
+  const step = -1.1 * DEFAULT_SHAKE.vert * (10 / 60);
+  assert.ok(Math.abs(shake.eyeUU() - step) < 1e-9, `eye ${shake.eyeUU()} vs ${step}`);
+  assert.ok(Math.abs(shake.vertM() - step * UU_TO_M) < 1e-12);
+});
+
+test("the eye never sees the full jolt: the lag caps it at roughly 60% of ShakeVert", () => {
+  // The jolt is armed for 0.1 s and the filter's time constant is 0.1 s, so the eye gets
+  // to about 1 - 1/e of the way before the target moves on. Stepping the camera by the raw
+  // value instead was a 10-21 cm hard drop per shot.
+  const shake = createViewShake(constant(0.5));
+  shake.shakeView(DEFAULT_SHAKE.time, DEFAULT_SHAKE.mag, DEFAULT_SHAKE.vert);
+  let deepest = 0;
+  for (let i = 0; i < 30; i++) {
+    shake.tick(1 / 60);
+    deepest = Math.min(deepest, shake.eyeUU());
+  }
+  const full = -1.1 * DEFAULT_SHAKE.vert;
+  assert.ok(deepest < 0.4 * full, `eye barely moved: ${deepest}`);
+  assert.ok(deepest > 0.75 * full, `eye took the whole jolt: ${deepest} of ${full}`);
 });
 
 test("a weaker shake cannot preempt a stronger one that still has time on it", () => {
@@ -124,11 +146,14 @@ test("once the timer expires the roll unwinds to level and the eye stops moving"
   for (let i = 0; i < 8; i++) shake.tick(1 / 60);
   assert.equal(shake.active(), false);
 
-  // The vertical offset is dropped on the very first frame after the timer.
+  // The vertical TARGET is dropped on the very first frame after the timer; the eye
+  // itself glides back through UpdateEyeHeight's lag and is home within half a second.
   shake.tick(1 / 60);
   assert.equal(shake.vertUU(), 0);
-  assert.equal(shake.vertM(), 0);
   assert.equal(shake.magnitude(), 0);
+  assert.notEqual(shake.vertM(), 0, "the eye does not teleport home");
+  for (let i = 0; i < 30; i++) shake.tick(1 / 60);
+  assert.equal(shake.vertM(), 0);
 
   // ROLL_DECAY_UU_PER_SEC is sized so a full 1.3 * 300 excursion is gone in ~0.2 s.
   const framesFor200ms = Math.ceil(0.2 * 60);

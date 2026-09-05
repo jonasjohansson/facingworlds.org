@@ -8,6 +8,7 @@ import { hitscan } from "./hitscan.js";
 import { spawnTracer, spawnImpact } from "./impact-effects.js";
 import { createViewShake, DEFAULT_SHAKE } from "./view-shake.js";
 import { createViewAnim } from "./view-weapon-anim.js";
+import { UU_TO_M } from "../../shared/map-transform.js";
 import { getHud } from "./hud/hud-root.js";
 
 // ---------------------------------------------------------------------------
@@ -40,32 +41,28 @@ import { getHud } from "./hud/hud-root.js";
 // ---------------------------------------------------------------------------
 // WHERE A HELD WEAPON SITS
 // ---------------------------------------------------------------------------
-// The three numbers below are the ONLY part of first-person weapon placement that is not
-// Epic's. Everything else — the mesh, its scale, its rotation — comes out of the weapon's
-// own class defaults through scripts/build-ut-viewmodels.mjs.
+// Epic's, end to end, since 2026-09-05. Engine.Inventory.CalcDrawOffset places the view
+// weapon's ORIGIN at PlayerViewOffset from the eye and draws the mesh about it at its own
+// scale; the corner of the screen a gun sits in is then simply where its mesh is authored
+// relative to that origin. Reproducing it needs the offset and the mesh scaled by the
+// SAME factor: scaling a rigid layout uniformly about the eye leaves its projection
+// unchanged, so that one factor is free, and it is spent on the near plane — index.html's
+// camera clips at 0.05 m and Epic's Enforcer, 12 cm long with its origin 8 cm from the
+// eye, would lose its grip to it at 1x.
 //
-// They cannot be derived, and the reason is worth stating so nobody "fixes" it by
-// converting the raw numbers: UE1 draws the view weapon through its own near-field
-// projection, not through world space. Epic's PlayerViewOffset for the Enforcer is
-// (3.30, -2.00, -3.00) Unreal Units, which at pawn scale is about 8 cm from the eye,
-// against the 0.2/-0.3/-0.5 m this game has always drawn it at. The view meshes come out
-// the same way: 0.12 m for the Enforcer, 0.35 m for the Sniper Rifle — right relative to
-// each other, an order of magnitude off in absolute terms.
-//
-// So the relative information is used and the absolute is fitted. MODEL_SCALE brings the
-// whole set up to the size the Enforcer has always been; OFFSET_SCALE turns Epic's
-// offsets into metres of DELTA from the Enforcer. Adjust these two by eye, together, and
-// all six weapons keep their relationship to one another.
+// A note on the number UnrealScript shows, because it misled this file for a week.
+// CalcDrawOffset reads `(0.9 / FOVAngle) * PlayerViewOffset`, which at FOV 90 is a
+// hundredth of a UU and puts the eye INSIDE every mesh — that was tried, in the browser,
+// and it does. PlayerViewOffset taken as plain Unreal Units puts all six weapons where
+// UT99 has them (Enforcer low left, rifles low right with the receiver's side showing and
+// the barrel on the crosshair), and lands within a few centimetres of the position the
+// previous build had fitted by eye. Whatever the engine does with that factor, the raw
+// offset is the number that draws the picture, and it is what is used here.
 const VIEW = {
-  // Chosen so the Enforcer's 0.12 m view mesh lands at about the 0.45 m the markup
-  // weapon in index.html measures. One number for all six, so relative sizes survive.
+  // The uniform factor above. Appearance-invariant: changing it moves nothing on screen,
+  // only how far in front of the near plane the geometry lives (and how far it can poke
+  // through a wall you stand against).
   MODEL_SCALE: 3.75,
-  // Unreal Units of PlayerViewOffset -> metres of offset from the Enforcer's position.
-  OFFSET_SCALE: 0.02,
-  // The Enforcer's own PlayerViewOffset, which every other weapon is measured against.
-  // Mirrored from scripts/data/ut-viewmodels.json; it is the origin of the delta, not a
-  // placement, so it never moves the Enforcer itself.
-  ENFORCER_OFFSET_UU: [3.3, -2, -3],
 };
 
 // The LAST-RESORT held weapon, used only if the manifest ships a weapon with no view mesh
@@ -132,24 +129,6 @@ export function preloadWeaponSound(id) {
   warmSounds(id);
 }
 
-/**
- * Read a vec3 attribute off an entity that may not be upgraded yet.
- *
- * A-Frame's getAttribute returns the PARSED object only once the component behind the
- * attribute has been initialised; before that it falls through to the plain DOM
- * getAttribute and hands back the raw string. This component reads #player-weapon's
- * markup position during its own update(), which can land on either side of that line
- * depending on load order, and a string here silently produced NaN placement.
- */
-function readVec3(el, attr, fallback) {
-  const v = el.getAttribute(attr);
-  if (v && typeof v === "object" && typeof v.x === "number") return v;
-  if (typeof v === "string" && AFRAME.utils && AFRAME.utils.coordinates) {
-    const p = AFRAME.utils.coordinates.parse(v);
-    if (p && typeof p.x === "number" && !Number.isNaN(p.x)) return p;
-  }
-  return fallback;
-}
 
 AFRAME.registerComponent("first-person-weapon", {
   schema: {
@@ -210,7 +189,6 @@ AFRAME.registerComponent("first-person-weapon", {
     // and a mid-load weapon switch cannot cross the wires between them.
     this.primaryEl = null;
     this.secondEl = null;
-    this.basePos = null; // the markup's rest position, captured once, x kept POSITIVE
     this._loopingFire = false; // a LoopAnim'd fire clip (Shock, Ripper) is running
 
     // Local avatar is excluded from traces so you cannot shoot yourself point blank
@@ -277,6 +255,7 @@ AFRAME.registerComponent("first-person-weapon", {
     // Listen for key presses directly (X key for firing, C key for camera)
     this._onKeyDown = (e) => {
       if (e.code === "KeyX") {
+        if (!this.isFiring) this._burstShots = 0;
         this.isFiring = true;
         e.preventDefault();
       } else if (e.code === "KeyC") {
@@ -305,6 +284,7 @@ AFRAME.registerComponent("first-person-weapon", {
     // clicks in to play. Once locked, every click is a shot.
     this._onMouseDown = (e) => {
       if (e.button !== 0 || !document.pointerLockElement) return;
+      if (!this.isFiring) this._burstShots = 0;
       this.isFiring = true;
     };
     this._onMouseUp = (e) => {
@@ -389,10 +369,20 @@ AFRAME.registerComponent("first-person-weapon", {
     // Cadence is the weapon's, not the component's default: a Sniper Rifle that fired
     // four times a second would be a different weapon wearing the same model.
     const rate = this.dual ? GAME_CONFIG.WEAPON.DUAL_FIRE_RATE : weapon(this.weaponId).fireRate;
-    const minInterval = 1 / Math.max(1, rate);
+    // Rates below one per second are real (the Sniper's 0.667, the Redeemer's 0.4); the
+    // old Math.max(1, rate) here silently made every slow weapon a one-per-second gun.
+    const minInterval = 1 / Math.max(0.05, rate);
     if (now - this.lastFireTime < minInterval) return;
+    // FinishAnim. UT99's fire states refire only once the fire animation has played out,
+    // so a gun is never yanked back to its first frame mid-recoil. The Enforcer is the
+    // one that bites: 'Shoot' runs 0.41 s against a 0.25 s interval, and cutting it every
+    // shot was a measured 73 px snap per shot. Cadence waits for the clip too — which is
+    // also exactly why UT99's Enforcer plays 'Shoot' once and the shorter 'shot2' after.
+    if (this.fireClipBusy() > 0) return;
 
     this.lastFireTime = now;
+    // The second and later shots of one held trigger are REPEAT shots (PlayRepeatFiring).
+    this._burstShots = (this._burstShots || 0) + 1;
     this.fireBullet();
   },
 
@@ -415,11 +405,6 @@ AFRAME.registerComponent("first-person-weapon", {
         this.createFallbackWeapon();
         return;
       }
-      // The markup's rest position, read ONCE and kept with a positive x. Everything after
-      // this writes the entity's position, so a later read would return whatever the last
-      // weapon set — and the x sign is not part of the rest, it is which HAND we are in.
-      const p = readVec3(this.primaryEl, "position", { x: 0.2, y: -0.3, z: -0.5 });
-      this.basePos = { x: Math.abs(p.x), y: p.y, z: p.z };
     }
 
     this.weapon = this.primaryEl;
@@ -551,15 +536,13 @@ AFRAME.registerComponent("first-person-weapon", {
    * @param {boolean} show false while the gun is put away (dead / component disabled)
    */
   dressSlot(el, view, side, mirror, model, playSelect, show) {
-    const base = this.basePos;
-    // Left hand is the whole layout reflected, offsets included, not just a sign flip on
-    // the base — otherwise a weapon whose PlayerViewOffset pushes it outboard would be
-    // pushed INBOARD once it moved to the other hand.
+    // The fallback pickup mesh keeps the placement index.html gave it for years.
+    const FALLBACK_POS = { x: 0.2, y: -0.3, z: -0.5 };
     const sign = side === "left" ? -1 : 1;
 
-    let x = sign * base.x;
-    let y = base.y;
-    let z = base.z;
+    let x = sign * FALLBACK_POS.x;
+    let y = FALLBACK_POS.y;
+    let z = FALLBACK_POS.z;
     let rot = [0, 0, 0];
     let scale = FALLBACK.SCALE;
     let muzzleLocal = FALLBACK.MUZZLE_LOCAL;
@@ -567,23 +550,17 @@ AFRAME.registerComponent("first-person-weapon", {
     let mirrored = false;
 
     if (view && model) {
-      // Epic's PlayerViewOffset is used as a DELTA FROM THE ENFORCER, never as an
-      // absolute position. The raw numbers are Unreal Units in UE1's own view
-      // projection — the Enforcer's (3.30, -2.00, -3.00) is about 8 cm at pawn scale,
-      // against the 0.2/-0.3/-0.5 m this game has always used — so they do not convert
-      // directly and pretending they do would move all six somewhere wrong. What they
-      // ARE good for is how the weapons sit relative to each other, which is exactly
-      // what a delta uses. The Enforcer therefore keeps the placement index.html gives
-      // it, whatever happens here, and the other five differ from it by Epic's amounts.
-      const ref0 = VIEW.ENFORCER_OFFSET_UU;
-      const d = view.offsetUU || ref0;
+      // Engine.Inventory.CalcDrawOffset: the weapon's origin sits at PlayerViewOffset from
+      // the eye, and Engine.Weapon.SetHand multiplies its Y by Hand — every offset Epic
+      // wrote is left of centre, and the right hand is the same layout reflected. See the
+      // header for why the offset is taken in plain Unreal Units and why it is scaled by
+      // the same factor as the mesh.
+      const d = view.offsetUU || [0, 0, 0];
+      const k = UU_TO_M * VIEW.MODEL_SCALE;
       // UT axes (x forward, y right, z up) -> scene axes (x right, y up, z back).
-      const dx = (d[1] - ref0[1]) * VIEW.OFFSET_SCALE;
-      const dy = (d[2] - ref0[2]) * VIEW.OFFSET_SCALE;
-      const dz = -(d[0] - ref0[0]) * VIEW.OFFSET_SCALE;
-      x = sign * (base.x + dx);
-      y = base.y + dy;
-      z = base.z + dz;
+      x = sign * Math.abs(d[1]) * k;
+      y = d[2] * k;
+      z = -d[0] * k;
       // Epic's RotOrigin, per weapon. The rebuilt view meshes come out already in view
       // frame and ship [0,0,0]; the older ones carry a real rotation, and both work.
       rot = view.rotationDeg || rot;
@@ -697,6 +674,13 @@ AFRAME.registerComponent("first-person-weapon", {
     }
 
     this.setupMuzzlePosition();
+  },
+
+  /** Seconds left on the one-shot fire clip of the gun that fires next (FinishAnim). */
+  fireClipBusy() {
+    const slot = this.dual && !this.fireLeft ? this.secondEl : this.primaryEl;
+    const anim = slot && slot.__slotAnim;
+    return anim && anim.fireBusy ? anim.fireBusy() : 0;
   },
 
   /** Every slot that is currently drawn, primary first. */
@@ -863,7 +847,9 @@ AFRAME.registerComponent("first-person-weapon", {
     const slot = this.dual && this.fireLeft ? this.secondEl : this.primaryEl;
     const anim = slot && slot.__slotAnim;
     if (anim) {
-      anim.fire();
+      // A repeat shot is one fired with the trigger still held from the shot before —
+      // UT99 reaches PlayRepeatFiring the same way (NormalFire re-entered with bFire set).
+      anim.fire(this.isFiring && (this._burstShots || 0) > 1);
       // Shock and Ripper LoopAnim while the trigger is held; updateViewAnimations stops
       // the loop once the shots stop, and needs to know one is running.
       if (anim.isLoopingFire()) this._loopingFire = true;
@@ -1018,7 +1004,13 @@ AFRAME.registerComponent("first-person-weapon", {
    * enough to feel responsive would drop the loop between two shots of a held trigger.
    */
   updateViewAnimations(dt, nowSeconds) {
-    if (this._loopingFire && !this.isFiring && nowSeconds - this.lastFireTime > 0.1) {
+    // A LoopAnim'd fire runs for the whole of UT99's fire STATE, i.e. the refire window,
+    // not just while the button is down: a single click on the Shock Rifle shows a full
+    // cycle of 'Fire1' (0.79 s — Epic tuned it to the 0.7 s refire), not 0.1 s of it and
+    // then a snap to idle.
+    const rate = this.dual ? GAME_CONFIG.WEAPON.DUAL_FIRE_RATE : weapon(this.weaponId).fireRate;
+    const loopWindow = Math.max(0.1, 1 / Math.max(0.05, rate));
+    if (this._loopingFire && !this.isFiring && nowSeconds - this.lastFireTime > loopWindow) {
       this._loopingFire = false;
       const slots = this.liveSlots();
       for (let i = 0; i < slots.length; i++) {

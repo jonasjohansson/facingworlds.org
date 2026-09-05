@@ -369,6 +369,13 @@ function signedVolume(positions, indices) {
 //
 // FireAdjust is a TournamentWeapon default and is 1.0; bots lower it, a human player
 // never does. It is read rather than folded in so the arithmetic above stays checkable.
+//
+// `tween` is PlayAnim/LoopAnim's third argument: seconds spent blending from the pose the
+// mesh is in to the new sequence's first frame. Fire clips get 0.02-0.05 (a couple of
+// frames — enough to take the edge off the jump into the recoil pose, which on the Shock
+// Rifle is 95 px of barrel), idles 0.1-0.5, Select 0 (it starts off-screen anyway). The
+// Redeemer's PlayAnim('Fire', 0.3) passes none, so it cuts straight into the kicked-up
+// tube: that buck is the weapon, not a bug. Every value is copied from the call site.
 const SELECT_RATE = 1.0;
 const DOWN_RATE = 1.0;
 
@@ -377,56 +384,58 @@ function clipPlan(id, d, fireAdjust) {
   switch (id) {
     case "enforcer":
       return {
-        fire: [
-          { clip: "Shoot", rate: 0.5 + 0.31 * fireAdjust },
-          // PlayRepeatFiring's animation. UnrealScript spells it 'Shot2'; the sequence in
-          // the package is 'shot2', and UE1 names are case-insensitive where glTF's are
-          // not, so the PACKAGE spelling is what gets written.
-          { clip: "shot2", rate: 0.7 + 0.3 * fireAdjust },
-        ],
+        fire: [{ clip: "Shoot", rate: 0.5 + 0.31 * fireAdjust, tween: 0.02 }],
+        // PlayRepeatFiring's animation, for every shot AFTER the first while the trigger
+        // stays down (state NormalFire re-fires through it once 'Shoot' has finished).
+        // It is not a random alternative to 'Shoot': the two start from different poses,
+        // and picking between them per shot made the gun snap 70 px between shots.
+        // UnrealScript spells it 'Shot2'; the sequence in the package is 'shot2', and UE1
+        // names are case-insensitive where glTF's are not, so the PACKAGE spelling is
+        // what gets written.
+        fireRepeat: { clip: "shot2", rate: 0.7 + 0.3 * fireAdjust, tween: 0.05 },
         fireLoops: false,
-        idle: { clip: "Sway", rate: 0.2, loop: true },
-        idleFidget: { clip: "Twiddle", rate: 0.6, chance: 0.04 },
+        idle: { clip: "Sway", rate: 0.2, loop: true, tween: 0.1 },
+        idleFidget: { clip: "Twiddle", rate: 0.6, chance: 0.04, tween: 0.3 },
       };
     case "sniper":
       return {
         // FireAnims is a five-name array in the class defaults, picked from at random per
         // shot. Read, not typed: Fire, Fire2, Fire3, Fire4, Fire5.
-        fire: names(d.FireAnims).map((clip) => ({ clip, rate: 0.5 + 0.5 * fireAdjust })),
+        fire: names(d.FireAnims).map((clip) => ({ clip, rate: 0.5 + 0.5 * fireAdjust, tween: 0.05 })),
         fireLoops: false,
-        idle: { clip: "Still", rate: 1.0, loop: true },
+        idle: { clip: "Still", rate: 1.0, loop: true, tween: 0.05 },
       };
     case "shock":
       return {
-        fire: [{ clip: "Fire1", rate: 0.3 + 0.3 * fireAdjust }],
+        fire: [{ clip: "Fire1", rate: 0.3 + 0.3 * fireAdjust, tween: 0.05 }],
         fireLoops: true,
-        idle: { clip: "Still", rate: 0.04, loop: true },
+        idle: { clip: "Still", rate: 0.04, loop: true, tween: 0.3 },
       };
     case "rocket":
       // FireAnim[0] — one rocket loaded. The array's later entries are the 2..6 rocket
       // volleys, which this game does not implement.
       return {
-        fire: [{ clip: names(d.FireAnim)[0], rate: 0.6 }],
+        fire: [{ clip: names(d.FireAnim)[0], rate: 0.6, tween: 0.05 }],
         fireLoops: false,
-        idle: { clip: "Idle", rate: 0.1, loop: true },
+        idle: { clip: "Idle", rate: 0.1, loop: true, tween: 0.5 },
       };
     case "ripper":
       return {
-        fire: [{ clip: "Fire", rate: 0.7 + 0.6 * fireAdjust }],
+        fire: [{ clip: "Fire", rate: 0.7 + 0.6 * fireAdjust, tween: 0.05 }],
         fireLoops: true,
-        idle: { clip: "Idle", rate: 0.3, loop: true },
+        idle: { clip: "Idle", rate: 0.3, loop: true, tween: 0.4 },
       };
     case "redeemer":
       return {
-        fire: [{ clip: "Fire", rate: 0.3 }],
+        fire: [{ clip: "Fire", rate: 0.3, tween: 0 }],
         fireLoops: false,
-        // NOT EPIC'S. TournamentWeapon.PlayIdleAnim is an empty function and
-        // WarheadLauncher does not override it, so UT99 plays NO idle animation on the
-        // Redeemer — the mesh's 'Idle' sequence is simply never used. The clip is emitted
-        // because a weapon with no idle looks dead in the hand; the rate is the neutral
-        // 1.0 and is the one number in this file that is a choice. Recorded again in the
-        // manifest's animNotes so it survives being read out of context.
-        idle: { clip: "Idle", rate: 1.0, loop: true },
+        // No idle, and that is Epic's: TournamentWeapon.PlayIdleAnim is an empty function
+        // and WarheadLauncher does not override it, so the Redeemer rests on its 'Still'
+        // frame and the mesh's five-frame 'Idle' sequence is never played. A first pass
+        // emitted it anyway at a guessed rate of 1.0 "so the weapon would not look dead",
+        // which looped it six times a second and made the Redeemer twitch constantly —
+        // measured at a 200 px jump every time the loop wrapped. Dead in the hand is what
+        // UT99 looks like here.
       };
     default:
       throw new Error(`${id}: no clip plan`);
@@ -518,6 +527,7 @@ for (const spec of WEAPONS) {
   const plan = clipPlan(spec.id, d, fireAdjust);
   const clips = [
     ...plan.fire.map((f) => ({ ...f, loop: plan.fireLoops })),
+    ...(plan.fireRepeat ? [{ ...plan.fireRepeat, loop: false }] : []),
     ...(plan.idle ? [plan.idle] : []),
     ...(plan.idleFidget ? [plan.idleFidget] : []),
     { clip: "Select", rate: SELECT_RATE },
@@ -624,21 +634,23 @@ for (const spec of WEAPONS) {
     baseFrame: primary.baseFrame,
     baseSequence: primary.baseSequence,
     anims: {
-      fire: plan.fire.map((f) => ({ clip: f.clip, rate: r6(f.rate) })),
+      fire: plan.fire.map((f) => ({ clip: f.clip, rate: r6(f.rate), tween: f.tween ?? 0 })),
+      ...(plan.fireRepeat
+        ? { fireRepeat: { clip: plan.fireRepeat.clip, rate: r6(plan.fireRepeat.rate), tween: plan.fireRepeat.tween ?? 0 } }
+        : {}),
       fireLoops: plan.fireLoops,
       ...(plan.idle ? { idle: { ...plan.idle, rate: r6(plan.idle.rate) } } : {}),
       ...(plan.idleFidget
         ? { idleFidget: { ...plan.idleFidget, rate: r6(plan.idleFidget.rate) } }
         : {}),
-      select: { clip: "Select", rate: SELECT_RATE },
-      down: { clip: "Down", rate: DOWN_RATE },
+      select: { clip: "Select", rate: SELECT_RATE, tween: 0 },
+      down: { clip: "Down", rate: DOWN_RATE, tween: 0.05 },
     },
     ...(spec.id === "redeemer"
       ? {
           animNotes:
-            "anims.idle.rate is NOT Epic's: TournamentWeapon.PlayIdleAnim is empty and " +
-            "WarheadLauncher does not override it, so UT99 plays no idle on the Redeemer. " +
-            "1.0 is a neutral choice; every other number on this weapon is read from the package.",
+            "No idle, and that is Epic's: TournamentWeapon.PlayIdleAnim is empty and " +
+            "WarheadLauncher does not override it. The Redeemer rests on its Still frame.",
         }
       : {}),
     shake,

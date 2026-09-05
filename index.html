@@ -561,10 +561,10 @@
               including its Select/Sway/Shoot animations, and it is drawn LEFT-handed the
               way UT99 draws it.
 
-              What stays in the markup is what the markup owns: where a weapon rests
-              relative to the eye (see the VIEW block's comment in
-              first-person-weapon.js for why 0.2/-0.3/-0.5 is fitted and not converted -
-              the x is mirrored to -0.2 for a left-hand weapon), and the sway settings.
+              What stays in the markup is the sway settings. Where a weapon rests is no
+              longer written here: first-person-weapon.js places each one at Epic's own
+              PlayerViewOffset from the eye (see the VIEW block's comment there), so the
+              position below is only where the FALLBACK pickup mesh would sit.
 
               The #enforcer-weapon asset item above is still used - by weapon-pickup.js for
               the gun standing on the floor, and by first-person-weapon.js as the fallback

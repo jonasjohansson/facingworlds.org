@@ -200,9 +200,12 @@ for (const [id, w] of Object.entries(WEAPONS)) {
     // The clips, by the name they carry in the glTF. `rate` is UnrealScript's multiplier
     // on the clip's own authored fps (which is already baked into the keyframe times), so
     // playing a clip at UT99's speed means setting the action's timeScale to `rate`.
-    // `fire` is a LIST because the Sniper Rifle picks one of five at random per shot and
-    // the Enforcer alternates 'Shoot' with 'shot2' on repeat fire; `fireLoops` says
-    // whether it runs once per shot or loops for as long as the trigger is held.
+    // `fire` is a LIST because the Sniper Rifle picks one of five at random per shot;
+    // `fireRepeat` (Enforcer only) is PlayRepeatFiring's clip for the shots after the
+    // first while the trigger stays down; `fireLoops` says whether the fire clip runs
+    // once per shot or loops for as long as the trigger is held. Fire clips are never cut
+    // short by the next shot — UT99 refires only after FinishAnim — and the client holds
+    // the same rule, so cadence can be no faster than the animation.
     anims: v.anims,
     // ShakeView(time, mag, vert), fired on every shot by TournamentWeapon.ClientFire.
     shake: v.shake,

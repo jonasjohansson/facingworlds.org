@@ -70,7 +70,14 @@ export function createViewShake(random = Math.random) {
   let shaketimer = 0; // seconds of shaking left
   let maxshake = 0; // UU of vertical amplitude
   let verttimer = 0; // seconds until the next vertical re-roll
-  let shakeVert = 0; // UU of vertical eye offset, the value the camera reads
+  let shakeVert = 0; // UU of vertical eye offset, the TARGET the eye is pulled toward
+  // What the camera actually reads. PlayerPawn.UpdateEyeHeight never applies ShakeVert
+  // directly: every frame it moves EyeHeight toward (BaseEyeHeight + ShakeVert) by
+  // smooth = FMin(1.0, 10.0 * DeltaTime), a first-order lag with a 0.1 s time constant.
+  // The -1.1*maxshake jolt is armed for only 0.1 s, so the eye reaches roughly 60% of it
+  // and glides; stepping the camera by the raw ShakeVert instead was a measured 10-21 cm
+  // hard drop per shot, and it read as a yank because UT99 never does that.
+  let eyeVert = 0;
   let roll = 0; // ViewRotation.Roll, an integer rotator component
   let bShakeDir = false; // true = roll is currently increasing
 
@@ -121,6 +128,15 @@ export function createViewShake(random = Math.random) {
    * that masking has happened, which is why the clamp can overshoot by one step.
    */
   function tick(dt) {
+    tickShake(dt);
+    if (dt > 0) {
+      const smooth = Math.min(1, 10 * dt);
+      eyeVert += (shakeVert - eyeVert) * smooth;
+      if (Math.abs(eyeVert) < 0.05) eyeVert = 0; // a twentieth of a UU is a millimetre
+    }
+  }
+
+  function tickShake(dt) {
     if (!(dt > 0)) dt = 0;
 
     if (shaketimer > 0) {
@@ -181,7 +197,7 @@ export function createViewShake(random = Math.random) {
   }
 
   function reset() {
-    shakemag = shaketimer = maxshake = verttimer = shakeVert = roll = 0;
+    shakemag = shaketimer = maxshake = verttimer = shakeVert = eyeVert = roll = 0;
     bShakeDir = false;
   }
 
@@ -194,10 +210,12 @@ export function createViewShake(random = Math.random) {
     rollUU: signedRoll,
     /** Signed roll in radians, ready for an Object3D's rotation.z. */
     rollRad: () => (signedRoll() / ROTATION_UNITS) * Math.PI * 2,
-    /** Vertical eye offset in Unreal Units, Epic's own value. */
+    /** The ShakeVert TARGET in Unreal Units, Epic's own value (what UpdateEyeHeight chases). */
     vertUU: () => shakeVert,
-    /** Vertical eye offset in metres at UT99 pawn scale. */
-    vertM: () => shakeVert * UU_TO_M,
+    /** The eye's actual vertical offset in Unreal Units, after UpdateEyeHeight's lag. */
+    eyeUU: () => eyeVert,
+    /** The eye's actual vertical offset in metres at UT99 pawn scale — what the camera reads. */
+    vertM: () => eyeVert * UU_TO_M,
     /** True while a shake is armed; false once it is only unwinding. */
     active: () => shaketimer > 0,
     /** Current roll amplitude in rotator units — 0 when nothing is armed. */
