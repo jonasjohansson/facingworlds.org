@@ -3,10 +3,16 @@
 The eight playable Unreal Tournament characters, out of the retail packages and into
 `assets/3d/characters/` as glTF with `Idle`/`Walk`/`Run` animations.
 
-The mesh extractor itself is not in this repo — it is throwaway tooling that ran once.
-This file is the part worth keeping: **what the format actually does**, because almost
-none of it is guessable and every wrong guess renders as something that looks nearly
-right.
+The mesh extractor **is** in this repo now, at `scripts/build-ut-characters.mjs`. It used
+to be throwaway tooling that ran once, and that cost a year: nobody could re-derive what
+it had done, so a mistake baked into the geometry survived every check there was. See
+[The 2026 rebuild](#the-2026-rebuild-six-of-eight-bodies-ran-backwards) at the end —
+which is the section to read first if you are here about orientation, because the rule in
+point 2 below is the mistake, kept for the record.
+
+The rest of this file is the part that was always worth keeping: **what the format
+actually does**, because almost none of it is guessable and every wrong guess renders as
+something that looks nearly right.
 
 The **package reader is** in the repo, at `scripts/lib/upkg.mjs`, because throwing it away
 turned out to be a mistake: it was needed again for the projectile numbers and had to be
@@ -41,10 +47,17 @@ correct the whole time it looked broken. `umodel` prints the count in its load l
 
 **2. Orientation is per-mesh.** Six models carry `RotOrigin [0, 90deg, -90deg]` and
 are authored with height on axis 1; the two bonus-pack models carry `[0,0,0]` and are
-authored standing, on UE1's own Z-up. There is no single up axis. Modelling the
-rotator is a trap — applying it forwards stands the bonus models up and puts the other
-six on their heads, applying its inverse lays them on their side — so read the axis off
-`RotOrigin` and assert it matches the tallest axis of the idle pose.
+authored standing, on UE1's own Z-up. There is no single up axis.
+
+> ⚠️ **What used to follow here was wrong, and is left in place because it is the bug.**
+> "Modelling the rotator is a trap — applying it forwards stands the bonus models up and
+> puts the other six on their heads, applying its inverse lays them on their side — so
+> read the axis off `RotOrigin` and assert it matches the tallest axis of the idle pose."
+>
+> That rule fixes **up** and nothing else, which is why it looked right: every body stood
+> at the correct height, and every body was free to be turned any way at all about that
+> axis. Six of them ended up facing exactly backwards. The rotator is not a trap; it needs
+> its **transpose**. See [The 2026 rebuild](#the-2026-rebuild-six-of-eight-bodies-ran-backwards).
 
 **3. The name table has duplicates.** `BotPack.u` holds `"None"` at index 0 *and*
 7454, and the meshes terminate their property list with the later one. Compare the
@@ -85,8 +98,13 @@ no macOS support at all (no `__APPLE__` anywhere) but builds natively on arm64 w
 
 The assets are committed; the roster that indexes them is generated:
 
-    npm run gen:characters          # rewrite src/shared/characters.js + server/characters.js
-    npm run gen:characters:check    # fail if out of date
+    node scripts/build-ut-characters.mjs   # re-extract the glTFs (needs a retail install)
+    npm run gen:characters                 # rewrite src/shared/characters.js + server/characters.js
+    npm run gen:characters:check           # fail if out of date
+
+The extractor is dev tooling and is not part of any build: the glTFs it writes are
+committed, and only the roster that indexes them is regenerated routinely. See
+[The 2026 rebuild](#the-2026-rebuild-six-of-eight-bodies-ran-backwards).
 
 ## Licensing
 
@@ -266,3 +284,177 @@ orthographic views per weapon, textured, with the manifest's own muzzle point ma
 and needs no retail install, because the whole failure mode here is invisible in numbers
 and obvious in a picture. `--anim=Select@0.15` poses them partway through a clip, which is
 how the morph data gets looked at too.
+
+
+## The 2026 rebuild: six of eight bodies ran backwards
+
+`scripts/build-ut-characters.mjs` replaced the throwaway extractor in September 2026 and
+rewrote all eight `assets/3d/characters/<id>/<id>.gltf`. The skins were **not** touched.
+
+### What was wrong
+
+The old extractor never applied `Mesh.RotOrigin`. Point 2 above wrote that down as a rule
+— read the axis off it, assert it matches the tallest axis, apply nothing — which fixes
+**up** and leaves the body free to face anywhere. Measured off the committed geometry's own
+`Run` clips by the planted-foot method below, in glTF space, where the rig's forward is
+`-Z`:
+
+| model | before | with the old `YAW_FIX` | after |
+|---|---:|---:|---:|
+| soldier | −179.6° | −179.6° | −0.9° |
+| commando | −179.8° | −179.8° | −0.5° |
+| fcommando | +179.6° | +179.6° | +0.2° |
+| sgirl | +179.6° | +179.6° | +0.3° |
+| boss | −179.6° | −179.6° | −1.1° |
+| nali | +178.4° | +178.4° | +1.5° |
+| skaarj | +90.0° | 0.0° | −0.0° |
+| warcow | +92.0° | +2.0° | +2.0° |
+
+Six bodies faced exactly `+Z` — backwards, at every moment, in the game. It was found by
+photographing a commando bot head-on and seeing the back of his head; nothing else caught
+it, because a backwards body is a valid glTF of the right height playing the right clips.
+
+`gen-characters.mjs` carried `YAW_FIX = { skaarj: 90, warcow: 90 }`, and the middle column
+is what that bought: it rescued the two models that were *not* facing backwards and did
+nothing for the six that were. It had been fitted to a different measurement — the
+direction the feet sit forward of the body — which reads **the stance, not the body**:
+which boot is in front depends on where in the stride the sampled frame sits. The table is
+empty now and every `yawDeg` is 0. The field and `modelYaw()` stay, because a future mesh
+could genuinely need one; what must not come back is a fitted number standing in for a
+transform that was never applied.
+
+### The rule, which is the weapons' rule unchanged
+
+Exactly what `scripts/build-ut-viewmodels.mjs` derived and verified three ways on the six
+first-person weapon meshes:
+
+1. mesh vertex × `Mesh.Scale`
+2. × the **transpose** of UE1's `FRotationMatrix(RotOrigin)`. That matrix's *rows* are the
+   rotated frame's axes expressed in the parent frame, so row *i* dotted with a mesh-frame
+   vector gives its component along parent axis *i* — `Mᵀ` is what takes mesh components to
+   **actor** components. This one sentence is the whole thing.
+3. × `UT_TO_WORLD`: `x_world = UT y`, `y_world = UT z`, `z_world = −UT x`. Determinant −1
+   (UE1 is left-handed, glTF is not), so face winding is re-derived from signed volume and
+   asserted against that determinant rather than assumed.
+
+Run on all eight pawn meshes' `RunSm` cycles this comes out Z-up in actor space with the
+run direction along `+X` to within 2°, `TSkM` and `TCowMesh` included even though their
+`RotOrigin` is `(0,0,0)` and there is nothing to apply. **UE1 pawns face `+X`**, so through
+`UT_TO_WORLD` every character faces `−Z` with no per-model yaw at all. There is no fitted
+table and no "Epic's rotation cannot be applied uniformly" caveat.
+
+### The planted-foot method
+
+A UT99 run cycle is a treadmill: the pawn stays at the origin and the ground is what moves,
+so the foot in contact with the ground slides **backwards** through the mesh at exactly the
+speed the body is going forwards. Take the bottom 6% of the standing height in the cycle's
+first frame (the boots), keep the ones within 4% of the floor in the frame they are moving
+out of (a foot in mid-swing is higher), sum their frame-to-frame displacement around the
+cycle, negate. It never asks which boot is in front, which is the whole failure of the
+heuristic it replaces.
+
+It is used three times: to derive the rule, as a build-time self-check that refuses to
+write a body more than 2° off `−Z`, and in `server/test/characters.test.mjs`, which
+measures the committed geometry rather than reading any field.
+
+### `Mesh.Origin`, and where the body stands
+
+A pawn mesh carries a non-zero `Mesh.Origin` — `Soldier (−150, 40, 0)`, `TSkM (100, 0,
+−72)` — that places it on the actor. UE1 subtracts it in **raw packed vertex units, before
+`Mesh.Scale`**. That is measured, not assumed: a UT99 pawn's collision cylinder is 39 units
+half-height, so its boots belong near actor `z = −39`.
+
+| | Origin ignored | `(V − Origin) × Scale` |
+|---|---:|---:|
+| Soldier | −40.1 | −42.6 |
+| Commando | −40.2 | −42.7 |
+| FCommando | −50.3 | −43.1 |
+| SGirl | −50.5 | −43.3 |
+| Boss | −37.6 | −39.9 |
+| TSkM | −51.5 | −43.1 |
+| tnalimesh | −44.9 | −41.2 |
+| TCowMesh | −43.2 | −43.2 (Origin is zero) |
+
+Ignoring it scatters the feet over 14 units; applying it before the scale pulls all eight
+into a 3.4-unit band just under the cylinder. Applying it *after* the scale
+(`V × Scale − Origin`) throws the Skaarj 100 units off and is not a candidate. It fixes the
+horizontal placement too: the three meshes authored at `(−150, 40, 0)` go from a feet
+centroid about 10 units off the cylinder axis to within 1.4 of it.
+
+The actor origin is the **centre** of the collision cylinder and the game's rig is the
+**floor**, so the body is then lifted until the `Idle` clip's first frame touches `y = 0`
+and left alone horizontally. Where Epic put a body over its own axis is information; the
+old extractor re-centred on the bounding box and threw it away.
+
+How far the planted foot then dips below `y = 0` during `Run` — the base pose is an idle
+stance and a running stride reaches lower — is soldier 3.0 mm, skaarj 9.7 mm, warcow
+11.5 mm, and exactly 0 for the other five.
+
+### Height: 1.830 m is the cylinder, not the mesh
+
+At true pawn scale (`UU_TO_M`, 0.0235 m/UU) the meshes stand 1.80 m (Soldier) to 2.07 m
+(Skaarj). UT99 does not use that: every one of these pawns, cow included, walks around
+inside the **same** 39-unit cylinder, and 2 × 39 × `UU_TO_M` = 1.833 m. The nameplates, the
+AR figures and the hit feedback are all placed against a 1.830 m body, so each one is
+scaled uniformly onto that — soldier ×1.0171, commando ×0.9319, fcommando ×0.9333, sgirl
+×0.9896, boss ×0.9831, skaarj ×0.8839, nali ×1.0043, warcow ×0.9733. All within 8% of 1: a
+nudge onto the shared cylinder, not a reshaping. It is the **one** number in the extractor
+that is not Epic's, and it is written into each glTF's `extras.heightFit` beside the mesh's
+own `extras.utHeightM` rather than hidden.
+
+### Which three sequences
+
+The client binds clips by the names `Idle` / `Walk` / `Run`. Which UT99 sequence goes in
+each is read out of `Botpack.TournamentPlayer`'s UnrealScript, which the package ships:
+
+    PlayWalking()   LoopAnim(Weapon.Mass < 20 ? 'WalkSM' : 'WalkLG')
+    PlayRunning()   LoopAnim(Weapon.Mass < 20 ? 'RunSM'  : 'RunLG')
+    PlayFiring()    TweenAnim(Weapon.Mass < 20 ? 'StillSMFR' : 'StillFRRP')
+    PlayWaiting()   ... bPointing: TweenAnim(Weapon.Mass < 20 ? 'StillSMFR' : 'StillFRRP')
+
+Everyone here spawns with the Enforcer and never puts it down, and its `Mass` is under 20,
+so the small-weapon variant is right everywhere: **`WalkSm`, `RunSm`, `StillSmFr`**.
+`PlayWeaponSwitch` confirms the pairing from the other side — it rewrites `StillSMFR` to
+`StillFRRP` and back as the carried weapon crosses `Mass` 20. `StillSmFr` is the *armed*
+idle, a pawn standing with its gun up; `PlayWaiting`'s other branch
+(`Breath1`/`Breath2`/`CockGun`) is the unarmed fidget. The old files used `StillFrRp` on the
+humans and `StillLgFr` on the Skaarj, which are the heavy-weapon idles: right family, wrong
+weight.
+
+All eight meshes carry all three names, so there is no fallback. One oddity is Epic's and
+is passed through: `TCowMesh`'s `WalkSm` and `RunSm` are the **same** sixteen frames
+(250–265) at 15 and 27 fps, so the cow runs by walking faster.
+
+Clips are emitted the way the weapons are — one morph target per unique frame, base = the
+`Idle` clip's first frame with no target of its own, one-hot weights, **`LINEAR`** because
+UE1 tweens between frames (the old files used `STEP`, which judders a ten-frame run cycle),
+and one extra wrap keyframe on a loop.
+
+### Skins are not re-extracted, and the slot mapping is checked
+
+A pawn mesh's material textures are **empty names** — UT99 assigns them at runtime through
+`MultiSkins` — so there is nothing to read out of the package and the mapping is positional:
+material slot *i* is `s{i}.png`. `remote-avatar.js` depends on that (it matches
+`/slot(\d+)$/` on the material name and hangs `urls[i]` on it), so before overwriting
+anything the extractor re-reads the **old** glTF and refuses to write unless, for every
+slot, the triangle count and the number of distinct vertices that slot touches are
+identical. All eight matched exactly on the rebuild. A body that came out mis-skinned would
+look like a body.
+
+`PF_TWOSIDED` is now honoured as `doubleSided` (the Boss's visor, the Nali's eyes, one flap
+of the cow). `PF_MASKED` is deliberately *not* turned into `alphaMode` — the committed
+skins are palettized PNGs with neither an alpha channel nor a `tRNS` chunk, so a `MASK`
+material would have nothing to cut against. Re-extracting the skins masked is a separate
+job.
+
+### Looking at it afterwards
+
+    node scripts/build-ut-characters.mjs      # needs a retail install
+    node scripts/gen-characters.mjs           # rewrite the roster
+    node scripts/render-characters.mjs out.png
+    node --test server/test/characters.test.mjs
+
+`render-characters.mjs` needs no retail install: it draws the **committed** glTFs from the
+side, Idle over Run, one column per model, with the rig's forward to the **right**. Every
+body must run to the right. That picture is the check that would have caught this in five
+seconds, and it is the reason it exists.

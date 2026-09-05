@@ -9,10 +9,11 @@
 // into a model URL and a set of skin textures. A table generated from the asset tree
 // cannot drift from the assets the way two hand-written copies would.
 //
-// Assets come from assets/3d/characters/<model>/, built by the UT99 extractor in
-// docs/ut99-extraction.md: <model>.gltf + .bin, and one directory of skin PNGs per
-// named character. Slot count varies by model — the Soldier has four material slots,
-// the Female Commando three, the Nali two — so the skin file list is read, not assumed.
+// Assets come from assets/3d/characters/<model>/, built by scripts/build-ut-characters.mjs
+// (see docs/ut99-character-extraction.md): <model>.gltf + .bin, and one directory of skin
+// PNGs per named character. Slot count varies by model — the Soldier has four material
+// slots, the Female Commando three, the Nali two — so the skin file list is read, not
+// assumed.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,33 +27,38 @@ const OUTPUT_SERVER = path.join(ROOT, "server", "characters.js");
 const CHECK = process.argv.includes("--check");
 
 // ---------------------------------------------------------------------------
-// WHICH WAY A BODY FACES
+// WHICH WAY A BODY FACES — NOTHING, ANY MORE, AND WHY THAT IS THE FIX
 // ---------------------------------------------------------------------------
-// The models do not all face the same way, and the reason is in
-// docs/ut99-character-extraction.md without the consequence being drawn out of it:
-// six UT99 meshes carry RotOrigin [0, 90deg, -90deg] and are authored lying down on
-// mesh axis 1, while the bonus-pack meshes carry [0, 0, 0] and are authored standing.
-// The extraction "read the axis off RotOrigin and asserted it matched the tallest axis
-// of the idle pose", which fixes UP — every model measures exactly 1.830 m standing —
-// and never applies the YAW. So the two groups ended up 90 degrees apart, and a player
-// wearing one of the bonus bodies ran sideways.
+// This table used to read `{ skaarj: 90, warcow: 90 }` and it was wrong in every part.
 //
-// Measured on the committed geometry, as the direction the feet sit forward of the body
-// (boots point the way you face):
+// The old extractor never applied RotOrigin. docs/ut99-character-extraction.md wrote that
+// down as a rule — "read the axis off RotOrigin and assert it matches the tallest axis of
+// the idle pose" — which fixes UP, so every model stood at the right height and nothing
+// looked broken, while leaving each body free to be turned any way at all about that axis.
+// Measured off the committed geometry's own Run clips, SIX OF THE EIGHT faced +Z within
+// 2 degrees. The rig's forward is -Z, so six of eight ran backwards. The other two, the
+// Skaarj and the cow, were 90 degrees off — and those are exactly the two the +90 above
+// rescued, which is the whole story of that table: it fixed the only two bodies that were
+// not running backwards and did nothing for the six that were.
 //
-//     boss -151, commando -165, fcommando -180, sgirl -158, soldier -136, nali +176
-//     skaarj +78, warcow +86
+// It had been fitted to a different measurement, the direction the feet sit forward of the
+// body. Which boot is in front depends on where in the stride the sampled frame sits, so
+// that reads the stance rather than the body.
 //
-// The first six cluster at about -162 with a 44-degree spread, which is pose noise: a
-// walk frame puts one boot forward. The last two sit 90 degrees off that cluster, which
-// is not noise and is exactly the yaw their RotOrigin does not carry.
+// scripts/build-ut-characters.mjs now applies Epic's rotator the way the weapons pipeline
+// does: mesh vertex x Mesh.Scale, then the TRANSPOSE of FRotationMatrix(RotOrigin) (its
+// rows are the rotated frame's axes, so the transpose takes mesh components to actor
+// components), then UT (x fwd, y right, z up) -> world (x right, y up, z back). UE1 pawns
+// face +X, so through that every body faces -Z — including TSkM and TCowMesh, whose
+// RotOrigin is (0, 0, 0) and who therefore have nothing to apply. Verified per model on
+// the emitted Run cycle by the planted-foot method, all eight within 2 degrees, and pinned
+// by server/test/characters.test.mjs.
 //
-// So the correction is +90 for the meshes whose RotOrigin yaw is zero, and nothing for
-// the rest. It is Epic's own number, not a fitted one — the six get their yaw from
-// RotOrigin and these two have none to get. Re-extracting with the rotator applied
-// properly would be the deeper fix and would make this table empty; until then this is
-// where the difference is written down.
-const YAW_FIX = { skaarj: 90, warcow: 90 };
+// So the table is empty and every yawDeg is 0. The FIELD stays, and so does modelYaw():
+// src/game/network/network.js and src/ar/three/players.js both apply it, and a per-model
+// correction is exactly the kind of thing a future mesh might genuinely need. What it must
+// never again be is a fitted number standing in for a transform that was not applied.
+const YAW_FIX = {};
 
 const models = [];
 for (const model of fs.readdirSync(DIR).sort()) {
@@ -123,10 +129,14 @@ const CHARACTER_COUNT = VARIANTS.length;
 /**
  * Degrees to turn this model so it faces the way the game thinks it does.
  *
- * Zero for six of the eight. The two bonus-pack meshes are authored standing and carry
- * no RotOrigin yaw, so they arrive 90 degrees off the others — see the note in
- * scripts/gen-characters.mjs. Apply it to the MODEL, never to the rig: the rig's yaw is
- * the player's heading and comes off the wire.
+ * Zero for all eight, and that is the point: scripts/build-ut-characters.mjs bakes Epic's
+ * RotOrigin in, so every body already faces -Z, the rig's forward. It used to be 90 for
+ * the Skaarj and the cow, which was a fitted number standing in for a rotator the old
+ * extractor never applied — see the note in scripts/gen-characters.mjs.
+ *
+ * Kept because a future mesh may genuinely need it. Apply it to the MODEL, never to the
+ * rig: the rig's yaw is the player's heading and is overwritten from the wire on every
+ * pose, so a correction written there is erased by the next packet.
  */
 function modelYaw(index) {
   const v = VARIANTS[index];

@@ -297,24 +297,13 @@ test("every weapon has a select sound to go with its select animation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The other thing that faces the wrong way.
+// The other thing that faces the wrong way lives next door.
 // ---------------------------------------------------------------------------
-test("the two bonus-pack bodies carry the yaw their RotOrigin does not", async () => {
-  const { MODELS, VARIANTS, CHARACTER_COUNT, modelYaw } = await import(
-    "../../src/shared/characters.js"
-  );
-  // Six UT99 meshes carry RotOrigin [0, 90, -90]; the bonus-pack ones carry [0, 0, 0].
-  // The extraction used RotOrigin only to pick the UP axis — which is why all eight
-  // stand 1.830 m tall — and never applied the yaw, so these two ran sideways.
-  assert.equal(MODELS.skaarj.yawDeg, 90);
-  assert.equal(MODELS.warcow.yawDeg, 90);
-  for (const id of ["boss", "commando", "fcommando", "nali", "sgirl", "soldier"]) {
-    assert.equal(MODELS[id].yawDeg, 0, `${id} should need no correction`);
-  }
-  // Every variant resolves to a number, including the ones needing nothing: a silent
-  // undefined here would be applied as a rotation of NaN.
-  for (let i = 0; i < CHARACTER_COUNT; i++) {
-    assert.equal(typeof modelYaw(i), "number", `variant ${i} (${VARIANTS[i]})`);
-    assert.ok(Number.isFinite(modelYaw(i)), `variant ${i} yaw is not finite`);
-  }
-});
+// This file used to end by pinning `MODELS.skaarj.yawDeg === 90` and the same for the
+// warcow, on the reasoning that the two bonus-pack meshes carry no RotOrigin yaw and so
+// arrive 90 degrees off the rest. That was wrong twice over: the old character extractor
+// never applied RotOrigin to ANY of the eight, so seven of them faced +Z against the rig's
+// -Z and ran backwards, and the +90 was fitted to a feet-direction heuristic that reads
+// the stance rather than the body. The bodies are rebuilt through the same rule this file
+// tests the weapons against — see scripts/build-ut-characters.mjs — and are now checked by
+// measuring their run direction off the geometry, in server/test/characters.test.mjs.

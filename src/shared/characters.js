@@ -125,7 +125,7 @@ const MODELS = {
   },
   "skaarj": {
     "gltf": "skaarj.gltf",
-    "yawDeg": 90,
+    "yawDeg": 0,
     "skins": {
       "baetal": [
         "s0.png",
@@ -181,7 +181,7 @@ const MODELS = {
   },
   "warcow": {
     "gltf": "warcow.gltf",
-    "yawDeg": 90,
+    "yawDeg": 0,
     "skins": {
       "default": [
         "s0.png",
@@ -220,10 +220,14 @@ const CHARACTER_COUNT = VARIANTS.length;
 /**
  * Degrees to turn this model so it faces the way the game thinks it does.
  *
- * Zero for six of the eight. The two bonus-pack meshes are authored standing and carry
- * no RotOrigin yaw, so they arrive 90 degrees off the others — see the note in
- * scripts/gen-characters.mjs. Apply it to the MODEL, never to the rig: the rig's yaw is
- * the player's heading and comes off the wire.
+ * Zero for all eight, and that is the point: scripts/build-ut-characters.mjs bakes Epic's
+ * RotOrigin in, so every body already faces -Z, the rig's forward. It used to be 90 for
+ * the Skaarj and the cow, which was a fitted number standing in for a rotator the old
+ * extractor never applied — see the note in scripts/gen-characters.mjs.
+ *
+ * Kept because a future mesh may genuinely need it. Apply it to the MODEL, never to the
+ * rig: the rig's yaw is the player's heading and is overwritten from the wire on every
+ * pose, so a correction written there is erased by the next packet.
  */
 function modelYaw(index) {
   const v = VARIANTS[index];
