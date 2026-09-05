@@ -1,6 +1,6 @@
 // network.js (ES module) — robust init: waits for DOM, scene, and #soldier
 import { waitForElement, waitForSceneLoaded as waitForScene, createEntity, addClass, setDataAttribute } from "../utils/dom-helpers.js";
-import { modelUrl, skinUrls, modelYaw } from "../../shared/characters.js";
+import { modelUrl, skinUrls, modelYaw, weaponOffset } from "../../shared/characters.js";
 import { createEuler } from "../utils/three-helpers.js";
 import { getWebSocketUrl, log } from "../utils/environment.js";
 import { handleError, wrapAsync } from "../utils/error-handler.js";
@@ -297,7 +297,10 @@ export function startNetwork() {
           break;
         }
         case "fire": {
-          if (m.id !== myId) spawnBulletVisual(m.origin, m.dir, m.id);
+          if (m.id !== myId) {
+            spawnBulletVisual(m.origin, m.dir, m.id);
+            emitRemoteFire(m.id);
+          }
           break;
         }
 
@@ -310,6 +313,11 @@ export function startNetwork() {
         // server says it is, so there is no `m.id !== myId` guard to write.
         case "projectile": {
           spawnProjectile(scene, m);
+          // A rocket raises the arms exactly as a bullet does. There is no `fire` message
+          // for a weapon that flies — the server owns the whole shot and announces the
+          // projectile instead — so this is the only place the animation can come from.
+          // The shooter is `owner` here, not `id`: `id` is the projectile's own.
+          if (m.owner != null && m.owner !== myId) emitRemoteFire(m.owner);
           break;
         }
         case "projectile-bounce": {
@@ -821,6 +829,22 @@ export function startNetwork() {
     // remote-avatar tints from this on model-loaded; it is set before the rig enters
     // the scene so the model can never load ahead of knowing its side.
     if (p.team) setDataAttribute(rig, "team", p.team);
+    // What they are holding, for the THIRD-PERSON mesh in their hand. publicPlayer carries
+    // it on `hello` and `join`, so a player who armed themselves before we connected is
+    // drawn with the right gun rather than empty-handed until their next pickup.
+    // remote-avatar reads it here and keeps it current from `player-loadout`.
+    setDataAttribute(rig, "weapon", p.weapon || DEFAULT_WEAPON);
+    if (p.dual) setDataAttribute(rig, "dual", "1");
+    // Where THIS body's gun hand is. UE1 pawn meshes carry three "special" vertices — the
+    // weapon triangle — that mark where the carried weapon is drawn, and every third-person
+    // weapon glTF was built at the nominal pawn origin instead; characters.js ships the
+    // difference per model as a vector (the soldier's is 16 cm right, 42 cm up, 43 cm
+    // forward of that origin). Computed here for the same reason modelYaw is: characters.js
+    // owns the per-model corrections and network.js is where a character index becomes
+    // something the avatar can use. Static — the base pose's hand; the hand swings through
+    // Walk/Run/Fire and a per-frame anchor is the next step.
+    const off = weaponOffset(p.character);
+    if (off) setDataAttribute(rig, "weaponOffset", off.join(" "));
 
     // Set initial position if provided
     if (p.x !== undefined && p.y !== undefined && p.z !== undefined) {
@@ -895,6 +919,19 @@ export function startNetwork() {
     } else {
       console.warn(`[network] Could not find remote-avatar component for rig ${rig.id}`);
     }
+  }
+
+  // ---- somebody else's trigger ----
+  //
+  // ONE event for both ways a shot reaches this client: the `fire` message a hitscan
+  // weapon sends, and the `projectile` message the server sends for the three that fly.
+  // remote-avatar.js listens and matches on the rig's player id — it is the component
+  // that knows which body belongs to which player, and this is the only thing network.js
+  // has to tell it. The weapon rides along so the avatar can play the held mesh's own
+  // fire sequence without going back to the map.
+  function emitRemoteFire(id) {
+    if (!scene || id == null) return;
+    scene.emit("remote-fire", { id, weapon: remoteWeapons.get(id) || DEFAULT_WEAPON });
   }
 
   // ---- somebody else's hitscan shot ----

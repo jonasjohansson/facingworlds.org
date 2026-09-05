@@ -21,6 +21,12 @@
 // it. It does not care which boot is in front, which is what the discredited heuristic
 // behind the old `YAW_FIX = { skaarj: 90, warcow: 90 }` cared about: that one read the
 // stance, not the body, and turned the two models that were closest to right.
+// THE SECOND BUG, which is why there are now six clips rather than three: the idle used to
+// be the WHOLE of StillSmFr on a loop. StillSmFr is not an idle. UnrealScript reaches it
+// through TweenAnim, which blends to a sequence's FIRST frame and stops there — the frames
+// after it are the recoil, played once per shot by PlayRecoil. So every standing avatar
+// twitched through a firing animation forever. Idle is one held frame now; the recoil is
+// the Fire clip, and WalkFire/RunFire are the gaits PlayFiring swaps to mid-stride.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -29,10 +35,32 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-// The clips the client binds by name. src/game/components/remote-avatar.js keys its weight
-// blend on exactly these three strings and src/ar/three/players.js does the same, so a
-// renamed clip is an avatar frozen in its base pose with no error anywhere.
-const CLIPS = ["Idle", "Walk", "Run"];
+// The clips the client binds by name, so a renamed one is an avatar frozen in its base
+// pose with no error anywhere. Six of them now, not three: UT99 has a separate firing
+// variant of standing, walking and running, and Botpack.TournamentPlayer swaps between the
+// pairs mid-stride (PlayFiring rewrites AnimSequence RunSM -> RunSMFR, WalkSM -> WalkSMFR).
+const CLIPS = ["Idle", "Walk", "Run", "Fire", "WalkFire", "RunFire"];
+
+// The empty node every body carries for its weapon. The NAME is the contract — a client
+// looks it up by name, because a node index is the kind of thing that quietly becomes wrong.
+const ANCHOR_NAME = "weaponAnchor";
+
+// How many UT99 frames the Fire clip is, per model. This is StillSmFr's own length in the
+// retail package and the test pins it because the clip is the RECOIL and a recoil of the
+// wrong length is not visibly wrong — it is just a shot that lands early.
+//
+// Two of the eight are Epic's oddities rather than typos here: tnalimesh's StillSmFr is a
+// SINGLE frame, so a firing Nali does not recoil at all, and TCowMesh's is twelve.
+const FIRE_FRAMES = {
+  soldier: 8,
+  commando: 8,
+  fcommando: 8,
+  sgirl: 8,
+  boss: 8,
+  skaarj: 8,
+  nali: 1,
+  warcow: 12,
+};
 
 // Every UT99 pawn walks around in a 39-unit half-height collision cylinder, whatever its
 // mesh measures, and the game is built against the cylinder: 2 * 39 * UU_TO_M = 1.833 m.
@@ -56,7 +84,7 @@ function readGltf(id) {
     const a = g.accessors[i];
     const v = g.bufferViews[a.bufferView];
     const b = bin.subarray(v.byteOffset + (a.byteOffset || 0));
-    const n = { SCALAR: 1, VEC2: 2, VEC3: 3 }[a.type];
+    const n = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }[a.type];
     const out =
       a.componentType === 5123 ? new Uint16Array(a.count * n) : new Float32Array(a.count * n);
     for (let k = 0; k < a.count * n; k++) {
@@ -152,7 +180,7 @@ test("all eight UT99 bodies are present", () => {
   }
 });
 
-test("every body carries the Idle, Walk and Run clips the client binds by name", () => {
+test("every body carries the six clips the client binds by name", () => {
   for (const id of MODELS) {
     const { g } = readGltf(id);
     const names = (g.animations || []).map((a) => a.name);
@@ -164,6 +192,59 @@ test("every body carries the Idle, Walk and Run clips the client binds by name",
     const counts = new Set(g.meshes[0].primitives.map((p) => (p.targets || []).length));
     assert.equal(counts.size, 1, `${id}: primitives carry ${[...counts].join("/")} morph targets`);
     assert.ok([...counts][0] > 0, `${id}: no morph targets, so nothing animates`);
+  }
+});
+
+test("the idle is ONE held frame, not a recoil on a loop", () => {
+  // THE fix this clip set exists for. UnrealScript's TweenAnim(name, time) does not play a
+  // sequence: it blends to that sequence's FIRST frame and stops there with AnimRate 0. So
+  // PlayWaiting's TweenAnim('StillSMFR', 0.3) is a pawn standing still with its gun up, and
+  // the seven frames after it are the recoil that PlayRecoil fires once per shot.
+  //
+  // A previous build emitted the whole sequence LOOPED as the idle, so every standing
+  // avatar in the game twitched through a recoil forever, eight frames a second, with
+  // nothing firing. One keyframe is the assertion; the Fire clip below is where the recoil
+  // went.
+  for (const id of MODELS) {
+    assert.equal(clipFrames(id, "Idle").length, 1, `${id}: Idle is not a single held frame`);
+  }
+});
+
+test("the recoil and the firing gaits are there, at UT99's own lengths", () => {
+  for (const id of MODELS) {
+    // Fire is StillSmFr in full — the recoil, one-shot, once per shot.
+    assert.equal(
+      clipFrames(id, "Fire").length,
+      FIRE_FRAMES[id],
+      `${id}: Fire is not StillSmFr's ${FIRE_FRAMES[id]} frames`,
+    );
+    // The first frame of the recoil IS the idle pose: UT99 recoils out of the stance it is
+    // standing in, and both clips are spans of the same sequence starting at the same
+    // frame. A Fire that starts anywhere else would snap the whole body on every shot.
+    const [idle] = clipFrames(id, "Idle");
+    const [fire] = clipFrames(id, "Fire");
+    assert.equal(fire.length, idle.length, `${id}: Fire and Idle disagree about the mesh`);
+    for (let i = 0; i < idle.length; i++) {
+      for (let a = 0; a < 3; a++) {
+        assert.ok(
+          Math.abs(fire[i][a] - idle[i][a]) < 1e-6,
+          `${id}: Fire's first frame is not the Idle pose (vertex ${i})`,
+        );
+      }
+    }
+    // WalkFire and RunFire are the SAME cycles as Walk and Run with the arms changed, so
+    // they have to be the same length. If they were not, a player's legs would change speed
+    // the moment they pulled the trigger.
+    assert.equal(
+      clipFrames(id, "WalkFire").length,
+      clipFrames(id, "Walk").length,
+      `${id}: WalkFire and Walk are different lengths`,
+    );
+    assert.equal(
+      clipFrames(id, "RunFire").length,
+      clipFrames(id, "Run").length,
+      `${id}: RunFire and Run are different lengths`,
+    );
   }
 });
 
@@ -199,15 +280,20 @@ test("every body runs the way the rig points, which is -Z", () => {
   // THE test. The rig's yaw comes off the wire and the server's bots set it to
   // atan2(-dx, -dz), i.e. the rig faces its own motion along -Z; a body that runs +Z inside
   // that rig runs backwards down the map.
+  // RunFire as well as Run: a player firing while running is running, and a firing gait
+  // that came out of the package reversed would put every armed sprint backwards down the
+  // map while the unarmed one looked fine.
   const report = [];
-  for (const id of MODELS) {
-    const { deg, samples } = runHeadingDeg(clipFrames(id, "Run"));
-    report.push(`${id} ${deg.toFixed(1)}`);
-    assert.ok(samples >= 4, `${id}: only ${samples} planted-foot samples to measure with`);
-    assert.ok(
-      Math.abs(deg) <= HEADING_TOLERANCE_DEG,
-      `${id}: runs ${deg.toFixed(1)} degrees off -Z (${report.join(", ")})`,
-    );
+  for (const clip of ["Run", "RunFire"]) {
+    for (const id of MODELS) {
+      const { deg, samples } = runHeadingDeg(clipFrames(id, clip));
+      report.push(`${id}/${clip} ${deg.toFixed(1)}`);
+      assert.ok(samples >= 4, `${id}/${clip}: only ${samples} planted-foot samples`);
+      assert.ok(
+        Math.abs(deg) <= HEADING_TOLERANCE_DEG,
+        `${id}: ${clip} runs ${deg.toFixed(1)} degrees off -Z (${report.join(", ")})`,
+      );
+    }
   }
 });
 
@@ -226,6 +312,128 @@ test("no model needs a yaw correction, and every variant still resolves to one",
   for (let i = 0; i < CHARACTER_COUNT; i++) {
     assert.equal(typeof modelYaw(i), "number", `variant ${i} (${VARIANTS[i]})`);
     assert.ok(Number.isFinite(modelYaw(i)), `variant ${i} yaw is not finite`);
+  }
+});
+
+test("every clip carries the weapon anchor, keyed against its own poses", () => {
+  // THE faithful placement. UE1 draws a carried item at the pawn's weapon triangle WITH
+  // that triangle's orientation, and the triangle is per-frame data — the hand travels 32
+  // to 86 cm over a run cycle — so the anchor is not a number on the model, it is a
+  // translation and a rotation track on every clip. A missing channel is a gun welded to a
+  // standing pose while the body sprints out from under it.
+  for (const id of MODELS) {
+    const { g, read } = readGltf(id);
+    const node = (g.nodes || []).findIndex((n) => n.name === ANCHOR_NAME);
+    assert.ok(node >= 0, `${id}: no "${ANCHOR_NAME}" node`);
+    // A SIBLING of the mesh node and in the scene, so its local transform is already in the
+    // body's own space and a client has nothing to compose.
+    assert.ok(g.scenes[0].nodes.includes(node), `${id}: the anchor is not in the scene`);
+    assert.ok(!("mesh" in g.nodes[node]), `${id}: the anchor node has geometry on it`);
+    assert.equal(g.nodes[node].translation?.length, 3, `${id}: no rest translation`);
+    assert.equal(g.nodes[node].rotation?.length, 4, `${id}: no rest rotation`);
+
+    for (const clip of CLIPS) {
+      const anim = g.animations.find((a) => a.name === clip);
+      const weights = anim.channels.find((c) => c.target.path === "weights");
+      // The weights channel has to stay FIRST: render-characters.mjs and clipFrames() above
+      // both read channels[0] to get at the pose.
+      assert.equal(anim.channels.indexOf(weights), 0, `${id}/${clip}: weights is not first`);
+      const keyCount = read(anim.samplers[weights.sampler].input).length;
+      for (const path_ of ["translation", "rotation"]) {
+        const ch = anim.channels.find((c) => c.target.node === node && c.target.path === path_);
+        assert.ok(ch, `${id}/${clip}: the anchor has no ${path_} channel`);
+        const sampler = anim.samplers[ch.sampler];
+        // Sampled at the same instants as the body, so key i of the anchor is the hand in
+        // key i of the pose. Anything else is a gun lagging the arm it is held in.
+        assert.deepEqual(
+          Array.from(read(sampler.input)),
+          Array.from(read(anim.samplers[weights.sampler].input)),
+          `${id}/${clip}: the anchor's ${path_} is keyed at different times`,
+        );
+        const out = read(sampler.output);
+        const n = path_ === "translation" ? 3 : 4;
+        assert.equal(out.length, keyCount * n, `${id}/${clip}: ${path_} key count`);
+        if (path_ !== "rotation") continue;
+        for (let k = 0; k < keyCount; k++) {
+          const q = Array.from({ length: 4 }, (_, i) => out[k * 4 + i]);
+          const len = Math.hypot(...q);
+          assert.ok(
+            Math.abs(len - 1) < 1e-4,
+            `${id}/${clip}: quaternion ${k} has length ${len} — three.js will skew the gun`,
+          );
+          if (k === 0) continue;
+          // q and -q are the same rotation, but a LINEAR sampler interpolates COMPONENTS,
+          // so a sign flip between keys takes the long way round: a hand that spins through
+          // 300 degrees in a frame.
+          const prev = Array.from({ length: 4 }, (_, i) => out[(k - 1) * 4 + i]);
+          assert.ok(
+            prev.reduce((t, v, i) => t + v * q[i], 0) >= 0,
+            `${id}/${clip}: quaternion ${k} flips sign against ${k - 1}`,
+          );
+        }
+      }
+    }
+  }
+});
+
+test("the anchor's resting pose is the one the roster publishes", () => {
+  // Three places hold this one fact — the node's rest transform, the Idle track's first key,
+  // and extras.weaponAnchorM, which is what gen-characters.mjs copies into the roster. They
+  // are written from the same measurement, so a disagreement means one was regenerated
+  // against a different build.
+  for (const id of MODELS) {
+    const { g, read } = readGltf(id);
+    const node = g.nodes.findIndex((n) => n.name === ANCHOR_NAME);
+    const anim = g.animations.find((a) => a.name === "Idle");
+    const ch = anim.channels.find((c) => c.target.node === node && c.target.path === "translation");
+    const first = Array.from(read(anim.samplers[ch.sampler].output)).slice(0, 3);
+    const extras = g.extras.weaponAnchorM;
+    assert.equal(extras?.length, 3, `${id}: no extras.weaponAnchorM`);
+    for (let a = 0; a < 3; a++) {
+      assert.ok(Math.abs(first[a] - extras[a]) < 1e-5, `${id}: Idle key 0 vs extras, axis ${a}`);
+      assert.ok(
+        Math.abs(g.nodes[node].translation[a] - extras[a]) < 1e-5,
+        `${id}: the anchor's rest translation vs extras, axis ${a}`,
+      );
+    }
+  }
+});
+
+test("the roster's static fallback is the anchor, in full", async () => {
+  // For a renderer that cannot parent to a node inside a loaded glTF. It is the FULL
+  // position, not a correction: assets/3d/thirdperson carries no lift at all, so its origin
+  // is the weapon's own origin. All zeroes, or a bare height, would be the bug this
+  // replaced — the gun at the pawn's actor origin, 42 cm below the Soldier's fist.
+  const { MODELS: TABLE, CHARACTER_COUNT, weaponOffset } = await import(
+    "../../src/shared/characters.js"
+  );
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(ROOT, "scripts", "data", "ut-thirdperson.json"), "utf8"),
+  ).pawnAnchor.offsetM;
+  for (const id of MODELS) {
+    const v = TABLE[id].weaponOffsetM;
+    assert.equal(v?.length, 3, `${id}: weaponOffsetM is ${JSON.stringify(v)}`);
+    const { g } = readGltf(id);
+    v.forEach((x, a) => {
+      assert.ok(Number.isFinite(x), `${id}: weaponOffsetM.${"xyz"[a]} is ${x}`);
+      // Three files, one measurement: the body's extras, the weapon manifest, the roster.
+      assert.ok(
+        Math.abs(x - g.extras.weaponAnchorM[a]) < 1e-5,
+        `${id}: the roster disagrees with the body's own extras on axis ${a}`,
+      );
+      assert.ok(
+        Math.abs(x - manifest[id][a]) < 1e-5,
+        `${id}: the roster says ${x} and ut-thirdperson.json says ${manifest[id][a]}`,
+      );
+    });
+    // A hand is out in FRONT of the body (forward is -Z), on the side the pawn's hand is,
+    // and at hand height above the floor — the same claim the anchor node makes.
+    assert.ok(v[1] > 0.9 && v[1] < 1.8, `${id}: the anchor is ${v[1]} m off the floor`);
+    assert.ok(Math.abs(v[0]) < 0.5, `${id}: the anchor is ${v[0]} m off the centre line`);
+    assert.ok(v[2] < 0.3, `${id}: the anchor is behind the body (z ${v[2]})`);
+  }
+  for (let i = 0; i < CHARACTER_COUNT; i++) {
+    assert.equal(weaponOffset(i).length, 3, `variant ${i} has no weapon offset`);
   }
 });
 

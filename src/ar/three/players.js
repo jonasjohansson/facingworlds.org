@@ -2,7 +2,8 @@ import * as THREE from "three";
 import { clone as cloneSkinned } from "../vendor/utils/SkeletonUtils.js";
 import { AR_CONFIG } from "../config/ar-config.js";
 import { createGLTFLoader, loadFirstAvailable, disposeModel } from "./assets.js";
-import { modelUrl, skinUrls, modelYaw } from "../../shared/characters.js";
+import { modelUrl, skinUrls, modelYaw, weaponOffset } from "../../shared/characters.js";
+import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
 
 // The live spectator table.
 //
@@ -168,6 +169,12 @@ export class SpectatorTable {
     // one measurement, and only the skin textures differ between them.
     this.models = new Map(); // url -> { gltf, scale, footY } once loaded
     this.modelPending = new Map(); // url -> Promise, so two players never race a load
+    // The HELD WEAPON, same shape and for the same reason: one download per weapon, one
+    // clone per figure. weapon(id).third is authored in the CHARACTER's frame — feet at
+    // y = 0, the body's own axes — so a clone rides the figure's scale and foot offset
+    // exactly as the body does and needs no fitting of its own.
+    this.weaponModels = new Map(); // url -> gltf
+    this.weaponPending = new Map();
     this.mixers = new Set();
     this.modelLoader = null;
   }
@@ -260,6 +267,102 @@ export class SpectatorTable {
     // The model animates its own footfalls; the sine bob was standing in
     // for exactly that and now fights it.
     entry.tilt.position.y = 0;
+
+    // The gun goes on with the body, not before it: it hangs off the same fit numbers.
+    this._dressWeapon(entry);
+  }
+
+  /**
+   * Put the weapon this player is holding into their figure's hand.
+   *
+   * Cheap by construction: the mesh is loaded once per weapon and cloned per player, it
+   * has no animation and no mixer here (a table-scale figure has no readable recoil), and
+   * a weapon with no `third` block simply leaves the hands empty.
+   *
+   * The spectator socket relays `hello`, `join`, `spawn` and `respawn`, all of which carry
+   * publicPlayer's `weapon` — so the gun is right at join and right again after every
+   * death. It does NOT relay the `loadout` broadcast, so a pickup taken mid-life does not
+   * show here until that player next respawns. See the note in the field report.
+   */
+  _dressWeapon(entry) {
+    if (!entry || !entry.skinned) return; // a capsule has nothing to hang it on
+    const spec = weapon(entry.weaponId || DEFAULT_WEAPON) || {};
+    const third = spec.third;
+    // "../" for the same reason the character paths take it: this page is served from /ar/.
+    const url = third && third.model ? `../${third.model}` : null;
+    if (!url) {
+      // No held mesh for this weapon. Empty hands, and the previous gun comes off rather
+      // than staying in them.
+      entry.weaponUrl = null;
+      this._detachWeapon(entry);
+      return;
+    }
+    if (entry.weaponUrl === url) return;
+    entry.weaponUrl = url;
+    this._loadWeaponFor(url).then((gltf) => {
+      if (this.disposed || !gltf || !entry.skinned || entry.weaponUrl !== url) return;
+      this._detachWeapon(entry);
+      const rec = entry.modelUrl ? this.models.get(entry.modelUrl) : null;
+      if (!rec) return;
+      const root = gltf.scene.clone(true);
+      const materials = [];
+      root.traverse((obj) => {
+        if (!obj.isMesh) return;
+        obj.castShadow = true;
+        obj.receiveShadow = false;
+        // A fresh material per figure, so nothing here can repaint another player's gun,
+        // and Lambert for the same reason the bodies are: a few pixels tall.
+        const src = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+        const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: (src && src.map) || null });
+        obj.material = mat;
+        materials.push(mat);
+      });
+      // UE1 draws the carried weapon at the pawn mesh's WEAPON TRIANGLE, which the body
+      // glTF carries as an animated empty node "weaponAnchor" (see remote-avatar.js). The
+      // body's clone has it, and the body's mixer moves it — so the gun is simply a child
+      // of that node at identity, inheriting the figure's scale, foot offset and yaw, and
+      // swinging with the hand through the stride. A body file without the node (an older
+      // extraction) falls back to the static base-pose hand offset under `tilt`.
+      const anchor = entry.skinned.root.getObjectByName("weaponAnchor");
+      if (anchor) {
+        anchor.add(root);
+      } else {
+        root.scale.setScalar(rec.scale);
+        const off = weaponOffset(entry.character) || [0, 0, 0];
+        root.position.set(off[0] * rec.scale, -rec.footY + off[1] * rec.scale, off[2] * rec.scale);
+        root.rotation.y = (modelYaw(entry.character) * Math.PI) / 180;
+        entry.tilt.add(root);
+      }
+      entry.weapon = { root, materials };
+    });
+  }
+
+  /** One held-weapon mesh, loaded once and shared. Never throws: a missing gun is empty hands. */
+  _loadWeaponFor(url) {
+    if (this.weaponModels.has(url)) return Promise.resolve(this.weaponModels.get(url));
+    if (this.weaponPending.has(url)) return this.weaponPending.get(url);
+    if (!this.modelLoader) this.modelLoader = createGLTFLoader();
+    const p = loadFirstAvailable(this.modelLoader, [url], "held weapon")
+      .then((gltf) => {
+        if (this.disposed) return null;
+        this.weaponModels.set(url, gltf);
+        return gltf;
+      })
+      .catch((err) => {
+        console.warn("[players] held weapon unavailable:", url, err);
+        return null;
+      })
+      .finally(() => this.weaponPending.delete(url));
+    this.weaponPending.set(url, p);
+    return p;
+  }
+
+  /** Take the gun off a figure. Materials are ours; geometry belongs to the shared glTF. */
+  _detachWeapon(entry) {
+    if (!entry || !entry.weapon) return;
+    if (entry.weapon.root.parent) entry.weapon.root.parent.remove(entry.weapon.root); // under the anchor, or under tilt
+    for (const mat of entry.weapon.materials) mat.dispose();
+    entry.weapon = null;
   }
 
   /**
@@ -753,6 +856,14 @@ export class SpectatorTable {
       }
     }
 
+    // What they are holding. Carried by publicPlayer on `hello`, `join`, `spawn` and
+    // `respawn`, so a spectator who connects mid-match sees the right gun rather than
+    // everyone's starting Enforcer.
+    if (player.weapon && player.weapon !== entry.weaponId) {
+      entry.weaponId = player.weapon;
+      this._dressWeapon(entry);
+    }
+
     if (player.name) {
       this._setLabel(entry, player.name);
     }
@@ -835,6 +946,10 @@ export class SpectatorTable {
       // Which character this player wears, filled in from the server's pick.
       modelUrl: null,
       skinUrls: [],
+      // The held weapon: which one the server says, which file that is, and the clone.
+      weaponId: null,
+      weaponUrl: null,
+      weapon: null,
       id,
       group,
       figure,
@@ -897,6 +1012,7 @@ export class SpectatorTable {
     // skeleton come from SkeletonUtils.clone and are shared with the
     // source glTF, so they are NOT disposed here — that would tear the
     // model out from under every other figure.
+    this._detachWeapon(entry);
     if (entry.skinned) {
       entry.skinned.mixer.stopAllAction();
       entry.skinned.mixer.uncacheRoot(entry.skinned.root);
@@ -1099,6 +1215,11 @@ export class SpectatorTable {
     }
     this.models.clear();
     this.modelPending.clear();
+    for (const gltf of this.weaponModels.values()) {
+      disposeModel(gltf.scene);
+    }
+    this.weaponModels.clear();
+    this.weaponPending.clear();
     if (this._skinTextures) {
       for (const tex of this._skinTextures.values()) tex.dispose();
       this._skinTextures.clear();

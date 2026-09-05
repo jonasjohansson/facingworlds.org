@@ -3,10 +3,12 @@
 // Every playable UT99 character extracted into assets/3d/characters, as one flat list
 // the server can index into and the client can turn into URLs.
 //
-// 8 models, 23 variants. Each model is one glTF with Idle/Walk/Run as
-// morph-target animations (UT99 characters are vertex-animated, not skinned) and one
-// material slot per skin texture. The slot count differs per model, so SKINS carries
-// the file list rather than a count.
+// 8 models, 23 variants. Each model is one glTF with six morph-target clips —
+// Idle, Walk, Run and the firing variants Fire, WalkFire, RunFire — because UT99
+// characters are vertex-animated rather than skinned, and one material slot per skin
+// texture. The slot count differs per model, so SKINS carries the file list rather than
+// a count. weaponOffsetM is where to move a third-person weapon so it sits in THIS
+// body's gun hand; see weaponOffset() below.
 //
 // The server assigns a variant per player and broadcasts the index, so every client
 // draws the same body for the same person. See server/characters.js.
@@ -17,6 +19,11 @@ const MODELS = {
   "boss": {
     "gltf": "boss.gltf",
     "yawDeg": 0,
+    "weaponOffsetM": [
+      0.140561,
+      1.211665,
+      -0.406817
+    ],
     "skins": {
       "xan": [
         "s0.png",
@@ -30,6 +37,11 @@ const MODELS = {
   "commando": {
     "gltf": "commando.gltf",
     "yawDeg": 0,
+    "weaponOffsetM": [
+      0.143033,
+      1.227756,
+      -0.396933
+    ],
     "skins": {
       "gorn": [
         "s0.png",
@@ -60,6 +72,11 @@ const MODELS = {
   "fcommando": {
     "gltf": "fcommando.gltf",
     "yawDeg": 0,
+    "weaponOffsetM": [
+      0.238517,
+      1.284427,
+      -0.578472
+    ],
     "skins": {
       "gromida": [
         "s0.png",
@@ -86,6 +103,11 @@ const MODELS = {
   "nali": {
     "gltf": "nali.gltf",
     "yawDeg": 0,
+    "weaponOffsetM": [
+      0.127587,
+      1.083865,
+      -0.19013
+    ],
     "skins": {
       "default": [
         "s0.png",
@@ -96,6 +118,11 @@ const MODELS = {
   "sgirl": {
     "gltf": "sgirl.gltf",
     "yawDeg": 0,
+    "weaponOffsetM": [
+      0.247101,
+      1.366322,
+      -0.613392
+    ],
     "skins": {
       "aryss": [
         "s0.png",
@@ -126,6 +153,11 @@ const MODELS = {
   "skaarj": {
     "gltf": "skaarj.gltf",
     "yawDeg": 0,
+    "weaponOffsetM": [
+      0.066158,
+      1.500697,
+      -0.244378
+    ],
     "skins": {
       "baetal": [
         "s0.png",
@@ -152,6 +184,11 @@ const MODELS = {
   "soldier": {
     "gltf": "soldier.gltf",
     "yawDeg": 0,
+    "weaponOffsetM": [
+      0.15611,
+      1.33702,
+      -0.433224
+    ],
     "skins": {
       "malcom": [
         "s0.png",
@@ -182,6 +219,11 @@ const MODELS = {
   "warcow": {
     "gltf": "warcow.gltf",
     "yawDeg": 0,
+    "weaponOffsetM": [
+      0.039626,
+      1.55622,
+      0.142283
+    ],
     "skins": {
       "default": [
         "s0.png",
@@ -235,4 +277,26 @@ function modelYaw(index) {
   return MODELS[v[0]].yawDeg || 0;
 }
 
-export { BASE, MODELS, VARIANTS, CHARACTER_COUNT, modelUrl, skinUrls, modelYaw };
+/**
+ * Where to put a third-person weapon on THIS body, in metres — the STATIC fallback.
+ *
+ * PREFER THE ANCHOR NODE. Every character glTF carries an empty node named "weaponAnchor",
+ * a sibling of the mesh node in the same space, and every clip animates its translation and
+ * its rotation. Parent the weapon to that and the gun follows the hand through the stride,
+ * which is what UE1 does — it draws a carried item at the pawn's weapon triangle with the
+ * triangle's own orientation, and the triangle is per-frame data.
+ *
+ * This is that node's BASE-POSE translation, for a renderer that cannot reach inside a
+ * loaded glTF. Right for a standing body; the hand moves 32-86 cm over a run cycle, so it
+ * is increasingly wrong the faster the body goes, and it carries no rotation at all.
+ *
+ * It is the FULL position: assets/3d/thirdperson carries no lift, so its origin is the
+ * weapon's own origin. Good to 5-9 cm on a humanoid, 25 cm on the Nali, 61 cm on the cow.
+ */
+function weaponOffset(index) {
+  const v = VARIANTS[index];
+  if (!v) return [0, 0, 0];
+  return MODELS[v[0]].weaponOffsetM || [0, 0, 0];
+}
+
+export { BASE, MODELS, VARIANTS, CHARACTER_COUNT, modelUrl, skinUrls, modelYaw, weaponOffset };

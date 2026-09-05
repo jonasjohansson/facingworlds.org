@@ -123,6 +123,44 @@ const WEAPONS = {
         "flashO": 0.02,
         "flashC": 0.035
       }
+    },
+    "third": {
+      "model": "assets/3d/thirdperson/enforcer/enforcer.gltf",
+      "sizeM": [
+        0.0658,
+        0.2103,
+        0.393
+      ],
+      "bboxM": {
+        "min": [
+          -0.0329,
+          -0.0776,
+          -0.3819
+        ],
+        "max": [
+          0.0329,
+          0.1328,
+          0.0112
+        ]
+      },
+      "anims": {
+        "fire": [
+          {
+            "clip": "Shoot",
+            "rate": 0.81
+          }
+        ],
+        "fireRepeat": {
+          "clip": "shot2",
+          "rate": 1
+        },
+        "fireLoops": false
+      },
+      "muzzleLocal": [
+        0.0004,
+        0.0672,
+        -0.3784
+      ]
     }
   },
   "sniper": {
@@ -237,6 +275,32 @@ const WEAPONS = {
         "flashO": 0.014,
         "flashC": 0.031
       }
+    },
+    "third": {
+      "model": "assets/3d/thirdperson/sniper/sniper.gltf",
+      "sizeM": [
+        0.0642,
+        0.3619,
+        1.7273
+      ],
+      "bboxM": {
+        "min": [
+          -0.0559,
+          -0.0987,
+          -1.2815
+        ],
+        "max": [
+          0.0082,
+          0.2632,
+          0.4458
+        ]
+      },
+      "anims": null,
+      "muzzleLocal": [
+        -0.0165,
+        0.1193,
+        -1.2815
+      ]
     }
   },
   "shock": {
@@ -327,6 +391,40 @@ const WEAPONS = {
         ]
       },
       "muzzleFlash": null
+    },
+    "third": {
+      "model": "assets/3d/thirdperson/shock/shock.gltf",
+      "sizeM": [
+        0.1234,
+        0.1716,
+        1.1879
+      ],
+      "bboxM": {
+        "min": [
+          -0.0858,
+          -0.0353,
+          -0.9682
+        ],
+        "max": [
+          0.0376,
+          0.1363,
+          0.2197
+        ]
+      },
+      "anims": {
+        "fire": [
+          {
+            "clip": "Fire1",
+            "rate": 0.6
+          }
+        ],
+        "fireLoops": true
+      },
+      "muzzleLocal": [
+        -0.0273,
+        0.0884,
+        -0.9682
+      ]
     }
   },
   "rocket": {
@@ -435,6 +533,32 @@ const WEAPONS = {
         ]
       },
       "muzzleFlash": null
+    },
+    "third": {
+      "model": "assets/3d/thirdperson/rocket/rocket.gltf",
+      "sizeM": [
+        0.4376,
+        0.3093,
+        1.3144
+      ],
+      "bboxM": {
+        "min": [
+          -0.227,
+          -0.0559,
+          -0.8636
+        ],
+        "max": [
+          0.2106,
+          0.2533,
+          0.4507
+        ]
+      },
+      "anims": null,
+      "muzzleLocal": [
+        -0.0187,
+        0.1382,
+        -0.8339
+      ]
     }
   },
   "ripper": {
@@ -534,6 +658,32 @@ const WEAPONS = {
         ]
       },
       "muzzleFlash": null
+    },
+    "third": {
+      "model": "assets/3d/thirdperson/ripper/ripper.gltf",
+      "sizeM": [
+        0.1492,
+        0.3995,
+        1.0822
+      ],
+      "bboxM": {
+        "min": [
+          -0.0799,
+          -0.0564,
+          -0.9353
+        ],
+        "max": [
+          0.0693,
+          0.3431,
+          0.1469
+        ]
+      },
+      "anims": null,
+      "muzzleLocal": [
+        -0.0088,
+        0.1575,
+        -0.9347
+      ]
     }
   },
   "redeemer": {
@@ -636,6 +786,32 @@ const WEAPONS = {
         ]
       },
       "muzzleFlash": null
+    },
+    "third": {
+      "model": "assets/3d/thirdperson/redeemer/redeemer.gltf",
+      "sizeM": [
+        0.4066,
+        0.4406,
+        1.1456
+      ],
+      "bboxM": {
+        "min": [
+          -0.1998,
+          -0.1328,
+          -0.9553
+        ],
+        "max": [
+          0.2068,
+          0.3079,
+          0.1904
+        ]
+      },
+      "anims": null,
+      "muzzleLocal": [
+        -0.0004,
+        0.1149,
+        -0.9553
+      ]
     }
   }
 };

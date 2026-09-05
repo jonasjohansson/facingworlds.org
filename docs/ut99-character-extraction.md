@@ -402,33 +402,77 @@ nudge onto the shared cylinder, not a reshaping. It is the **one** number in the
 that is not Epic's, and it is written into each glTF's `extras.heightFit` beside the mesh's
 own `extras.utHeightM` rather than hidden.
 
-### Which three sequences
+### Which six sequences, and why `Idle` is one frame
 
-The client binds clips by the names `Idle` / `Walk` / `Run`. Which UT99 sequence goes in
-each is read out of `Botpack.TournamentPlayer`'s UnrealScript, which the package ships:
+The client binds clips by name. Which UT99 sequence goes in each is read out of
+`Botpack.TournamentPlayer`'s UnrealScript, which the package ships:
 
-    PlayWalking()   LoopAnim(Weapon.Mass < 20 ? 'WalkSM' : 'WalkLG')
-    PlayRunning()   LoopAnim(Weapon.Mass < 20 ? 'RunSM'  : 'RunLG')
-    PlayFiring()    TweenAnim(Weapon.Mass < 20 ? 'StillSMFR' : 'StillFRRP')
-    PlayWaiting()   ... bPointing: TweenAnim(Weapon.Mass < 20 ? 'StillSMFR' : 'StillFRRP')
+    PlayWalking()    LoopAnim(Weapon.Mass < 20 ? 'WalkSM' : 'WalkLG')
+    PlayRunning()    LoopAnim(Weapon.Mass < 20 ? 'RunSM'  : 'RunLG')
+    PlayWaiting()    ... Weapon.bPointing: TweenAnim('StillSMFR', 0.3)
+    PlayFiring()     RunSM -> RunSMFR, WalkSM -> WalkSMFR, else TweenAnim('StillSMFR', 0.02)
+    PlayRecoil(Rate) AnimSequence == 'StillSmFr': PlayAnim('StillSmFr', Rate, 0.02)
 
-Everyone here spawns with the Enforcer and never puts it down, and its `Mass` is under 20,
-so the small-weapon variant is right everywhere: **`WalkSm`, `RunSm`, `StillSmFr`**.
+Everyone here spawns with the Enforcer and never puts it down, and its `Mass` is 15, so the
+small-weapon variant is right everywhere and the `LG`/`FrRp` family is not shipped at all.
 `PlayWeaponSwitch` confirms the pairing from the other side — it rewrites `StillSMFR` to
 `StillFRRP` and back as the carried weapon crosses `Mass` 20. `StillSmFr` is the *armed*
-idle, a pawn standing with its gun up; `PlayWaiting`'s other branch
-(`Breath1`/`Breath2`/`CockGun`) is the unarmed fidget. The old files used `StillFrRp` on the
-humans and `StillLgFr` on the Skaarj, which are the heavy-weapon idles: right family, wrong
-weight.
+idle; `PlayWaiting`'s other branch (`Breath1`/`Breath2`/`CockGun`) is the unarmed fidget.
+The pre-2026 files used `StillFrRp` on the humans and `StillLgFr` on the Skaarj, which are
+the heavy-weapon idles: right family, wrong weight.
 
-All eight meshes carry all three names, so there is no fallback. One oddity is Epic's and
-is passed through: `TCowMesh`'s `WalkSm` and `RunSm` are the **same** sixteen frames
-(250–265) at 15 and 27 fps, so the cow runs by walking faster.
+| clip | UT99 sequence | played by |
+| --- | --- | --- |
+| `Idle` | `StillSmFr` frame 0 | `PlayWaiting` / `PlayFiring`, **held** |
+| `Walk` | `WalkSm` | `PlayWalking` |
+| `Run` | `RunSm` | `PlayRunning` |
+| `Fire` | `StillSmFr`, in full | `PlayRecoil`, once per shot |
+| `WalkFire` | `WalkSmFr` | `PlayFiring` while walking |
+| `RunFire` | `RunSmFr` | `PlayFiring` while running |
+
+**`TweenAnim` does not play a sequence.** It blends to that sequence's *first* frame over
+its `time` argument and stops there with `AnimRate` 0. So a standing UT99 pawn holding a gun
+is frame 0 of `StillSmFr`, motionless, and the frames after it are the **recoil** — the only
+thing that ever plays them is `PlayRecoil`, one shot at a time.
+
+An earlier build of `build-ut-characters.mjs` emitted `Idle` as the whole of `StillSmFr` on
+a **loop**, so every standing avatar in the game twitched through a recoil forever, eight
+frames a second, with nothing firing. `Idle` is now a one-keyframe clip (plus the duplicate
+key every one-frame clip here gets, because a sampler with a single key has zero duration
+and some importers reject it) and the recoil is `Fire`. `Idle`'s frame *is* the base frame,
+so all six clips share a base pose and blending between any two of them is blending between
+poses of the same body.
+
+All eight meshes carry all six names, so there is no fallback. Three oddities are Epic's and
+are passed through unchanged:
+
+* `tnalimesh`'s `StillSmFr` is a **single frame**, so a firing Nali does not recoil.
+* `TCowMesh`'s `WalkSmFr`/`RunSmFr` are the **same** sixteen frames (250–265) as its
+  `WalkSm`/`RunSm`, and those two are each other at 15 and 27 fps. Four clips, one
+  animation: the cow runs by walking faster and fires by not noticing.
+* `TSkM`'s `WalkLg` is its `WalkSm`, which costs nothing here because no `LG` clip ships.
+
+Per model, what comes out — frame counts and the `.bin` each ends up at:
+
+| model | mesh | Idle | Walk | Run | Fire | WalkFire | RunFire | targets | bin |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| soldier | Soldier | 1 | 15 @18 | 10 @17 | 8 @15 | 15 @18 | 10 @17 | 57 | 364K |
+| commando | Commando | 1 | 15 @18 | 10 @17 | 8 @15 | 15 @18 | 10 @17 | 57 | 353K |
+| fcommando | FCommando | 1 | 15 @18 | 10 @17 | 8 @15 | 15 @18 | 10 @17 | 57 | 388K |
+| sgirl | SGirl | 1 | 15 @18 | 10 @17 | 8 @15 | 15 @18 | 10 @17 | 57 | 367K |
+| boss | Boss | 1 | 15 @18 | 10 @17 | 8 @15 | 15 @18 | 10 @17 | 57 | 325K |
+| skaarj | TSkM | 1 | 14 @18 | 10 @17 | 8 @15 | 14 @18 | 10 @17 | 55 | 488K |
+| nali | tnalimesh | 1 | 20 @15 | 10 @18 | **1** @30 | 20 @15 | 10 @18 | 60 | 348K |
+| warcow | TCowMesh | 1 | 16 @15 | 16 @27 | **12** @17 | 16 @15 | 16 @27 | 27 | 207K |
+
+The three firing clips roughly doubled the morph targets and the `.bin` files with them
+(the Skaarj's 707 wedges put it at 488K, the largest). The cow is the cheapest because four
+of its six clips are the same sixteen frames.
 
 Clips are emitted the way the weapons are — one morph target per unique frame, base = the
 `Idle` clip's first frame with no target of its own, one-hot weights, **`LINEAR`** because
 UE1 tweens between frames (the old files used `STEP`, which judders a ten-frame run cycle),
-and one extra wrap keyframe on a loop.
+and one extra wrap keyframe on a loop. `Fire` does not wrap: it is one-shot.
 
 ### Skins are not re-extracted, and the slot mapping is checked
 
@@ -585,3 +629,225 @@ The ring's side and top panels come up **empty**, and that is the check rather t
 degenerate. Anything drawn there would mean the pitch-90 `RotOrigin` had not been applied.
 `--at=8` poses it at the last frame of `Explo`, where it is 4.71 m across against 0.37 m at
 frame 0 — the base pose is the *small* ring, so all-zero morph weights are the start.
+
+## Third-person weapons
+
+The gun in somebody **else's** hands. UT99 ships two models per weapon and they are not
+interchangeable — `Engine.Inventory`:
+
+    var() mesh  PlayerViewMesh;     var() float PlayerViewScale;    // yours
+    var() mesh  ThirdPersonMesh;    var() float ThirdPersonScale;   // everyone else's
+
+The view mesh is a gun and a forearm framed for a camera 8 cm away, drawn through UE1's own
+view projection; the six of them are 0.12–0.20 m across (see **View weapons** above). Putting
+one in a remote avatar's hand would be putting a 12 cm toy there. The third-person mesh is
+the same weapon authored at **world** scale with a whole arm on it. `Inventory`'s replication
+block names exactly `ThirdPersonMesh` and `ThirdPersonScale`, `BecomeItem` sets
+`bCarriedItem = true`, and UE1 draws the carried item on the **owner pawn's** `Location` and
+`Rotation` — `Location` being the *centre* of the collision cylinder, so the mesh's own
+`Origin`, `RotOrigin` and `Scale` are the entire placement.
+
+`scripts/build-ut-thirdperson.mjs` extracts all six into `assets/3d/thirdperson/<id>/`.
+
+### It is the characters' transform, unchanged
+
+That is the point of doing it in a script rather than by eye in the client: the gun and the
+body have to land in the same frame. Same three steps as **The rule, which is the weapons'
+rule unchanged** above — `(V - Mesh.Origin) × Mesh.Scale`, then the **transpose** of
+`FRotationMatrix(RotOrigin)`, then UT (x fwd, y right, z up) → world (x right, y up, z back)
+— times `UU_TO_M × ThirdPersonScale`. `ThirdPersonScale` is 1 on all six and is *read*,
+because an unset property reports 0 and would collapse a weapon to a point.
+
+`Mesh.Origin` is not inert here the way it is on a view mesh. `AutoHand`'s is
+`(0, 250, -60)` and `RifleHand`'s `(15, 170, -30)`, and it is what puts the gun at the end
+of an arm instead of inside the pawn's chest.
+
+| weapon | mesh | wedges | size (m) | box centre (m) | bin |
+| --- | --- | --- | --- | --- | --- |
+| enforcer | `AutoHand` | 149 | 0.066 × 0.210 × 0.393 | 0.000, 0.944, −0.185 | 14K |
+| sniper | `RifleHand` | 331 | 0.064 × 0.362 × **1.727** | −0.024, 0.999, −0.418 | 8K |
+| shock | `ASMD2hand` | 294 | 0.123 × 0.172 × 1.188 | −0.024, 0.967, −0.374 | 38K |
+| rocket | `EightHand` | 142 | 0.438 × 0.309 × 1.314 | −0.008, 1.015, −0.206 | 3K |
+| ripper | `Razor3rd2` | 156 | 0.149 × 0.400 × 1.082 | −0.005, 1.060, −0.394 | 4K |
+| redeemer | `WHHand` | 371 | 0.407 × 0.441 × 1.146 | 0.004, 1.004, −0.382 | 10K |
+
+Every one is longest along **Z**, which is the barrel, and that is enforced rather than
+reported: a turned gun in a remote avatar's hand is the third-person version of the bug that
+had six of eight bodies running backwards. Every box centre is within 3 cm of the body's
+centre line, 0.94–1.06 m off the floor, and 0.19–0.42 m forward of it.
+
+`RifleHand` really is **1.727 m** from muzzle to elbow. Epic authored the third-person meshes
+big — the `SniperRifle` *pickup* mesh in this same repo is 1.15 m of gun with no arm at all —
+so `server/test/thirdperson.test.mjs` allows up to 1.8 m rather than the 1.6 the other five
+would fit in.
+
+### The anchor: Epic's weapon triangle, per frame
+
+After the transform both a body and a gun are in **actor** space, where y = 0 is the middle
+of the collision cylinder — and that is not where a hand is. The first version of this
+script lifted the weapon onto the nominal pawn (39 UU × `UU_TO_M` = 0.9165 m) and stopped
+there, which left it at the pawn's **actor origin**: drawn against the Soldier, **42 cm
+below and 43 cm behind his fist**, down at the hip where the hand hangs when the arm is
+*down*. Tracking the Soldier's own fist vertices across all 700 frames of his mesh, the
+poses whose fist sits at that spot are `Look`, `LookL` and `Dead4`.
+
+**Epic's answer is in the pawn mesh.** Every UT99 player mesh carries three *special*
+vertices ahead of its geometry — `scripts/lib/umesh.mjs` reports `specialVerts` = 3 on all
+eight bodies and 0 on every one of these weapons. No wedge and no face references them,
+because they are not geometry: they are the weapon attachment. UE1 draws a carried item **at
+that triangle, with that triangle's orientation**. Put through the same transform as the
+body they bracket the gun hand — V0 about a hand above the fist, V2 the same below it, V1
+out along the aim:
+
+    soldier   V0 (0.140, 1.528, -0.433)   V1-V0 (-0.018, -0.006, -0.645)   V2-V0 (0.031, -0.382, 0.000)
+
+Grip-to-fist distance, measured against each body's own forward-most upper-body cluster, for
+every rule that was tried:
+
+| rule | soldier | commando | boss | fcommando | sgirl | skaarj |
+| --- | --- | --- | --- | --- | --- | --- |
+| actor origin (what shipped first) | 56.4 | 49.5 | 51.1 | 71.0 | 74.7 | 72.1 |
+| V0 alone | 15.6 | 15.7 | 12.4 | 13.2 | 13.9 | 12.0 |
+| **V0–V2 midpoint** | **5.4** | **4.8** | **5.6** | 7.8 | 8.6 | 7.1 |
+
+`(V*S − O)` was 5.4 **m** out (the Origin is in raw vertex units, so subtracting it after the
+scale throws the gun across the room), Origin-ignored 65–90 cm, `(V+O)*S` 80–105 cm, and
+also applying the *pawn's* own `Mesh.Origin` made every one of them worse.
+
+**And it moves.** The triangle is per-frame data, so the anchor is not a number on the model
+— it is a track. Over one `Run` cycle the hand travels:
+
+| model | swing | | model | swing |
+| --- | --- | --- | --- | --- |
+| soldier | 85.5 cm | | fcommando | 59.5 cm |
+| commando | 78.3 cm | | nali | 58.4 cm |
+| boss | 78.3 cm | | warcow | 44.4 cm |
+| sgirl | 62.9 cm | | skaarj | 31.7 cm |
+
+A weapon pinned to the base pose would float most of a metre from a sprinting body.
+
+#### What each character glTF carries
+
+A root-level empty node named **`weaponAnchor`** — a *sibling* of the mesh node, so its local
+transform is already in the body's own space and there is nothing for a client to compose:
+
+    scenes[0].nodes  [0, 1]
+    nodes[0]         { mesh: 0, name: <UT mesh name> }
+    nodes[1]         { name: "weaponAnchor", translation: [x,y,z], rotation: [x,y,z,w] }
+
+and on **every** clip (`Idle`, `Walk`, `Run`, `Fire`, `WalkFire`, `RunFire`) three channels:
+
+    channels[0]  sampler 0 -> node 0, "weights"       (the morph pose; FIRST, on purpose)
+    channels[1]  sampler 1 -> node 1, "translation"   VEC3
+    channels[2]  sampler 2 -> node 1, "rotation"      VEC4, glTF order [x, y, z, w]
+
+All three samplers share one `input` accessor, so key *i* of the anchor is the hand in key
+*i* of the pose, wrap key included. All are `LINEAR`. The node's own `translation`/`rotation`
+are the base pose's, so a model shown with no clip playing still holds its weapon correctly.
+
+The rotation is built basis-first rather than from Euler angles: `z = -forward`,
+`x = normalise(up × z)`, `y = z × x`, with `forward = V1 - V0` and `up = V0 - V2`, and the
+quaternion comes off that matrix by Shepperd's method. `z = -forward` because the weapon
+geometry points **−Z**, so its +Z is backwards. Adjacent keys are kept in the same
+hemisphere (`dot ≥ 0`): *q* and *−q* are the same rotation, but a LINEAR sampler interpolates
+*components*, and a sign flip between keys is a hand spinning 300° in one frame. On a body
+standing square the base quaternion comes out as the identity — the Soldier's is
+`(-0.004, 0.014, 0.041, 0.999)` — which is the check that the basis was built the right way
+round.
+
+`extras.weaponAnchorM`, `extras.weaponAnchorQuat` and `extras.specialVertsM` record the base
+pose, and the generated `src/shared/characters.js` carries `MODELS[m].weaponOffsetM` /
+`weaponOffset(index)` — **the static fallback**, that node's base-pose translation, for a
+renderer that cannot parent to a node inside a loaded glTF. It has no rotation and it is
+right only for a standing body.
+
+| model | base anchor (m) | | model | base anchor (m) |
+| --- | --- | --- | --- | --- |
+| soldier | 0.156, 1.337, −0.433 | | fcommando | 0.239, 1.284, −0.578 |
+| commando | 0.143, 1.228, −0.397 | | sgirl | 0.247, 1.366, −0.613 |
+| boss | 0.141, 1.212, −0.407 | | skaarj | 0.066, 1.501, −0.244 |
+| nali | 0.128, 1.084, −0.190 | | warcow | 0.040, 1.556, 0.142 |
+
+Two honest caveats. The Nali comes out 25 cm off its fist and the cow 61 cm, and neither is
+a surprise: a Nali has four arms and a cow has none, so there is no fist for an anchor to
+agree with. And the anchor is Epic's attachment triangle, not a fitted number — 5–9 cm on a
+humanoid is as close as it gets.
+
+#### The weapons carry no lift
+
+Because the anchor supplies the whole placement, the third-person glTFs are the weapon's own
+actor-frame geometry **about its own origin**, with the nominal lift removed:
+
+    world = anchor.translation + anchor.rotation * vertex
+
+which is UE1's own composition. Box centres are now 0.03–0.14 m from the origin instead of
+0.92 m above the floor, and `third.bboxM` / `third.muzzleLocal` in the weapon table moved
+down by 0.9165 m with them. `third.sizeM` and the geometry itself are unchanged.
+
+### Which animations, and what plays them
+
+Two of the six third-person meshes move at all. Every one carries an `All` sequence (UE1's
+catch-all span over every frame) and five carry a one-frame `Still`; those two names are the
+resting pose, not animation, so they are not emitted as clips. What is left:
+
+    AutoHand    Shoot  frames 1-6 @ 30      shot2  frames 1-6 @ 30
+    ASMD2hand   Fire1  frames 1-9 @ 24      Fire2  frames 1-9 @ 24
+
+`RifleHand`, `EightHand`, `Razor3rd2` and `WHHand` are a single frame each, so their `anims`
+is **`null`** rather than an empty object — a UT99 sniper rifle does not move in anyone
+else's hands, and a client should get one answer rather than something to interrogate.
+
+What plays them is not a second set of rules. A weapon actor has **one** `AnimSequence`, and
+UE1 plays it on whichever mesh that actor is drawing: your `PlayerViewMesh` for you, its
+`ThirdPersonMesh` for everyone else. So `enforcer.PlayFiring`'s
+`PlayAnim('Shoot', 0.5 + 0.31 * FireAdjust)` is what onlookers see on `AutoHand`, at the same
+multiplier, because the two meshes name their sequences the same way. The multipliers are
+therefore taken from `scripts/data/ut-viewmodels.json` **by clip name** rather than restated:
+one place holds "what UnrealScript passes to `PlayAnim`", and a name that stops matching is a
+build error instead of two files quietly drifting apart.
+
+`ASMD2hand`'s `Fire2` has no name in that plan — `ShockRifle.PlayFiring` only ever plays
+`Fire1` — so it is written into the glTF and left out of `anims`. It exists; nothing plays
+it. Inventing a rate for it is how the Redeemer once got an idle animation it never had.
+
+The gun does not carry the recoil — the **body** does. See **Which six sequences** above:
+`PlayRecoil` plays `StillSmFr` on the pawn and `PlayFiring` swaps `RunSm`→`RunSmFr` and
+`WalkSm`→`WalkSmFr`. A firing avatar is a pawn clip plus, on two of six weapons, a gun clip.
+
+### What the weapon table carries
+
+`scripts/gen-weapons.mjs` attaches a `third` block to each weapon in `src/shared/weapons.js`,
+and — like `view` — `server/weapons.js` omits it, because the server never draws anything:
+
+    third: {
+      model:       "assets/3d/thirdperson/<id>/<id>.gltf",
+      sizeM, bboxM,
+      anims:       { fire: [{ clip, rate }], fireRepeat?, fireLoops } | null,
+      muzzleLocal: [x, y, z],   // barrel tip, the frontmost 6% of the mesh averaged
+    }
+
+### Looking at it afterwards
+
+    node scripts/build-ut-characters.mjs      # needs a retail install; run this FIRST
+    node scripts/build-ut-thirdperson.mjs     # needs a retail install and the bodies' extras
+    node scripts/gen-characters.mjs           # picks up weaponOffsetM
+    node scripts/gen-weapons.mjs              # attaches `third`
+    node scripts/render-thirdperson.mjs out.png
+    node --test server/test/thirdperson.test.mjs server/test/characters.test.mjs
+
+The order matters once: `build-ut-thirdperson.mjs` reads `extras.feetLiftM` off the committed
+character glTFs to compute the residual, and refuses to run if a body has not been rebuilt
+with it.
+
+`render-thirdperson.mjs` needs no retail install — it draws the **committed** glTFs, a grey
+body with an orange gun parented through the body's own `weaponAnchor` node, read out of the
+file by name exactly as a client would. One column per weapon, one row per pose per view.
+
+`--views=side` looks down +X, so the rig's forward (−Z) is to the **right**: every barrel
+must point right and sit in the hand the silhouette is holding out. `--views=front` looks
+down +Z from in front of the pawn, where a correctly placed weapon is a short foreshortened
+stub, because you are looking down the barrel. `--poses=Idle@0,Run@0.25,Run@0.5,Run@0.75,Fire@0.5`
+is the one that matters: the gun has to stay welded to the hand as the arm swings back and
+down through the stride and kicks up on the recoil. `--model=skaarj` swaps the body; `--raw`
+ignores the anchor and draws each weapon on its own origin, which puts them all in a heap at
+the pawn's feet — a useful reminder of how much of the placement the anchor is doing.

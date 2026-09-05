@@ -23,6 +23,37 @@
   "standingHeightM": 1.83,
   "utHeightM": 1.8802,
   "heightFit": 0.973282,
+  "feetLiftM": 0.988488,
+  "weaponAnchorM": [
+   0.039626,
+   1.55622,
+   0.142283
+  ],
+  "weaponAnchorQuat": [
+   0.114198,
+   0.049674,
+   -0.021031,
+   0.991992
+  ],
+  "weaponAnchorNode": "weaponAnchor",
+  "specialVertsM": [
+   [
+    0.047551,
+    1.734898,
+    0.165997
+   ],
+   [
+    -0.011528,
+    1.878992,
+    -0.444634
+   ],
+   [
+    0.031701,
+    1.377543,
+    0.118569
+   ]
+  ],
+  "weaponAnchorNote": "The node named weaponAnchor carries this as its rest transform AND a translation + rotation track on every clip, keyed against that clip's weights. UE1 draws a carried item at the pawn's weapon triangle with the triangle's own orientation, and the triangle is per-frame data, so the hand swings with the arm.",
   "runHeadingDeg": 1.91,
   "feetDipM": 0.011528,
   "feetOffsetUU": [
@@ -35,16 +66,19 @@
     "clip": "Idle",
     "sequence": "StillSmFr",
     "startFrame": 122,
-    "numFrames": 12,
+    "numFrames": 1,
+    "sequenceFrames": 12,
     "fps": 17,
-    "seconds": 0.7059,
-    "loop": true
+    "seconds": 0.0588,
+    "loop": false,
+    "hold": true
    },
    {
     "clip": "Walk",
     "sequence": "WalkSm",
     "startFrame": 250,
     "numFrames": 16,
+    "sequenceFrames": 16,
     "fps": 15,
     "seconds": 1.0667,
     "loop": true
@@ -54,6 +88,37 @@
     "sequence": "RunSm",
     "startFrame": 250,
     "numFrames": 16,
+    "sequenceFrames": 16,
+    "fps": 27,
+    "seconds": 0.5926,
+    "loop": true
+   },
+   {
+    "clip": "Fire",
+    "sequence": "StillSmFr",
+    "startFrame": 122,
+    "numFrames": 12,
+    "sequenceFrames": 12,
+    "fps": 17,
+    "seconds": 0.7059,
+    "loop": false
+   },
+   {
+    "clip": "WalkFire",
+    "sequence": "WalkSmFr",
+    "startFrame": 250,
+    "numFrames": 16,
+    "sequenceFrames": 16,
+    "fps": 15,
+    "seconds": 1.0667,
+    "loop": true
+   },
+   {
+    "clip": "RunFire",
+    "sequence": "RunSmFr",
+    "startFrame": 250,
+    "numFrames": 16,
+    "sequenceFrames": 16,
     "fps": 27,
     "seconds": 0.5926,
     "loop": true
@@ -64,7 +129,8 @@
  "scenes": [
   {
    "nodes": [
-    0
+    0,
+    1
    ]
   }
  ],
@@ -72,6 +138,20 @@
   {
    "mesh": 0,
    "name": "TCowMesh"
+  },
+  {
+   "name": "weaponAnchor",
+   "translation": [
+    0.039626,
+    1.55622,
+    0.142283
+   ],
+   "rotation": [
+    0.114198,
+    0.049674,
+    -0.021031,
+    0.991992
+   ]
   }
  ],
  "meshes": [
@@ -925,23 +1005,45 @@
   {
    "bufferView": 32,
    "componentType": 5126,
-   "count": 13,
+   "count": 2,
    "type": "SCALAR",
    "min": [
     0
    ],
    "max": [
-    0.7058823529411765
+    0.058823529411764705
    ]
   },
   {
    "bufferView": 33,
    "componentType": 5126,
-   "count": 351,
+   "count": 54,
    "type": "SCALAR"
   },
   {
    "bufferView": 34,
+   "componentType": 5126,
+   "count": 2,
+   "type": "VEC3",
+   "min": [
+    0.039625984251968505,
+    1.5562204724409447,
+    0.14228301602540894
+   ],
+   "max": [
+    0.039625984251968505,
+    1.5562204724409447,
+    0.14228301602540894
+   ]
+  },
+  {
+   "bufferView": 35,
+   "componentType": 5126,
+   "count": 2,
+   "type": "VEC4"
+  },
+  {
+   "bufferView": 36,
    "componentType": 5126,
    "count": 17,
    "type": "SCALAR",
@@ -953,13 +1055,35 @@
    ]
   },
   {
-   "bufferView": 35,
+   "bufferView": 37,
    "componentType": 5126,
    "count": 459,
    "type": "SCALAR"
   },
   {
-   "bufferView": 36,
+   "bufferView": 38,
+   "componentType": 5126,
+   "count": 17,
+   "type": "VEC3",
+   "min": [
+    -0.2139803149606299,
+    1.6196220472440945,
+    -0.05533228400988126
+   ],
+   "max": [
+    0.22983070866141733,
+    1.683023622047244,
+    -0.05533228400988126
+   ]
+  },
+  {
+   "bufferView": 39,
+   "componentType": 5126,
+   "count": 17,
+   "type": "VEC4"
+  },
+  {
+   "bufferView": 40,
    "componentType": 5126,
    "count": 17,
    "type": "SCALAR",
@@ -971,10 +1095,152 @@
    ]
   },
   {
-   "bufferView": 37,
+   "bufferView": 41,
    "componentType": 5126,
    "count": 459,
    "type": "SCALAR"
+  },
+  {
+   "bufferView": 42,
+   "componentType": 5126,
+   "count": 17,
+   "type": "VEC3",
+   "min": [
+    -0.2139803149606299,
+    1.6196220472440945,
+    -0.05533228400988126
+   ],
+   "max": [
+    0.22983070866141733,
+    1.683023622047244,
+    -0.05533228400988126
+   ]
+  },
+  {
+   "bufferView": 43,
+   "componentType": 5126,
+   "count": 17,
+   "type": "VEC4"
+  },
+  {
+   "bufferView": 44,
+   "componentType": 5126,
+   "count": 12,
+   "type": "SCALAR",
+   "min": [
+    0
+   ],
+   "max": [
+    0.6470588235294118
+   ]
+  },
+  {
+   "bufferView": 45,
+   "componentType": 5126,
+   "count": 324,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 46,
+   "componentType": 5126,
+   "count": 12,
+   "type": "VEC3",
+   "min": [
+    -0.0072047244094488195,
+    1.500023622047244,
+    -0.06175478126102819
+   ],
+   "max": [
+    0.06988582677165354,
+    1.7089606299212599,
+    0.17340742578096716
+   ]
+  },
+  {
+   "bufferView": 47,
+   "componentType": 5126,
+   "count": 12,
+   "type": "VEC4"
+  },
+  {
+   "bufferView": 48,
+   "componentType": 5126,
+   "count": 17,
+   "type": "SCALAR",
+   "min": [
+    0
+   ],
+   "max": [
+    1.0666666666666667
+   ]
+  },
+  {
+   "bufferView": 49,
+   "componentType": 5126,
+   "count": 459,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 50,
+   "componentType": 5126,
+   "count": 17,
+   "type": "VEC3",
+   "min": [
+    -0.2139803149606299,
+    1.6196220472440945,
+    -0.05533228400988126
+   ],
+   "max": [
+    0.22983070866141733,
+    1.683023622047244,
+    -0.05533228400988126
+   ]
+  },
+  {
+   "bufferView": 51,
+   "componentType": 5126,
+   "count": 17,
+   "type": "VEC4"
+  },
+  {
+   "bufferView": 52,
+   "componentType": 5126,
+   "count": 17,
+   "type": "SCALAR",
+   "min": [
+    0
+   ],
+   "max": [
+    0.5925925925925926
+   ]
+  },
+  {
+   "bufferView": 53,
+   "componentType": 5126,
+   "count": 459,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 54,
+   "componentType": 5126,
+   "count": 17,
+   "type": "VEC3",
+   "min": [
+    -0.2139803149606299,
+    1.6196220472440945,
+    -0.05533228400988126
+   ],
+   "max": [
+    0.22983070866141733,
+    1.683023622047244,
+    -0.05533228400988126
+   ]
+  },
+  {
+   "bufferView": 55,
+   "componentType": 5126,
+   "count": 17,
+   "type": "VEC4"
   }
  ],
  "bufferViews": [
@@ -1173,38 +1439,128 @@
   {
    "buffer": 0,
    "byteOffset": 202728,
-   "byteLength": 52
+   "byteLength": 8
   },
   {
    "buffer": 0,
-   "byteOffset": 202780,
-   "byteLength": 1404
+   "byteOffset": 202736,
+   "byteLength": 216
   },
   {
    "buffer": 0,
-   "byteOffset": 204184,
+   "byteOffset": 202952,
+   "byteLength": 24
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 202976,
+   "byteLength": 32
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 203008,
    "byteLength": 68
   },
   {
    "buffer": 0,
-   "byteOffset": 204252,
+   "byteOffset": 203076,
    "byteLength": 1836
   },
   {
    "buffer": 0,
-   "byteOffset": 206088,
+   "byteOffset": 204912,
+   "byteLength": 204
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 205116,
+   "byteLength": 272
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 205388,
    "byteLength": 68
   },
   {
    "buffer": 0,
-   "byteOffset": 206156,
+   "byteOffset": 205456,
    "byteLength": 1836
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 207292,
+   "byteLength": 204
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 207496,
+   "byteLength": 272
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 207768,
+   "byteLength": 48
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 207816,
+   "byteLength": 1296
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 209112,
+   "byteLength": 144
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 209256,
+   "byteLength": 192
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 209448,
+   "byteLength": 68
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 209516,
+   "byteLength": 1836
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 211352,
+   "byteLength": 204
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 211556,
+   "byteLength": 272
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 211828,
+   "byteLength": 68
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 211896,
+   "byteLength": 1836
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 213732,
+   "byteLength": 204
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 213936,
+   "byteLength": 272
   }
  ],
  "buffers": [
   {
    "uri": "warcow.bin",
-   "byteLength": 207992
+   "byteLength": 214208
   }
  ],
  "animations": [
@@ -1215,23 +1571,14 @@
      "input": 32,
      "output": 33,
      "interpolation": "LINEAR"
-    }
-   ],
-   "channels": [
+    },
     {
-     "sampler": 0,
-     "target": {
-      "node": 0,
-      "path": "weights"
-     }
-    }
-   ]
-  },
-  {
-   "name": "Walk",
-   "samplers": [
+     "input": 32,
+     "output": 34,
+     "interpolation": "LINEAR"
+    },
     {
-     "input": 34,
+     "input": 32,
      "output": 35,
      "interpolation": "LINEAR"
     }
@@ -1243,15 +1590,39 @@
       "node": 0,
       "path": "weights"
      }
+    },
+    {
+     "sampler": 1,
+     "target": {
+      "node": 1,
+      "path": "translation"
+     }
+    },
+    {
+     "sampler": 2,
+     "target": {
+      "node": 1,
+      "path": "rotation"
+     }
     }
    ]
   },
   {
-   "name": "Run",
+   "name": "Walk",
    "samplers": [
     {
      "input": 36,
      "output": 37,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 36,
+     "output": 38,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 36,
+     "output": 39,
      "interpolation": "LINEAR"
     }
    ],
@@ -1261,6 +1632,192 @@
      "target": {
       "node": 0,
       "path": "weights"
+     }
+    },
+    {
+     "sampler": 1,
+     "target": {
+      "node": 1,
+      "path": "translation"
+     }
+    },
+    {
+     "sampler": 2,
+     "target": {
+      "node": 1,
+      "path": "rotation"
+     }
+    }
+   ]
+  },
+  {
+   "name": "Run",
+   "samplers": [
+    {
+     "input": 40,
+     "output": 41,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 40,
+     "output": 42,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 40,
+     "output": 43,
+     "interpolation": "LINEAR"
+    }
+   ],
+   "channels": [
+    {
+     "sampler": 0,
+     "target": {
+      "node": 0,
+      "path": "weights"
+     }
+    },
+    {
+     "sampler": 1,
+     "target": {
+      "node": 1,
+      "path": "translation"
+     }
+    },
+    {
+     "sampler": 2,
+     "target": {
+      "node": 1,
+      "path": "rotation"
+     }
+    }
+   ]
+  },
+  {
+   "name": "Fire",
+   "samplers": [
+    {
+     "input": 44,
+     "output": 45,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 44,
+     "output": 46,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 44,
+     "output": 47,
+     "interpolation": "LINEAR"
+    }
+   ],
+   "channels": [
+    {
+     "sampler": 0,
+     "target": {
+      "node": 0,
+      "path": "weights"
+     }
+    },
+    {
+     "sampler": 1,
+     "target": {
+      "node": 1,
+      "path": "translation"
+     }
+    },
+    {
+     "sampler": 2,
+     "target": {
+      "node": 1,
+      "path": "rotation"
+     }
+    }
+   ]
+  },
+  {
+   "name": "WalkFire",
+   "samplers": [
+    {
+     "input": 48,
+     "output": 49,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 48,
+     "output": 50,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 48,
+     "output": 51,
+     "interpolation": "LINEAR"
+    }
+   ],
+   "channels": [
+    {
+     "sampler": 0,
+     "target": {
+      "node": 0,
+      "path": "weights"
+     }
+    },
+    {
+     "sampler": 1,
+     "target": {
+      "node": 1,
+      "path": "translation"
+     }
+    },
+    {
+     "sampler": 2,
+     "target": {
+      "node": 1,
+      "path": "rotation"
+     }
+    }
+   ]
+  },
+  {
+   "name": "RunFire",
+   "samplers": [
+    {
+     "input": 52,
+     "output": 53,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 52,
+     "output": 54,
+     "interpolation": "LINEAR"
+    },
+    {
+     "input": 52,
+     "output": 55,
+     "interpolation": "LINEAR"
+    }
+   ],
+   "channels": [
+    {
+     "sampler": 0,
+     "target": {
+      "node": 0,
+      "path": "weights"
+     }
+    },
+    {
+     "sampler": 1,
+     "target": {
+      "node": 1,
+      "path": "translation"
+     }
+    },
+    {
+     "sampler": 2,
+     "target": {
+      "node": 1,
+      "path": "rotation"
      }
     }
    ]

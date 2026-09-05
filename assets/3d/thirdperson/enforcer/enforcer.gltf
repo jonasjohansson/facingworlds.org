@@ -1,0 +1,417 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "build-ut-thirdperson.mjs"
+ },
+ "extras": {
+  "utMesh": "AutoHand",
+  "utPackage": "BotPack.u",
+  "utClass": "enforcer",
+  "thirdPersonScale": 1,
+  "baseSequence": "Still",
+  "baseFrame": 0,
+  "worldFrame": "forward -Z, up +Y, right +X; lifted onto a 39 UU pawn; RotOrigin baked in",
+  "epicRotOriginDeg": [
+   0,
+   90,
+   0
+  ],
+  "meshOriginUU": [
+   0,
+   250,
+   -60
+  ],
+  "orientationNote": "Vertices are mesh-frame, so they reach the actor frame through the TRANSPOSE of UE1's FRotationMatrix(RotOrigin), with Mesh.Origin subtracted before Mesh.Scale — the character pipeline's rule, unchanged, so the gun and the body land in one frame.",
+  "collisionHeightUU": 39,
+  "placementNote": "NOT lifted. These vertices are the weapon's own actor-frame geometry about its own origin, because UE1 draws a carried item at the owner pawn's weapon triangle with that triangle's orientation: world = anchor.translation + anchor.rotation * vertex. The anchor is the node named weaponAnchor in each character glTF, animated on every clip; its base-pose translation is also in ut-thirdperson.json as a static fallback.",
+  "clips": [
+   {
+    "clip": "Shoot",
+    "startFrame": 1,
+    "numFrames": 6,
+    "fps": 30,
+    "seconds": 0.2
+   },
+   {
+    "clip": "shot2",
+    "startFrame": 1,
+    "numFrames": 6,
+    "fps": 30,
+    "seconds": 0.2
+   }
+  ]
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0,
+   "name": "enforcer"
+  }
+ ],
+ "meshes": [
+  {
+   "name": "enforcer",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "TEXCOORD_0": 1
+     },
+     "indices": 8,
+     "material": 0,
+     "targets": [
+      {
+       "POSITION": 2
+      },
+      {
+       "POSITION": 3
+      },
+      {
+       "POSITION": 4
+      },
+      {
+       "POSITION": 5
+      },
+      {
+       "POSITION": 6
+      },
+      {
+       "POSITION": 7
+      }
+     ]
+    }
+   ],
+   "weights": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "slot0",
+   "doubleSided": false,
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 0
+    },
+    "metallicFactor": 0,
+    "roughnessFactor": 1
+   }
+  }
+ ],
+ "textures": [
+  {
+   "source": 0,
+   "sampler": 0
+  }
+ ],
+ "images": [
+  {
+   "uri": "s0.png"
+  }
+ ],
+ "samplers": [
+  {
+   "magFilter": 9729,
+   "minFilter": 9987,
+   "wrapS": 10497,
+   "wrapT": 10497
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 149,
+   "type": "VEC3",
+   "min": [
+    -0.032900003626248266,
+    -0.07755000854758515,
+    -0.3818750420903814
+   ],
+   "max": [
+    0.032900003626248224,
+    0.13277501463450184,
+    0.011162501230334227
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 149,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5126,
+   "count": 149,
+   "type": "VEC3",
+   "min": [
+    0,
+    -0.03172500431537628,
+    0.023500002920627594
+   ],
+   "max": [
+    6.938893903907228e-18,
+    0.1010500118136406,
+    0.1045750081539154
+   ]
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5126,
+   "count": 149,
+   "type": "VEC3",
+   "min": [
+    0,
+    -0.028200002387166023,
+    0.029962502419948578
+   ],
+   "max": [
+    6.938893903907228e-18,
+    0.0893000066280365,
+    0.1010500118136406
+   ]
+  },
+  {
+   "bufferView": 4,
+   "componentType": 5126,
+   "count": 149,
+   "type": "VEC3",
+   "min": [
+    0,
+    -0.021150002256035805,
+    0.03995000571012497
+   ],
+   "max": [
+    6.938893903907228e-18,
+    0.062275007367134094,
+    0.08636251091957092
+   ]
+  },
+  {
+   "bufferView": 5,
+   "componentType": 5126,
+   "count": 149,
+   "type": "VEC3",
+   "min": [
+    0,
+    -0.011750001460313797,
+    0.03525000438094139
+   ],
+   "max": [
+    6.938893903907228e-18,
+    0.027025002986192703,
+    0.056400004774332047
+   ]
+  },
+  {
+   "bufferView": 6,
+   "componentType": 5126,
+   "count": 149,
+   "type": "VEC3",
+   "min": [
+    0,
+    -0.007050000596791506,
+    0.0017625001491978765
+   ],
+   "max": [
+    1.734723475976807e-18,
+    -0.004700000397861004,
+    0.002350000198930502
+   ]
+  },
+  {
+   "bufferView": 7,
+   "componentType": 5126,
+   "count": 149,
+   "type": "VEC3",
+   "min": [
+    0,
+    -0.007050000596791506,
+    0.0017625001491978765
+   ],
+   "max": [
+    1.734723475976807e-18,
+    -0.004700000397861004,
+    0.002350000198930502
+   ]
+  },
+  {
+   "bufferView": 8,
+   "componentType": 5123,
+   "count": 285,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 9,
+   "componentType": 5126,
+   "count": 6,
+   "type": "SCALAR",
+   "min": [
+    0
+   ],
+   "max": [
+    0.16666666666666666
+   ]
+  },
+  {
+   "bufferView": 10,
+   "componentType": 5126,
+   "count": 36,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 11,
+   "componentType": 5126,
+   "count": 6,
+   "type": "SCALAR",
+   "min": [
+    0
+   ],
+   "max": [
+    0.16666666666666666
+   ]
+  },
+  {
+   "bufferView": 12,
+   "componentType": 5126,
+   "count": 36,
+   "type": "SCALAR"
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 1788,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 1788,
+   "byteLength": 1192,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 2980,
+   "byteLength": 1788,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 4768,
+   "byteLength": 1788,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 6556,
+   "byteLength": 1788,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 8344,
+   "byteLength": 1788,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 10132,
+   "byteLength": 1788,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 11920,
+   "byteLength": 1788,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 13708,
+   "byteLength": 570,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 14280,
+   "byteLength": 24
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 14304,
+   "byteLength": 144
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 14448,
+   "byteLength": 24
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 14472,
+   "byteLength": 144
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "enforcer.bin",
+   "byteLength": 14616
+  }
+ ],
+ "animations": [
+  {
+   "name": "Shoot",
+   "samplers": [
+    {
+     "input": 9,
+     "output": 10,
+     "interpolation": "LINEAR"
+    }
+   ],
+   "channels": [
+    {
+     "sampler": 0,
+     "target": {
+      "node": 0,
+      "path": "weights"
+     }
+    }
+   ]
+  },
+  {
+   "name": "shot2",
+   "samplers": [
+    {
+     "input": 11,
+     "output": 12,
+     "interpolation": "LINEAR"
+    }
+   ],
+   "channels": [
+    {
+     "sampler": 0,
+     "target": {
+      "node": 0,
+      "path": "weights"
+     }
+    }
+   ]
+  }
+ ]
+}

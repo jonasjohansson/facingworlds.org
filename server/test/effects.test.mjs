@@ -40,7 +40,7 @@ function accessor(g, dir, i) {
   const v = g.bufferViews[a.bufferView];
   const bin = fs.readFileSync(path.join(dir, g.buffers[0].uri));
   const b = bin.subarray(v.byteOffset, v.byteOffset + v.byteLength);
-  const n = { SCALAR: 1, VEC2: 2, VEC3: 3 }[a.type];
+  const n = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }[a.type];
   const out = [];
   for (let k = 0; k < a.count * n; k++) {
     out.push(a.componentType === 5123 ? b.readUInt16LE(k * 2) : b.readFloatLE(k * 4));

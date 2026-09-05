@@ -808,3 +808,117 @@ contract: that every asset it names is on disk, that the fields the renderer rea
 ones the generator writes, that the beam's spacing really is 135 UU through THIS build's
 scale, that gravity is signed, and that the models are longest along the forward axis they
 declare.
+
+## Landed 2026-09-05, late — the gun in their hand, and what happens when they pull the trigger
+
+Two things a UT99 `TournamentPlayer` does that a remote avatar here has never done: carry
+its weapon, and change pose when it fires. Until tonight every other player on the map ran
+around empty-handed, and the only evidence anyone was shooting was the tracer that appeared
+out of their chest.
+
+**The weapon in the hand.** `weapon(id).third` — produced this evening alongside this work —
+is a glTF already in the CHARACTER's frame: same axes as the body (forward −Z, up +Y), feet
+at y = 0, sitting where the pawn holds it. So `remote-avatar` hangs it on as a plain child
+entity of the model at the identity transform, and there is no fitting, no scale factor and
+no measurement anywhere in the client. It is a child of the MODEL and not of the rig for the
+reason `modelYaw` is: the rig's `rotation.y` is overwritten from the wire on every pose, so
+anything written there is erased by the next packet. `network.js` puts the weapon on the rig
+as `data-weapon` at spawn (from `publicPlayer`, so a player who armed themselves before we
+connected is drawn with the right gun) and the component keeps it current from the
+`player-loadout` broadcast the HUD and the fire sounds already read — the gun in the hand
+therefore cannot disagree with the gun that made the noise. Slots are reused across changes,
+so a weapon you have held before comes back with no download.
+
+Dual Enforcers get a second slot, the same file with `scale.x = -1`. That is how
+`first-person-weapon.js` mirrors its left hand and it is the only way to reflect a mesh —
+rotating it 180° points the gun backwards. three.js swaps the front face on its own for a
+negative determinant, so the winding is free; the `DoubleSide` in `_onWeaponLoaded` is belt
+and braces.
+
+**The firing pose, which is not an additive animation.** UT99 does not blend a fire onto a
+run. It ships a SECOND COMPLETE SET of locomotion sequences authored with the weapon
+levelled, suffixed FR, and `PlayFiring` writes `AnimSequence = 'RunSMFR'` straight over
+`'RunSM'` at the frame it had reached; a pawn standing still gets `PlayRecoil`, an 8-frame
+one-shot, instead. So the new `Fire` / `WalkFire` / `RunFire` clips are NOT a fourth blend
+weight here. They are ALTERNATES that the existing Idle/Walk/Run weights drive: each
+channel's weight is split between its plain clip and its twin by one crossfade
+(`REMOTE_FIRE.CROSSFADE`, 0.05 s), so the three channels still sum to one however far
+through a swap the body is, and the existing blending is untouched.
+
+`remote-fire-state.js` is the timing, pulled out as a pure module so it can be tested
+without a browser (`server/test/remote-fire-state.test.mjs`, 9 cases). The trigger being
+DOWN is not on the wire — only discrete shots are — so both poses are held for 500 ms after
+the last one rather than edge-triggered. That is two Enforcer shots' worth of cadence, so a
+burst reads as one continuous firing pose instead of flickering back to the idle between
+rounds, and it is also about the length of `PlayRecoil` itself (8 frames at 15 fps = 533 ms),
+so the recoil finishes at roughly the moment the hold lets go of it.
+
+**The one thing that needed real care.** three.js does not advance a zero-weight action's
+time. The FR twin is therefore FROZEN wherever it was last left — often most of a stride out
+of phase — and fading it in naively makes the legs skip, which is exactly what UT99 does not
+do: the engine writes `AnimSequence` and leaves `AnimFrame` alone. `_syncVariantPhase` copies
+the normalised time across between a clip and its twin, but only while the crossfade is
+parked at one end; writing `time` mid-fade would yank the clip that is already visible.
+
+`network.js` emits ONE scene event, `remote-fire {id, weapon}`, for both ways a shot reaches
+this client: the `fire` message a hitscan weapon sends, and the `projectile` message the
+server sends for the three that fly (whose shooter is `owner`, not `id` — `id` is the
+projectile's own). A rocket therefore raises the arms exactly as a bullet does. The held mesh
+plays its own sequence too where it has one: only the Enforcer's AutoHand (`Shoot`, and
+`shot2` for a follow-up inside 400 ms, UT99's own test) and the Shock's, which `LoopAnim`s
+while the trigger is down and is put down when the hold lapses — this client's only "trigger
+up".
+
+**Measured in the running scene**, with bots fighting: every bot carries
+`assets/3d/thirdperson/enforcer/enforcer.gltf` with its mesh loaded and its mixer built. A
+Skaarj photographed mid-sprint at the instant of a `remote-fire` shows `Run` 0.676 /
+`RunFire` 0.324 mid-crossfade, arm levelled, tracer leaving the raised hand. A standing SGirl
+goes from arms-folded to both arms thrown up and out — `Fire` at 0.945, `Idle` at 0.055 —
+and 800 ms later is back at `Idle` 1.0 with every twin at zero, so nothing sticks. Bots do
+fire standing, but rarely: 11 of 621 shots over 45 s, which is why the recoil was easiest to
+photograph by emitting the same scene event `network.js` emits. Frame times unchanged at
+8.3–8.5 ms mean, 9.0–9.2 ms p95 through all 25 phases of `scripts/measure-frametimes.mjs`.
+
+**Everything degrades.** A character glTF with only Idle/Walk/Run animates exactly as it did
+before; a weapon with no `third` block leaves the hands empty; a `third` with no `anims`
+simply does not animate the gun. Nothing here throws if the tables are half-regenerated.
+
+### Open
+
+**The held mesh is centred on the body's midline, not in a hand.** `third.bboxM` for the
+Enforcer is x −0.0329 … +0.0329 — symmetric about x = 0 — and y 0.839 … 1.049, hip height on
+a 1.833 m pawn. On screen the gun floats at the pelvis rather than sitting in the right hand,
+and it does not move when the arms do, because a UT99 character is vertex-animated and has no
+bone to parent to. This is the asset's placement, not the client's: the client parents at the
+identity transform exactly as the contract says. Two consequences worth naming — the second
+Enforcer mirrors onto almost exactly the first, since a mirror across x = 0 of something
+centred on x = 0 goes nowhere; and no offset should be fudged into `remote-avatar.js` to
+compensate, because it would have to be unpicked when the extraction is corrected.
+
+**The AR spectator table gets the gun but not the swaps.** `src/ar/three/players.js` clones
+the same held mesh onto each figure at the character's own scale, foot offset and model yaw,
+untinted and with no mixer — a figure a few dozen pixels tall has no readable recoil. It
+reads `weapon` off `publicPlayer`, which the spectator socket relays on `hello`, `join`,
+`spawn` and `respawn`, so the gun is right at join and right again after every death; a
+pickup taken mid-life does not show until that player next respawns. Relaying `loadout` would
+fix it and belongs in `src/shared/net/spectator-client.js`. This path is UNVERIFIED in a
+browser: the table only builds figures inside a live AR session, and on desktop it loads no
+character models at all, so there was nothing to photograph. The page itself loads clean.
+
+**Where the gun actually goes: UE1's weapon triangle.** The first extraction put every
+third-person weapon at the pawn's actor origin, and in a render on the soldier all six sat
+at the hip with the hands raised above them. Fitting the grip to the fist under every way
+of applying `Mesh.Origin` got no closer than 49 cm. What closed it was the three *special
+vertices* every pawn mesh carries — `umesh.mjs` had reported them from the start, no face
+references them — which bracket the gun hand: one a hand's width above the fist, one below,
+one out along the aim. That is UE1's carried-weapon attachment, and it is **per frame**. It
+now ships as an empty node `weaponAnchor` in every character glTF with translation and
+rotation tracks on all six clips, keyed on the same times as the morph weights, so the body's
+own mixer moves it; `remote-avatar.js` places the held slot on it every frame (the dual
+pair's second gun mirrored across the body's X), and the AR table parents the gun under it
+outright. The base-pose hand is 85 cm from the sprinting Soldier's swung hand — measured
+again in the game as 36–90 cm of slot travel per running bot, matching each model's own
+amplitude — so the static offset (`weaponOffset()`, kept as the fallback) was never going to
+be enough. The third-person glTFs lost their nominal lift and are about the weapon's own
+origin; the anchor supplies the position. One incidental fix: the weapon child's
+`model-loaded` bubbled into the body's handler and rebuilt its mixer six times a spawn.

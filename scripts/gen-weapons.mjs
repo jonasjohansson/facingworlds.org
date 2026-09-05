@@ -221,6 +221,50 @@ for (const [id, w] of Object.entries(WEAPONS)) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// THE THIRD-PERSON MODEL
+// ---------------------------------------------------------------------------
+// The gun in somebody ELSE's hands. UT99 ships a second mesh per weapon for exactly this
+// — Engine.Inventory declares ThirdPersonMesh/ThirdPersonScale beside PlayerViewMesh and
+// replicates them — because a view mesh is a 12 cm prop framed for a camera 8 cm away and
+// a remote avatar needs a world-scale gun with a whole arm on it.
+//
+// scripts/build-ut-thirdperson.mjs extracts them through the CHARACTER pipeline's
+// transform, so a body and its weapon land in one frame with forward on -Z, and lifts them
+// onto the nominal 39 UU pawn so the model's own origin is the floor, exactly like a body.
+// This only attaches, and attaches exactly what the client codes against.
+//
+// `anims` is NULL on four of the six, and that is Epic's rather than an omission: only
+// AutoHand and ASMD2hand have more than one frame. `muzzleLocal` is the barrel tip in the
+// model's own metres, derived the same way the view models' is.
+//
+// WHAT IS NOT HERE is where on a body the gun goes. That belongs to the BODY, not the
+// weapon — a weapon has no wearer — so it lives in the character roster as
+// MODELS[m].weaponOffsetM / weaponOffset(index), from Epic's own weapon-attachment
+// vertices. The geometry here is lifted onto the nominal pawn, which leaves it at the
+// pawn's ACTOR ORIGIN: 42 cm below and 43 cm behind the Soldier's fist, down at the hip.
+// A client parents a weapon to an avatar and adds that one vector.
+const THIRDPERSON = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "scripts", "data", "ut-thirdperson.json"), "utf8"),
+).weapons;
+for (const [id, w] of Object.entries(WEAPONS)) {
+  const t = THIRDPERSON[id];
+  if (!t) {
+    throw new Error(`${id}: no third-person model in ut-thirdperson.json — rerun build-ut-thirdperson.mjs`);
+  }
+  w.third = {
+    model: t.model,
+    sizeM: t.sizeM,
+    bboxM: t.bboxM,
+    // The clips UT99 plays on this mesh, by the name they carry in the glTF, with
+    // UnrealScript's rate MULTIPLIER on each — the same multiplier as the view model's,
+    // because a weapon actor has ONE AnimSequence and UE1 plays it on whichever of the two
+    // meshes it is currently drawing. Null where the mesh is a single frame.
+    anims: t.anims,
+    muzzleLocal: t.muzzleLocal,
+  };
+}
+
 // The body a projectile has to hit, and the radius HurtRadius measures its falloff
 // against. UT99's CollisionHeight is a HALF height, so 39 is a body 1.83 m tall.
 const PAWN = {

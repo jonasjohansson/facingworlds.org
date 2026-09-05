@@ -290,4 +290,25 @@ export const GAME_CONFIG = {
     FADE_LERP: 10.0,
     SMOOTH_SPEED_LERP: 8.0,
   },
+
+  // What OTHER players look like while they are shooting at you.
+  //
+  // UT99 gives every movement sequence an identical twin authored with the weapon
+  // levelled ('RunSM' / 'RunSMFR') and swaps between them on the trigger, plus an
+  // 8 frame standing recoil for a pawn that is not moving. remote-avatar.js drives that
+  // from the `fire` and `projectile` messages the server already broadcasts; the timing
+  // itself lives in remote-fire-state.js, which is a pure module so it can be tested.
+  REMOTE_FIRE: {
+    // How long after a shot the firing pose is held. The client never learns that a
+    // trigger came UP — only that shots stopped — so the pose has to time out. Two
+    // Enforcer shots' worth of cadence, and about the length of UT99's own PlayRecoil.
+    HOLD_MS: 500,
+    // Crossfade between a locomotion clip and its *FR twin, in seconds. UE1's PlayAnim
+    // tweens over 0.05 - 0.1 s on these transitions; anything longer and the arms drift
+    // up half a stride after the shot they belong to.
+    CROSSFADE: 0.05,
+    // Blend weight above which the body counts as STANDING for the recoil-vs-locomotion
+    // decision. Read off the Idle channel, so it is the same number the legs use.
+    STANDING_IDLE_WEIGHT: 0.5,
+  },
 };

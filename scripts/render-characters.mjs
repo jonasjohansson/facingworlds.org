@@ -57,7 +57,7 @@ function readGltf(file) {
     const a = g.accessors[i];
     const v = g.bufferViews[a.bufferView];
     const b = bin.subarray(v.byteOffset + (a.byteOffset || 0));
-    const n = { SCALAR: 1, VEC2: 2, VEC3: 3 }[a.type];
+    const n = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }[a.type];
     const out =
       a.componentType === 5123 ? new Uint16Array(a.count * n) : new Float32Array(a.count * n);
     for (let k = 0; k < a.count * n; k++) {

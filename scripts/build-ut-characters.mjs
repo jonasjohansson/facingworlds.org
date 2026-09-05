@@ -111,31 +111,63 @@
 // Epic's, and it is called out rather than hidden.
 //
 // ---------------------------------------------------------------------------
-// WHICH THREE SEQUENCES
+// WHICH SIX SEQUENCES, AND WHY Idle IS ONE FRAME
 // ---------------------------------------------------------------------------
-// The client binds clips by the names Idle / Walk / Run (see
-// src/game/components/remote-avatar.js and src/ar/three/players.js), so those are the glTF
-// animation names. WHICH UT99 sequence goes in each is read out of
-// Botpack.TournamentPlayer's own UnrealScript, which the package still ships:
+// The client binds clips by name, so the glTF animation names are the contract. WHICH
+// UT99 sequence goes in each is read out of Botpack.TournamentPlayer's own UnrealScript,
+// which the package still ships:
 //
 //   PlayWalking()    LoopAnim(Weapon.Mass < 20 ? 'WalkSM' : 'WalkLG')
 //   PlayRunning()    LoopAnim(Weapon.Mass < 20 ? 'RunSM'  : 'RunLG')
-//   PlayFiring()     TweenAnim(Weapon.Mass < 20 ? 'StillSMFR' : 'StillFRRP')
-//   PlayWaiting()    ... bPointing: TweenAnim(Weapon.Mass < 20 ? 'StillSMFR' : 'StillFRRP')
+//   PlayWaiting()    ... Weapon.bPointing: TweenAnim('StillSMFR', 0.3)
+//   PlayFiring()     RunSM -> RunSMFR, WalkSM -> WalkSMFR, otherwise TweenAnim('StillSMFR', 0.02)
+//   PlayRecoil(Rate) AnimSequence == 'StillSmFr': PlayAnim('StillSmFr', Rate, 0.02)
 //
-// Everyone in this game spawns with the Enforcer and never puts it down, and the Enforcer's
-// Mass is under 20, so the small-weapon variant is the right one everywhere: WalkSm, RunSm,
-// and StillSmFr for the idle. PlayWeaponSwitch confirms the pairing from the other side —
-// it rewrites 'StillSMFR' to 'StillFRRP' and back as the carried weapon crosses Mass 20.
+// Everyone in this game spawns with the Enforcer and never puts it down, and the
+// Enforcer's Mass is 15, so the SMALL-weapon variant is the right one everywhere and the
+// LG/FrRp family (Mass >= 20 rifles) is not shipped at all. PlayWeaponSwitch confirms the
+// pairing from the other side: it rewrites 'StillSMFR' to 'StillFRRP' and back as the
+// carried weapon crosses Mass 20.
 //
-// StillSmFr is the ARMED idle: a pawn standing with its gun up. PlayWaiting's other branch
-// (Breath1/Breath2/CockGun) is the unarmed fidget and is not what a player with a weapon
-// looks like. The previous extraction used StillFrRp on the humans and StillLgFr on the
-// Skaarj, which are the HEAVY-weapon idles — the right family, the wrong weight.
+//     clip       UT99 sequence   played by
+//     Idle       StillSmFr[0]    PlayWaiting / PlayFiring, HELD
+//     Walk       WalkSm          PlayWalking
+//     Run        RunSm           PlayRunning
+//     Fire       StillSmFr       PlayRecoil, once per shot
+//     WalkFire   WalkSmFr        PlayFiring while walking
+//     RunFire    RunSmFr         PlayFiring while running
 //
-// All eight meshes carry all three names, so there is no fallback in this script. One
-// oddity is Epic's and is passed through unchanged: TCowMesh's WalkSm and RunSm are the
-// SAME sixteen frames (250..265) at 15 and 27 fps, so the cow runs by walking faster.
+// THE Idle FIX. TweenAnim(name, time) does not play a sequence: it blends to that
+// sequence's FIRST FRAME over `time` seconds and stops there, AnimRate 0. So a standing
+// UT99 pawn holding a gun is frame 0 of StillSmFr, motionless. The eight frames after it
+// are the RECOIL, and the only thing that ever plays them is PlayRecoil, once per shot.
+//
+// The previous build of this script emitted Idle as the whole StillSmFr sequence LOOPED,
+// which is why every standing avatar twitched through a recoil forever — a shot animation
+// running eight frames a second on a pawn that was not firing. Idle is therefore emitted
+// as a ONE-KEYFRAME clip: the base pose, held. (It still gets a second identical key, the
+// same as any one-frame sequence here — a sampler with a single key has zero duration and
+// some importers reject it.) The recoil is not thrown away; it is the Fire clip, one-shot.
+//
+// Idle's frame IS the base frame, so all six clips share a base pose and blending between
+// any two of them is blending between poses of the same body.
+//
+// EPIC'S OWN ODDITIES, passed through unchanged and worth knowing before they look like
+// bugs here:
+//
+//   tnalimesh's StillSmFr is a SINGLE frame, so the Nali's Fire clip is one frame long
+//   and a firing Nali does not recoil. That is what UT99 draws.
+//
+//   TCowMesh's WalkSmFr and RunSmFr are the SAME sixteen frames (250..265) as its WalkSm
+//   and RunSm, at the same rates, so the cow's firing walk is its walk. Its WalkSm and
+//   RunSm are also each other (15 and 27 fps of one cycle), so the cow runs by walking
+//   faster. Four clips, one animation.
+//
+//   TSkM's WalkLg is its WalkSm, and its StillSmFr is 8 frames at 15 fps like everyone
+//   else's, so the Skaarj needs no special case.
+//
+// All eight meshes carry all six names — checked, not assumed: seqFor() throws with the
+// mesh's own sequence list if one is ever missing.
 //
 // ---------------------------------------------------------------------------
 // ANIMATION: MORPH TARGETS, THE SAME WAY THE WEAPONS DO IT
@@ -191,6 +223,12 @@ const STANDING_HEIGHT_M = 1.83;
 // The pawn cylinder's half height, used only by the placement self-check below.
 const COLLISION_HEIGHT_UU = 39;
 
+// The empty node every character carries for its weapon, and its index. It is node 1,
+// after the mesh node, on every model — but the NAME is the contract: a client looks the
+// node up by name, because an index is the kind of thing that quietly becomes wrong.
+const ANCHOR_NAME = "weaponAnchor";
+const ANCHOR_NODE = 1;
+
 const PACKAGES = {
   botpack: "BotPack.u",
   bonus: "epiccustommodels.u",
@@ -212,12 +250,19 @@ const CHARACTERS = [
   { id: "warcow", mesh: "TCowMesh", pkg: "bonus", skin: "default" },
 ];
 
-// glTF clip name -> UT99 sequence name. See WHICH THREE SEQUENCES in the header: these are
+// glTF clip name -> UT99 sequence name. See WHICH SIX SEQUENCES in the header: these are
 // the small-weapon variants, because everyone here carries the Enforcer.
+//
+// `hold` means the clip is that sequence's FIRST FRAME and nothing else — UnrealScript's
+// TweenAnim, which blends to frame 0 and stops. Only the idle is like that, and it is the
+// whole reason this list is not "play StillSmFr on a loop".
 const CLIPS = [
-  { name: "Idle", seq: "StillSmFr", loop: true },
+  { name: "Idle", seq: "StillSmFr", hold: true },
   { name: "Walk", seq: "WalkSm", loop: true },
   { name: "Run", seq: "RunSm", loop: true },
+  { name: "Fire", seq: "StillSmFr" },
+  { name: "WalkFire", seq: "WalkSmFr", loop: true },
+  { name: "RunFire", seq: "RunSmFr", loop: true },
 ];
 
 const pkgs = Object.fromEntries(
@@ -259,6 +304,58 @@ function rotationMatrix(pitchDeg, yawDeg, rollDeg) {
     [sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp],
     [-(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp],
   ];
+}
+
+/**
+ * How many UT99 frames a clip actually shows.
+ *
+ * The whole sequence, except for a `hold` clip — UnrealScript's TweenAnim blends to a
+ * sequence's FIRST frame and stops there with AnimRate 0, so the armed idle is one frame
+ * of StillSmFr and the seven after it are a recoil nobody asked for. See the header.
+ */
+const frameCount = (c) => (c.hold ? 1 : c.s.numFrames);
+
+const cross = (a, b) => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+const norm = (v) => {
+  const n = Math.hypot(...v);
+  if (!(n > 1e-9)) throw new Error(`cannot normalise ${v.join(", ")}`);
+  return v.map((c) => c / n);
+};
+
+/**
+ * A glTF quaternion [x, y, z, w] from a rotation matrix given as its three COLUMNS.
+ *
+ * Shepperd's method: pick the largest of the four diagonal combinations so the divisor is
+ * never near zero. Doing it the naive way (always from the trace) loses all precision on a
+ * 180-degree turn, and a pawn's hand goes through most of a turn over a stride.
+ */
+function quatFromCols(cx, cy, cz) {
+  const m = [
+    [cx[0], cy[0], cz[0]],
+    [cx[1], cy[1], cz[1]],
+    [cx[2], cy[2], cz[2]],
+  ];
+  const t = m[0][0] + m[1][1] + m[2][2];
+  let q;
+  if (t > 0) {
+    const s = Math.sqrt(t + 1) * 2;
+    q = [(m[2][1] - m[1][2]) / s, (m[0][2] - m[2][0]) / s, (m[1][0] - m[0][1]) / s, s / 4];
+  } else if (m[0][0] > m[1][1] && m[0][0] > m[2][2]) {
+    const s = Math.sqrt(1 + m[0][0] - m[1][1] - m[2][2]) * 2;
+    q = [s / 4, (m[0][1] + m[1][0]) / s, (m[0][2] + m[2][0]) / s, (m[2][1] - m[1][2]) / s];
+  } else if (m[1][1] > m[2][2]) {
+    const s = Math.sqrt(1 + m[1][1] - m[0][0] - m[2][2]) * 2;
+    q = [(m[0][1] + m[1][0]) / s, s / 4, (m[1][2] + m[2][1]) / s, (m[0][2] - m[2][0]) / s];
+  } else {
+    const s = Math.sqrt(1 + m[2][2] - m[0][0] - m[1][1]) * 2;
+    q = [(m[0][2] + m[2][0]) / s, (m[1][2] + m[2][1]) / s, s / 4, (m[1][0] - m[0][1]) / s];
+  }
+  const n = Math.hypot(...q);
+  return q.map((c) => c / n);
 }
 
 const transpose = (m) => [0, 1, 2].map((i) => [0, 1, 2].map((j) => m[j][i]));
@@ -386,7 +483,7 @@ for (const spec of CHARACTERS) {
 
 console.log(
   `\n${"model".padEnd(10)} ${"mesh".padEnd(10)} ${"idle".padEnd(10)} ` +
-    `wedges  slots  targets   scale   run deg   feet dip   bin`,
+    `wedges  slots  targets   scale   run deg   feet dip   bin   gun hand (m)         swing`,
 );
 for (const r of rows) {
   console.log(
@@ -394,16 +491,19 @@ for (const r of rows) {
       `${String(r.wedges).padStart(6)}  ${String(r.slots).padStart(5)}  ` +
       `${String(r.targets).padStart(7)}  ${r.fit.toFixed(4)}  ` +
       `${r.heading.toFixed(2).padStart(7)}  ${(r.feetDip * 1000).toFixed(1).padStart(7)} mm  ` +
-      `${(r.binBytes / 1024).toFixed(0)}K`,
+      `${(r.binBytes / 1024).toFixed(0)}K  ` +
+      `${r.anchor.map((v) => v.toFixed(3).padStart(6)).join(",")}  ` +
+      `${(r.anchorSwing * 100).toFixed(1).padStart(5)} cm`,
   );
 }
 console.log(
-  `\nrun deg is degrees off -Z, measured on the emitted geometry's own Run clip.\n` +
+  `\nclips: ${CLIPS.map((c) => `${c.name}=${c.seq}${c.hold ? "[0]" : ""}`).join("  ")}\n` +
+    `run deg is degrees off -Z, measured on the emitted geometry's own Run clip.\n` +
     `feet dip is how far the lowest vertex of the Run clip goes below y = 0, where 0 is ` +
     `the Idle clip's first frame.\nNow run: node scripts/gen-characters.mjs`,
 );
 
-/** One character: mesh -> <id>.gltf + <id>.bin, in place, with Idle/Walk/Run. */
+/** One character: mesh -> <id>.gltf + <id>.bin, in place, with the six clips above. */
 function buildCharacter(spec) {
   const pkg = pkgs[spec.pkg];
   const mesh = readMesh(pkg, spec.mesh);
@@ -447,6 +547,77 @@ function buildCharacter(spec) {
   const lift = -Math.min(...baseYs) * fit;
   const posAt = (f) => rawFrame(f).map((p) => [p[0] * fit, p[1] * fit + lift, p[2] * fit]);
   const basePos = posAt(baseFrame);
+
+  // --- the weapon anchor: Epic's own three special vertices --------------
+  // Every UT99 pawn mesh carries THREE "special" vertices in front of its geometry
+  // (umesh.mjs reports specialVerts = 3 on all eight; a weapon mesh has none). They are
+  // not geometry — nothing references them — they are the weapon attachment, and measured
+  // on the emitted bodies they bracket the gun hand: V0 sits about a hand ABOVE the fist,
+  // V2 the same distance BELOW it, and V1 is out along the aim, 0.46 to 0.65 m forward.
+  //
+  // So the hand is the V0-V2 midpoint, and that is what a third-person weapon has to hang
+  // from. Measured against each body's own fist (the forward-most cluster of its upper
+  // body in this pose), the midpoint lands within 4.8-8.6 cm on all six humanoids, where
+  // the actor origin — which is where UE1 was assumed to draw the carried weapon — is
+  // 49-75 cm out, down at the hip where the hand hangs with the arms DOWN.
+  //
+  // The Nali (25 cm) and the cow (61 cm) are outliers and are emitted anyway: a Nali has
+  // four arms and a cow has none, so there is no fist for the anchor to agree with.
+  //
+  // It is emitted for the BASE frame only. The real anchor moves with the hand through
+  // Walk, Run and Fire, which a static number cannot follow — see the doc.
+  const specialAt = (f) =>
+    mesh
+      .frame(f)
+      .slice(0, mesh.specialVerts)
+      .map((v) => apply(M, [v[0] - O[0], v[1] - O[1], v[2] - O[2]]))
+      .map((p) => [p[0] * fit, p[1] * fit + lift, p[2] * fit]);
+  const special = specialAt(baseFrame);
+  if (special.length !== 3) {
+    throw new Error(`${spec.id}: ${special.length} special vertices, not the pawn's 3`);
+  }
+
+  /**
+   * The weapon attachment for one frame: where the hand is, and which way it is holding.
+   *
+   * UE1 renders a carried item AT this frame with THIS frame's orientation, so both halves
+   * are needed and both move — the triangle swings with the arm through a stride.
+   *
+   *   position     the V0-V2 midpoint, i.e. the middle of the fist
+   *   forward      V1 - V0, the aim; the weapon's own -Z is laid along it
+   *   up           V0 - V2, orthogonalised against forward
+   *
+   * The basis is built z-first so it is orthonormal and right-handed whatever rounding the
+   * three vertices carry: z = -forward (the weapon points -Z, so its +Z is backwards),
+   * x = up x z, y = z x x. For a body standing square that comes out as the identity, which
+   * is the check the build makes on the base pose below.
+   */
+  const anchorAt = (f) => {
+    const [v0, v1, v2] = specialAt(f);
+    const pos = [0, 1, 2].map((a) => (v0[a] + v2[a]) / 2);
+    const fwd = norm([0, 1, 2].map((a) => v1[a] - v0[a]));
+    const up = norm([0, 1, 2].map((a) => v0[a] - v2[a]));
+    const z = fwd.map((c) => -c);
+    const x = norm(cross(up, z));
+    const y = cross(z, x);
+    // Columns are the images of the local axes, which is what a rotation matrix is.
+    return { pos, quat: quatFromCols(x, y, z) };
+  };
+  const baseAnchor = anchorAt(baseFrame);
+  const weaponAnchor = baseAnchor.pos;
+  // How far the hand travels over a run cycle, which is the whole reason the anchor is a
+  // track rather than a number: a gun pinned to the base pose would float beside a running
+  // body by this much. Reported, not enforced — it is Epic's stride, not a tolerance.
+  const anchorSwing = (() => {
+    const run = seqs.find((c) => c.name === "Run").s;
+    const pts = [];
+    for (let i = 0; i < run.numFrames; i++) pts.push(anchorAt(run.startFrame + i).pos);
+    let d = 0;
+    for (const a of pts) {
+      for (const b of pts) d = Math.max(d, Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]));
+    }
+    return d;
+  })();
 
   // --- self-check: is this thing standing up, over its own cylinder? -----
   // The tallest axis of a standing body is up, and after UT_TO_WORLD up is Y. If the
@@ -530,8 +701,11 @@ function buildCharacter(spec) {
   const order = flip ? [0, 2, 1] : [0, 1, 2];
 
   // --- morph targets: one per unique frame any clip touches --------------
+  // `hold` clips touch one frame, not the sequence's whole span. The idle is the only one,
+  // and since its frame IS the base frame it adds nothing here either way — but asking
+  // frameCount() in both places keeps "how long is this clip" one answer.
   const wanted = new Set();
-  for (const c of seqs) for (let i = 0; i < c.s.numFrames; i++) wanted.add(c.s.startFrame + i);
+  for (const c of seqs) for (let i = 0; i < frameCount(c); i++) wanted.add(c.s.startFrame + i);
   wanted.delete(baseFrame); // its delta is zero, and all-zero weights already mean the base
   const frames = [...wanted].sort((a, b) => a - b);
   const targetOf = new Map(frames.map((f, i) => [f, i]));
@@ -662,27 +836,35 @@ function buildCharacter(spec) {
   const clipInfo = [];
   for (const c of seqs) {
     const s = c.s;
+    const n = frameCount(c);
     const keys = [];
     const weights = [];
+    // The UT99 frame each key shows, so the weapon anchor can be sampled at exactly the
+    // times the body is — one key, one pose, one hand position.
+    const keyFrames = [];
     const one = (frame) => {
       const row = new Array(targets.length).fill(0);
       const t = targetOf.get(frame);
       if (t !== undefined) row[t] = 1;
       return row;
     };
-    for (let i = 0; i < s.numFrames; i++) {
+    for (let i = 0; i < n; i++) {
       keys.push(i / s.rate);
       weights.push(...one(s.startFrame + i));
+      keyFrames.push(s.startFrame + i);
     }
-    if (s.numFrames === 1) {
-      // The Nali's StillSmFr is a single frame. A sampler with one key has zero duration
-      // and some importers reject it, so it gets a second identical key: a held pose.
+    if (n === 1) {
+      // Either a HELD clip (the idle, on every model) or a genuinely one-frame sequence
+      // (tnalimesh's StillSmFr, so the Nali's Fire too). A sampler with a single key has
+      // zero duration and some importers reject it, so it gets a second identical key.
       keys.push(1 / s.rate);
       weights.push(...one(s.startFrame));
+      keyFrames.push(s.startFrame);
     } else if (c.loop) {
       // A looping clip has to arrive back where it started or the wrap is a jump.
-      keys.push(s.numFrames / s.rate);
+      keys.push(n / s.rate);
       weights.push(...one(s.startFrame));
+      keyFrames.push(s.startFrame);
     }
     const input = accessors.length;
     accessors.push({
@@ -700,21 +882,71 @@ function buildCharacter(spec) {
       count: weights.length,
       type: "SCALAR",
     });
+    // --- the weapon anchor, sampled at the same instants -----------------
+    // UE1 draws a carried item AT the pawn's weapon triangle WITH that triangle's
+    // orientation, and the triangle is per-frame data: the hand swings through a stride and
+    // the gun swings with it. So the anchor is not one number on the model, it is a
+    // translation and a rotation track on every clip, keyed frame for frame against the
+    // weights track above.
+    const anchorPos = [];
+    const anchorQuat = [];
+    for (const f of keyFrames) {
+      const { pos, quat } = anchorAt(f);
+      anchorPos.push(...pos);
+      // q and -q are the same rotation, but a LINEAR sampler interpolates the COMPONENTS,
+      // so a sign flip between adjacent keys takes the long way round — a hand that spins
+      // through 300 degrees in one frame. Keep every key in the same hemisphere as the last.
+      const prev = anchorQuat.slice(-4);
+      const dot = prev.length ? prev.reduce((t, v, i) => t + v * quat[i], 0) : 1;
+      anchorQuat.push(...(dot < 0 ? quat.map((v) => -v) : quat));
+    }
+    const posOut = accessors.length;
+    accessors.push({
+      bufferView: push(Buffer.from(new Float32Array(anchorPos).buffer)),
+      componentType: 5126,
+      count: keys.length,
+      type: "VEC3",
+      ...minMax(anchorPos, 3),
+    });
+    const rotOut = accessors.length;
+    accessors.push({
+      bufferView: push(Buffer.from(new Float32Array(anchorQuat).buffer)),
+      componentType: 5126,
+      count: keys.length,
+      type: "VEC4",
+    });
+
     animations.push({
       name: c.name,
       // LINEAR, not STEP: UE1 tweens between frames, so a linear ramp between adjacent
       // one-hot weight vectors is what UT99 actually draws.
-      samplers: [{ input, output, interpolation: "LINEAR" }],
-      channels: [{ sampler: 0, target: { node: 0, path: "weights" } }],
+      samplers: [
+        { input, output, interpolation: "LINEAR" },
+        { input, output: posOut, interpolation: "LINEAR" },
+        { input, output: rotOut, interpolation: "LINEAR" },
+      ],
+      // The WEIGHTS channel stays first. scripts/render-characters.mjs and
+      // server/test/characters.test.mjs both read channels[0] to get at the pose, and a
+      // reordering here would silently hand them the anchor instead.
+      channels: [
+        { sampler: 0, target: { node: 0, path: "weights" } },
+        { sampler: 1, target: { node: ANCHOR_NODE, path: "translation" } },
+        { sampler: 2, target: { node: ANCHOR_NODE, path: "rotation" } },
+      ],
     });
     clipInfo.push({
       clip: c.name,
       sequence: s.name,
       startFrame: s.startFrame,
-      numFrames: s.numFrames,
+      // What the CLIP is, which for the idle is not what the sequence is: one frame of
+      // eight. sequenceFrames keeps the difference visible rather than letting the idle
+      // look like a truncated read of StillSmFr.
+      numFrames: n,
+      sequenceFrames: s.numFrames,
       fps: r4(s.rate),
-      seconds: r4(s.numFrames / s.rate),
+      seconds: r4(n / s.rate),
       loop: !!c.loop,
+      ...(c.hold ? { hold: true } : {}),
     });
   }
 
@@ -745,6 +977,24 @@ function buildCharacter(spec) {
       // on the shared 39-unit collision cylinder. The one fitted number in this file.
       utHeightM: r4(rawHeight),
       heightFit: r6(fit),
+      // How far the body was lifted to put the Idle pose's lowest vertex on y = 0. The
+      // third-person weapons cannot know it — a weapon has no wearer — so they are lifted
+      // by the nominal 39 * UU_TO_M instead and this is what the difference is measured
+      // against. See scripts/build-ut-thirdperson.mjs.
+      feetLiftM: r6(lift),
+      // Where this body's gun hand is, in the same metres the glTF is in, and the three
+      // vertices it is derived from. See the weapon-anchor block in this script: it is the
+      // midpoint of Epic's own weapon-attachment triangle, and it is what
+      // scripts/build-ut-thirdperson.mjs and gen-characters.mjs both read.
+      weaponAnchorM: weaponAnchor.map(r6),
+      weaponAnchorQuat: baseAnchor.quat.map(r6),
+      weaponAnchorNode: ANCHOR_NAME,
+      specialVertsM: special.map((p) => p.map(r6)),
+      weaponAnchorNote:
+        "The node named " + ANCHOR_NAME + " carries this as its rest transform AND a " +
+        "translation + rotation track on every clip, keyed against that clip's weights. " +
+        "UE1 draws a carried item at the pawn's weapon triangle with the triangle's own " +
+        "orientation, and the triangle is per-frame data, so the hand swings with the arm.",
       runHeadingDeg: r4(heading.deg),
       feetDipM: r6(feetDip),
       feetOffsetUU: feetOffsetUU.map(r4),
@@ -752,8 +1002,20 @@ function buildCharacter(spec) {
       clips: clipInfo,
     },
     scene: 0,
-    scenes: [{ nodes: [0] }],
-    nodes: [{ mesh: 0, name: spec.mesh }],
+    scenes: [{ nodes: [0, ANCHOR_NODE] }],
+    nodes: [
+      { mesh: 0, name: spec.mesh },
+      {
+        // WHERE THE GUN GOES. An empty node, a SIBLING of the mesh rather than a child, so
+        // its local transform is already in the same space as the body's vertices and a
+        // client can parent a weapon to it with nothing to compose. Every clip animates it.
+        // Its resting transform is the base pose's, so a model shown with no clip playing
+        // still holds its weapon in the right place.
+        name: ANCHOR_NAME,
+        translation: baseAnchor.pos.map(r6),
+        rotation: baseAnchor.quat.map(r6),
+      },
+    ],
     meshes: [
       {
         name: spec.id,
@@ -782,6 +1044,8 @@ function buildCharacter(spec) {
     fit,
     heading: heading.deg,
     feetDip,
+    anchor: weaponAnchor,
+    anchorSwing,
     binBytes: bin.length,
   };
 }
