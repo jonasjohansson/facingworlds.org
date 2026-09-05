@@ -15,8 +15,8 @@ import {
   clearProjectiles,
   playPickupSound,
 } from "../components/ut-projectiles.js";
-
-const BULLET_SPEED = GAME_CONFIG.BULLET.SPEED;
+import { hitscan } from "../components/hitscan.js";
+import { drawHitscanShot, ejectShell, playWeaponSoundAt } from "../components/ut-effects.js";
 
 // ---- reconnect tuning ----
 const RECONNECT_BASE = 500; // ms before the first retry
@@ -297,7 +297,7 @@ export function startNetwork() {
           break;
         }
         case "fire": {
-          if (m.id !== myId) spawnBulletVisual(m.origin, m.dir, m.id, false);
+          if (m.id !== myId) spawnBulletVisual(m.origin, m.dir, m.id);
           break;
         }
 
@@ -753,8 +753,9 @@ export function startNetwork() {
       origin: { x: q2(origin.x), y: q2(origin.y), z: q2(origin.z) },
       dir: { x: q3(dir.x), y: q3(dir.y), z: q3(dir.z) },
     });
-    // Don't create local bullet here - it's already created in blaster component
-    // This prevents duplicate bullets and lag
+    // Nothing is drawn here. The shooter's own client already drew this shot in
+    // first-person-weapon.fireBullet(); every OTHER client draws it in spawnBulletVisual
+    // when the server echoes this message back to them.
   }
 
   function onLocalHit(ev) {
@@ -896,29 +897,49 @@ export function startNetwork() {
     }
   }
 
-  // ---- visual bullets ----
-  function spawnBulletVisual(origin, dir, ownerId, reportHits = false) {
-    if (!scene || !origin || !dir) return;
-    const vx = dir.x * BULLET_SPEED,
-      vy = dir.y * BULLET_SPEED,
-      vz = dir.z * BULLET_SPEED;
+  // ---- somebody else's hitscan shot ----
+  //
+  // This used to spawn a `bullet` entity that FLEW from the muzzle at 70 m/s and drew a
+  // tracer when it arrived. UT99 has no such thing: a hitscan shot lands the frame it is
+  // fired, and a visible ball crossing the map was both wrong and a lie about where the
+  // shot already was. So the same trace the shooter ran is run again HERE, on this client,
+  // and the shot is drawn instantly through exactly the entry point the local player's own
+  // shot uses — the shooter's weapon decides whether that is a Shock beam and ring or a
+  // tracer and a UT_WallHit.
+  //
+  // This is drawing only. The server owns the damage; nothing here reports a hit, which is
+  // why the old `reportHits` argument is gone — it was never true on this path.
+  const _shotOrigin = new AFRAME.THREE.Vector3();
+  const _shotDir = new AFRAME.THREE.Vector3();
 
-    const b = createEntity("a-entity", {
-      position: `${origin.x} ${origin.y} ${origin.z}`,
-      // Note: Visual geometry is created by the bullet component itself
-      bullet: {
-        vx,
-        vy,
-        vz,
-        radius: 0.08,
-        lifeSec: 2,
-        ownerId: ownerId || "",
-        reportHits,
-        sound: weapon(remoteWeapons.get(ownerId) || DEFAULT_WEAPON).sound || "",
-      },
+  function spawnBulletVisual(origin, dir, ownerId) {
+    if (!scene || !origin || !dir) return;
+    const weaponId = remoteWeapons.get(ownerId) || DEFAULT_WEAPON;
+    const spec = weapon(weaponId);
+    // Rockets, ripper blades and the Redeemer are server-simulated and arrive as
+    // `projectile` messages that ut-projectiles.js draws. A `fire` for one of those would
+    // otherwise paint a tracer and a spark on the wall the instant the tube emptied.
+    if (spec.projectile) return;
+
+    _shotOrigin.set(origin.x, origin.y, origin.z);
+    _shotDir.set(dir.x, dir.y, dir.z);
+    if (_shotDir.lengthSq() < 1e-8) return;
+    _shotDir.normalize();
+
+    // Exclude the shooter's own rig, or a shot fired from inside their own capsule stops
+    // at their chest. `remotes` holds the rig, which is the element carrying ".avatar".
+    const result = hitscan(scene, _shotOrigin, _shotDir, {
+      maxDistance: GAME_CONFIG.WEAPON.MAX_RANGE,
+      excludeEl: remotes.get(ownerId) || null,
+      excludeId: ownerId || null,
     });
 
-    scene.appendChild(b);
+    drawHitscanShot(scene, weaponId, _shotOrigin, result);
+    ejectShell(scene, weaponId, _shotOrigin, _shotDir);
+    playWeaponSoundAt(spec.sound, _shotOrigin);
+    // Background music starts on the first shot heard, wherever it came from. The deleted
+    // bullet component used to emit this.
+    scene.emit("bullet-fired");
   }
 
   // ---- persistent name and score management ----

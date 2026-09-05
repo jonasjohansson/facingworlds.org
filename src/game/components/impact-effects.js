@@ -273,6 +273,23 @@ export function spawnImpact(sceneEl, point, normal, onPlayer) {
   // Flesh leaves no bullet hole
   if (onPlayer) return;
 
+  spawnDecal(sceneEl, point, normal);
+}
+
+/**
+ * The bullet hole on its own, without the spark or the light.
+ *
+ * ut-effects.js draws Epic's own wall hit — the BulletImpact mesh, a smoke puff and a
+ * spray of UT_Sparks — and needs the hole WITHOUT this file's spark on top of it. The
+ * decal is the one part of UT_WallHit the extraction ships no texture for (UT99's is a
+ * `Pock` decal actor), so this procedural one stays and is shared rather than duplicated.
+ */
+export function spawnDecal(sceneEl, point, normal) {
+  if (!sceneEl || !sceneEl.object3D) return;
+  ensurePools(sceneEl);
+  const E = GAME_CONFIG.EFFECTS;
+  _look.copy(point).add(normal);
+
   const decal = nextSlot(state.decals, "decalIdx");
   decal.mesh.position.copy(point).addScaledVector(normal, 0.03);
   decal.mesh.lookAt(_look);
@@ -331,6 +348,16 @@ export function updateImpactEffects(dt) {
 }
 
 // ---- teardown ----
+// Other effect modules hang their own teardown here rather than being reached into from
+// this file: ut-effects.js already imports THIS module for the tracer, the decal and the
+// flesh spark, and a matching import back would be a cycle for no gain.
+const extraDisposers = [];
+
+/** Register a teardown to run as part of disposeImpactEffects(). */
+export function registerEffectDisposer(fn) {
+  if (typeof fn === "function" && !extraDisposers.includes(fn)) extraDisposers.push(fn);
+}
+
 function disposePool(pool) {
   if (!pool) return;
   for (let i = 0; i < pool.length; i++) {
@@ -341,6 +368,15 @@ function disposePool(pool) {
 }
 
 export function disposeImpactEffects() {
+  for (const fn of extraDisposers) {
+    try {
+      fn();
+    } catch (e) {
+      console.warn("[impact-effects] disposer failed:", e);
+    }
+  }
+  extraDisposers.length = 0;
+
   disposePool(state.tracers);
   disposePool(state.sparks);
   disposePool(state.decals);

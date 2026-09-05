@@ -1,6 +1,9 @@
-// blaster.js — X-key shooter + bullet logic (avatars + targets collisions)
-import "./bullet.js";
-import { createEntity } from "../utils/dom-helpers.js";
+// blaster.js — X-key shooter (avatars + targets collisions)
+//
+// Legacy: nothing in index.html attaches this component, and first-person-weapon.js owns
+// the shot now. It used to spawn a `bullet` entity for its own shots; that component is
+// gone (UT99 hitscan is drawn instantly by ut-effects.js, not flown), so the local-visual
+// branch and its `spawnLocal` knob went with it.
 import { createVector3 } from "../utils/three-helpers.js";
 
 AFRAME.registerComponent("blaster", {
@@ -12,8 +15,6 @@ AFRAME.registerComponent("blaster", {
     fireRate: { type: "number", default: 8 }, // bullets/sec
     muzzleHeight: { type: "number", default: 1.2 }, // m above player origin
     color: { type: "color", default: "#ffcc00" },
-    // If your network layer spawns local bullets too, set false
-    spawnLocal: { type: "boolean", default: true },
   },
 
   init() {
@@ -107,29 +108,6 @@ AFRAME.registerComponent("blaster", {
       origin: { x: origin.x, y: origin.y, z: origin.z },
       dir: { x: dir.x, y: dir.y, z: dir.z },
     });
-
-    // Spawn local visual bullet (optimized)
-    if (this.data.spawnLocal) {
-      const vx = dir.x * this.data.bulletSpeed;
-      const vy = dir.y * this.data.bulletSpeed;
-      const vz = dir.z * this.data.bulletSpeed;
-
-      const ownerId = this.el.dataset.playerId || "";
-      const b = createEntity("a-entity", {
-        position: `${origin.x} ${origin.y} ${origin.z}`,
-        bullet: {
-          vx,
-          vy,
-          vz,
-          radius: this.data.bulletRadius,
-          lifeSec: this.data.lifeSec,
-          ownerId,
-          reportHits: true,
-        },
-      });
-
-      this.el.sceneEl.appendChild(b);
-    }
   },
 
   applyRecoil() {
@@ -190,5 +168,3 @@ AFRAME.registerComponent("blaster", {
     requestAnimationFrame(animateFlash);
   },
 });
-
-// bullet component is now in bullet.js

@@ -26,6 +26,16 @@
 // same breath as PlayAnim('Select'), so raising a weapon is one event with a picture and
 // a noise. All six name their own; see the SELECT table.
 //
+// IMPACT sounds are the seventh, and they are the noise a shot makes where it LANDS
+// rather than where it left. UT_WallHit.SpawnSound picks one of three at random and stays
+// silent a quarter of the time; a shot into a body plays ChunkHit instead. Those three
+// are named as literals in UnrealScript (`PlaySound(sound'ricochet',...)`) rather than
+// stored on any class, so they are the one group here that is a list — see IMPACT.
+//
+// MISC sounds are the eighth: the Rocket Launcher's own CockingSound and Misc3Sound, read
+// off UT_Eightball the same way its select sound is. They are cheap to add and they are
+// the two noises the weapon makes that are not firing.
+//
 // A USound holds a format name and a lazy array of bytes which, for format WAV, is a
 // complete RIFF file. scripts/lib/upkg.mjs finds it by its own header rather than by
 // modelling a serialization that shifted across engine versions — a RIFF declares its
@@ -54,10 +64,28 @@ if (fs.existsSync(ANNOUNCER)) {
 }
 const botpack = loaded[0].pkg;
 
+/**
+ * The WAV for a sound name, in whichever package holds it.
+ *
+ * UE1 names are CASE-INSENSITIVE and UnrealScript's spelling of one is not the package's:
+ * UT_WallHit says `sound'ricochet'` and the export is named `Ricochet`. soundWav matches
+ * exactly, so the exact spelling is tried first — it is the cheap path and the one every
+ * sound named from a class default takes — and only then a case-insensitive sweep of the
+ * package's own export names. Without that, adding the wall-hit sounds fails on exactly
+ * one of the four, which is the kind of failure that gets "fixed" by typing a name in.
+ */
 function findWav(soundName) {
   for (const { name, pkg } of loaded) {
     const wav = soundWav(pkg, soundName);
-    if (wav) return { wav, from: name };
+    if (wav) return { wav, from: name, exportName: soundName };
+  }
+  for (const { name, pkg } of loaded) {
+    const exp = pkg.exports.find(
+      (e) => e.name.toLowerCase() === soundName.toLowerCase() && pkg.classOf(e) === "Sound",
+    );
+    if (!exp) continue;
+    const wav = soundWav(pkg, exp.name);
+    if (wav) return { wav, from: name, exportName: exp.name };
   }
   throw new Error(`${soundName}: not a Sound in ${PACKAGES.join(", ")}`);
 }
@@ -100,7 +128,36 @@ const SELECT = [
   { id: "redeemer", cls: "WarheadLauncher" },
 ].map((s) => ({ ...s, key: "SelectSound" }));
 
-const out = { source: "UT99 retail", fire: {}, select: {}, explode: {}, pickup: null };
+// ---------------------------------------------------------------------------
+// WHERE A SHOT LANDS
+// ---------------------------------------------------------------------------
+// UT_WallHit.SpawnSound, in full:
+//
+//     decision = FRand();
+//     if      ( decision < 0.25 ) PlaySound(sound'ricochet',, 1.5,,1200, 0.5+FRand());
+//     else if ( decision < 0.5  ) PlaySound(sound'Impact1',, 2.5,,1000);
+//     else if ( decision < 0.75 ) PlaySound(sound'Impact2',, 2.5,,1000);
+//
+// — so a quarter of wall hits are silent, and the ricochet is pitch-shifted over a 3:1
+// range every time it plays. UT_HeavyWallHitEffect (the Sniper Rifle's) uses the same
+// three at 50/25/25 and is never silent.
+//
+// ChunkHit is the other half: both the Enforcer and the Sniper Rifle play it on the actor
+// they hit when that actor is a pawn, instead of spawning a wall hit at all.
+//
+// These four are the only sounds in this file that are NOT read off a class default,
+// because UnrealScript names them as literals inside a function body. The odds and the
+// pitch range live in scripts/data/ut-effects.json beside the rest of the wall hit.
+const IMPACT = ["ricochet", "Impact1", "Impact2", "ChunkHit"];
+// The Rocket Launcher's two non-firing noises, read off its class the way its select
+// sound is: CockingSound is played by PlayLoading (a rocket going into the tube) and
+// Misc3Sound by PlayRotating (the barrel turning between shots).
+const MISC = [
+  { id: "rocketLoad", cls: "UT_Eightball", key: "CockingSound" },
+  { id: "rocketBarrel", cls: "UT_Eightball", key: "Misc3Sound" },
+];
+
+const out = { source: "UT99 retail", fire: {}, select: {}, explode: {}, impact: {}, misc: {}, pickup: null };
 const jobs = [];
 
 for (const f of FIRE) {
@@ -119,6 +176,22 @@ for (const e of EXPLODE) {
   const name = defaults(e.cls)[e.key];
   if (!name) throw new Error(`${e.cls} has no ${e.key}`);
   out.explode[e.id] = { sound: name, file: `assets/audio/ut/${name.toLowerCase()}.mp3`, from: e.cls };
+  jobs.push(name);
+}
+for (const name of IMPACT) {
+  // Keyed by the LOWERCASE name, because that is the file name and because the two
+  // spellings UnrealScript and the package use for `ricochet` differ only in case.
+  out.impact[name.toLowerCase()] = {
+    sound: name,
+    file: `assets/audio/ut/${name.toLowerCase()}.mp3`,
+    from: "UT_WallHit.SpawnSound / weapon ProcessTraceHit (a literal, not a default)",
+  };
+  jobs.push(name);
+}
+for (const m of MISC) {
+  const name = defaults(m.cls)[m.key];
+  if (!name) throw new Error(`${m.cls} has no ${m.key}`);
+  out.misc[m.id] = { sound: name, file: `assets/audio/ut/${name.toLowerCase()}.mp3`, from: `${m.cls}.${m.key}` };
   jobs.push(name);
 }
 const pickupName = defaults("enforcer").PickupSound;
@@ -184,7 +257,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "utsnd-"));
 let bytesIn = 0;
 let bytesOut = 0;
 for (const name of [...new Set([...jobs, ...announcerJobs])]) {
-  const { wav, from } = findWav(name);
+  const { wav, from, exportName } = findWav(name);
   const wavFile = path.join(tmp, `${name}.wav`);
   fs.writeFileSync(wavFile, wav);
   const isAnnouncer = announcerJobs.includes(name);
@@ -198,7 +271,7 @@ for (const name of [...new Set([...jobs, ...announcerJobs])]) {
   bytesIn += wav.length;
   bytesOut += fs.statSync(mp3).size;
   console.log(
-    `  ${name.padEnd(14)} ${from.padEnd(14)} ${rate}Hz ${String(bits).padStart(2)}bit ` +
+    `  ${name.padEnd(14)}${exportName === name ? "" : `(${exportName}) `}${from.padEnd(14)} ${rate}Hz ${String(bits).padStart(2)}bit ` +
       `${seconds.toFixed(2)}s  ${(wav.length / 1024).toFixed(0)}K wav -> ${(fs.statSync(mp3).size / 1024).toFixed(0)}K mp3`,
   );
 }

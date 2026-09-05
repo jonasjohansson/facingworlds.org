@@ -458,3 +458,130 @@ job.
 side, Idle over Run, one column per model, with the rig's forward to the **right**. Every
 body must run to the right. That picture is the check that would have caught this in five
 seconds, and it is the reason it exists.
+
+
+## Effects
+
+Where a shot *lands*. `scripts/build-ut-effects.mjs` extracts four meshes into
+`assets/3d/effects/<id>/` plus a handful of sprite sheets into `assets/3d/effects/fx/`,
+writes `scripts/data/ut-effects.json`, and `scripts/gen-effects.mjs` turns that into
+`src/shared/effects.js`. Same build-\*/gen-\* split as the weapons: the first needs a retail
+install, the second is what the browser imports.
+
+There is no `server/` twin, and that is on purpose. The server already tells the client
+where a shot landed and what it hit; everything in the effects table is what the client
+*draws* at that point, and a server importing it would be carrying sprite sizes it can
+never use.
+
+### The frame is the map's, not the view models'
+
+A view model is emitted in a view frame because the client draws it with no rotation at
+all. An impact effect is *placed and turned in the scene*, so it has to arrive in the axes
+the map arrives in — `src/shared/map-transform.js`'s `uuToScene`, which is
+`scene = (UT.x, UT.z, UT.y)`. So in every effect glTF **forward is +X and up is +Y**.
+
+That is not decoration. UT99 spawns all four with `Rotator(HitNormal)` or
+`rotator(fireDirection)`, so aligning model +X with that vector *is* the placement. The
+swap is a single transposition, determinant −1, which is the UT-to-glTF handedness flip and
+is why the winding is reversed. It is taken from the determinant rather than from a signed
+volume, because `UTRingex` is a flat annulus and gives zero either way — the volume test is
+kept only as a corroboration where it is decisive, and has to agree or the build stops.
+
+`Mesh.Origin` is subtracted **before** `Mesh.Scale`, the rule the character rebuild
+measured on eight pawns. Only `Shockbm` has a non-zero one, `(0, -400, 0)`, and it is a
+third independent confirmation: subtracting first puts the beam segment at x = 0.1 .. 73.8
+UU, starting at the actor and running *forward*, which is the only place a beam spawned at
+the muzzle can be. Ignoring the origin centres it on the muzzle (−36.9 .. 36.9); adding it
+puts the whole thing behind the player.
+
+### DrawScale is already in the vertices
+
+Each model is written at its class's own `DrawScale`, so the committed glTF is the size UT99
+spawns it at. `drawScale` stays in the table because it is Epic's number and because one
+instance overrides it — the Sniper Rifle sets `s.DrawScale = 2.0` on its shell case, so
+`sniperDrawScale` is a multiplier on the committed model. A client that scales by
+`drawScale` again gets a ring 3.3 m across at frame 0 and nothing throws.
+
+### The shock beam is a particle system
+
+`ShockBeam` carries `bParticles = true`, and Engine's `Actor.uc` says of that flag, in as
+many words, *"Mesh is a particle system"*: UE1 draws the mesh's 40 **vertices** as
+camera-facing sprites of the actor's `Texture` and never draws its triangles. So UT99's
+beam segment is 40 blobs of `jenergy2`, each 0.44 × 64 = 28 UU across, strung along a
+73.7 UU line. `UT_Sparks` is built the same way, which is the corroboration.
+
+The 76 triangles are exported anyway — a textured tube is a cheap thing for a browser to
+draw — but `shockBeam.particles.pointsM` carries the 40 points in model metres beside them,
+so either way the client is drawing Epic's own geometry.
+
+The beam is also a **chain, not a line**. `ShockRifle.SpawnEffect` spawns one segment at the
+muzzle with `NumPuffs = VSize(DVector)/135 - 1`, and each segment's 50 ms `Timer` spawns the
+next at `Location + MoveAmount`. 135 UU is the *spacing*, and a segment is only 73.7 UU
+long: UT99's beam is a dotted streak, and drawing it as a solid cylinder is a different
+picture.
+
+### How long an effect lasts when it has no `LifeSpan`
+
+`BulletImpact` has none — it destroys itself in `AnimEnd`. UE1's `PlayAnim` sets
+`AnimRate = Rate * Seq->Rate / Seq->NumFrames` with `AnimFrame` running 0 → 1, so a sequence
+lasts `NumFrames / (Seq.Rate * Rate)` seconds. That formula is *checked* rather than
+asserted, against the one effect here that has both an animation and a declared life: the
+ring's `Explo` is 9 frames at 30 fps played at 0.35 → 0.857 s, against `LifeSpan` 0.800.
+Within 7% and on the right side — UT99 kills the ring a hair before its animation ends. The
+bullet impact's `Hit` is one frame at rate 0.5 → 67 ms. A flashbulb.
+
+### Sprites are sized by texel
+
+A UE1 sprite (`DT_Sprite`, `DT_SpriteAnimOnce`) is drawn as a camera-facing quad whose world
+size is the **texture's own pixel size × `DrawScale`** in Unreal Units — one texel per unit
+at `DrawScale` 1, which is the relation `gen-weapons.mjs` already uses for the projectile
+explosions. A 32 px smoke puff at `DrawScale` 2 is 64 UU = 1.50 m; a 32 px spark at 0.1 is
+7.5 cm; a 32 px decal at 0.19 is 14 cm. All three read right for what they are.
+
+`UT_SpriteSmokePuff` picks one of four sets at random (`SSprites[Rand(NumSets)]`) and each
+set is an `AnimNext` chain on the texture itself. The class declares `NumFrames = 8`, which
+is what is composed onto each strip; the chain in the package actually runs to 15 or 16, and
+that number is recorded in `ut-effects.json` rather than acted on.
+
+### Three things that were wrong before the script was read
+
+1. **`shockexplo` is not a light.** It has one, but it is an `AnimSpriteEffect`: 15 frames of
+   a 128 px sprite, `Pause` 0.05, `LifeSpan` 0.7. It is named in `shockRing.notDrawn`
+   alongside `EnergyImpact` (a scorch decal) rather than quietly dropped.
+2. **`UT_RingExplosion` is not "Style 0, normal".** The actor carries `STY_None`, but the
+   *mesh's* polygon flags are `0x400104` — `PF_Unlit | PF_TwoSided | PF_Translucent` — and
+   the actor is `bUnlit` too. Two separate things say "translucent" and both matter, the
+   same way `bUnlit` did for the projectiles: the beam and the bullet impact have polygon
+   flags of zero and get their blend from the *actor's* `Style`.
+3. **`ricochet` is spelled `Ricochet` in the package.** UE1 names are case-insensitive and
+   UnrealScript's spelling of one is not the package's, so `build-ut-sounds.mjs` now falls
+   back to a case-insensitive sweep. Without it exactly one of the four wall-hit sounds
+   fails to extract, which is the kind of failure that gets "fixed" by typing a name in.
+
+### A chip costs a spark
+
+`UT_WallHit.SpawnEffects` rolls `rand(MaxSparks)` for a spark count and then **decrements it
+for every chip it spawns**, so the budgets trade against each other rather than adding up.
+Three classes, three budgets: `UT_WallHit` (Enforcer) 3 sparks / 2 chips at 0.2,
+`UT_HeavyWallHitEffect` (Sniper) 4 / 2 at 0.5, `UT_LightWallHitEffect` (a *dual* Enforcer)
+1 spark and no chips. The sound is one `FRand()` over four buckets and a quarter of wall
+hits are silent; the heavy one is 50/25/25 and never is.
+
+### Looking at it afterwards
+
+    node scripts/build-ut-effects.mjs         # needs a retail install
+    node scripts/build-ut-sounds.mjs          # needs a retail install and ffmpeg
+    node scripts/gen-effects.mjs              # rewrite src/shared/effects.js
+    node scripts/render-effects.mjs out.png
+    node --test server/test/effects.test.mjs
+
+`render-effects.mjs` needs no retail install: it draws the **committed** glTFs, textured, in
+three columns — along +X (the surface normal), from the side with forward to the right, and
+from above. The beam must be a long thin streak, the ring a ring, the bullet impact a
+starburst spraying to the *right* out of the wall, the shell a little cylinder.
+
+The ring's side and top panels come up **empty**, and that is the check rather than a bug:
+`UTRingex` is a flat annulus with exactly zero thickness, so edge-on every triangle is
+degenerate. Anything drawn there would mean the pitch-90 `RotOrigin` had not been applied.
+`--at=8` poses it at the last frame of `Explo`, where it is 4.71 m across against 0.37 m at
+frame 0 — the base pose is the *small* ring, so all-zero morph weights are the start.

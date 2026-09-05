@@ -5,7 +5,10 @@
 import { GAME_CONFIG } from "../config/game-config.js";
 import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
 import { hitscan } from "./hitscan.js";
-import { spawnTracer, spawnImpact } from "./impact-effects.js";
+// The shot's effects: Epic's own, out of ut-effects.js. That module falls back to
+// impact-effects.js's procedural tracer and spark on its own when the generated
+// src/shared/effects.js or one of its glTFs is missing, so there is nothing to guard here.
+import { drawHitscanShot, ejectShell } from "./ut-effects.js";
 import { createViewShake, DEFAULT_SHAKE } from "./view-shake.js";
 import { createViewAnim } from "./view-weapon-anim.js";
 import { UU_TO_M } from "../../shared/map-transform.js";
@@ -794,15 +797,17 @@ AFRAME.registerComponent("first-person-weapon", {
         excludeEl: this.getLocalAvatar(),
       });
 
-      // Tracer runs muzzle -> impact (or muzzle -> range limit on a miss)
-      spawnTracer(scene, this.muzzlePosition, result.point);
+      // Everything the shot LOOKS like: for the Shock Rifle a growing ShockBeam and a
+      // ring at the far end, for the Enforcer and the Sniper Rifle a tracer plus UT99's
+      // wall hit (BulletImpact mesh, smoke puff, sparks, one of its four sounds).
+      drawHitscanShot(scene, this.weaponId, this.muzzlePosition, result, this.dual);
+      // Botpack's two cartridge weapons throw a UT_ShellCase out of the muzzle; the
+      // helper ignores every other weapon.
+      ejectShell(scene, this.weaponId, this.muzzlePosition, dir);
 
       if (result.type === "player") {
-        spawnImpact(scene, result.point, result.normal, true);
         // Server decides the damage; keep the payload shape other listeners expect.
         scene.emit("local-hit", { victimId: result.playerId, point: result.point });
-      } else if (result.type === "world") {
-        spawnImpact(scene, result.point, result.normal, false);
       }
     }
 
@@ -1369,11 +1374,12 @@ AFRAME.registerComponent("first-person-weapon", {
       this.hud = null;
     }
 
-    // NOTE: the tracer / spark / decal pools are module-global in impact-effects.js and
-    // are shared with bullet.js, which draws every REMOTE player's shot. Disposing them
-    // here would tear down another consumer's GPU resources (and re-pay the pre-warm
-    // cost on the next remote shot). They live as long as the scene does, which is the
-    // correct lifetime, so this component no longer disposes them.
+    // NOTE: the tracer / spark / decal pools are module-global in impact-effects.js, and
+    // the beam / ring / smoke / spark / shell pools are module-global in ut-effects.js.
+    // Both are shared with network.js, which draws every REMOTE player's shot through the
+    // same two entry points. Disposing them here would tear down another consumer's GPU
+    // resources (and re-pay the pre-warm cost on the next remote shot). They live as long
+    // as the scene does, which is the correct lifetime, so this component disposes neither.
 
     // Clear any leftover timers
     clearTimeout(this._hitmarkerTimer);

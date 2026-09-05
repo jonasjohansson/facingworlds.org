@@ -1,0 +1,415 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "build-ut-effects.mjs"
+ },
+ "extensionsUsed": [
+  "KHR_materials_unlit"
+ ],
+ "extras": {
+  "utMesh": "UTRingex",
+  "utActor": "UT_RingExplosion5",
+  "drawScale": 0.699999988079071,
+  "baseFrame": 0,
+  "sceneFrame": "actor forward +X, up +Y, right +Z (map-transform's uuToScene axes); RotOrigin baked in",
+  "epicRotOriginDeg": [
+   90,
+   0,
+   0
+  ],
+  "meshOriginUU": [
+   0,
+   0,
+   0
+  ],
+  "clip": {
+   "clip": "Explo",
+   "startFrame": 0,
+   "numFrames": 9,
+   "fps": 30,
+   "loop": false
+  }
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0,
+   "name": "ring"
+  }
+ ],
+ "meshes": [
+  {
+   "name": "ring",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "TEXCOORD_0": 1
+     },
+     "indices": 10,
+     "material": 0,
+     "targets": [
+      {
+       "POSITION": 2
+      },
+      {
+       "POSITION": 3
+      },
+      {
+       "POSITION": 4
+      },
+      {
+       "POSITION": 5
+      },
+      {
+       "POSITION": 6
+      },
+      {
+       "POSITION": 7
+      },
+      {
+       "POSITION": 8
+      },
+      {
+       "POSITION": 9
+      }
+     ]
+    }
+   ],
+   "weights": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "slot0",
+   "doubleSided": true,
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 0
+    },
+    "metallicFactor": 0,
+    "roughnessFactor": 1
+   },
+   "alphaMode": "BLEND",
+   "extensions": {
+    "KHR_materials_unlit": {}
+   }
+  }
+ ],
+ "textures": [
+  {
+   "source": 0,
+   "sampler": 0
+  }
+ ],
+ "images": [
+  {
+   "uri": "s0.png"
+  }
+ ],
+ "samplers": [
+  {
+   "magFilter": 9729,
+   "minFilter": 9987,
+   "wrapS": 10497,
+   "wrapT": 10497
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC3",
+   "min": [
+    -1.1281447365068038e-17,
+    -0.18424001716940136,
+    -0.19740001839578716
+   ],
+   "max": [
+    1.1281447365068038e-17,
+    0.18424001716940136,
+    0.16450001532982264
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC3",
+   "min": [
+    -1.6519261708188217e-17,
+    -0.2697800397872925,
+    -0.2697800397872925
+   ],
+   "max": [
+    1.6519261708188217e-17,
+    0.2697800397872925,
+    0.2697800397872925
+   ]
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC3",
+   "min": [
+    -3.3038523416376435e-17,
+    -0.539560079574585,
+    -0.539560079574585
+   ],
+   "max": [
+    3.3038523416376435e-17,
+    0.539560079574585,
+    0.5461400747299194
+   ]
+  },
+  {
+   "bufferView": 4,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC3",
+   "min": [
+    -4.9960696529133107e-17,
+    -0.8159200549125671,
+    -0.8093400597572327
+   ],
+   "max": [
+    4.9960696529133107e-17,
+    0.8159200549125671,
+    0.8159200549125671
+   ]
+  },
+  {
+   "bufferView": 5,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC3",
+   "min": [
+    -6.64799565829601e-17,
+    -1.0857001543045044,
+    -1.07912015914917
+   ],
+   "max": [
+    6.64799565829601e-17,
+    1.0857001543045044,
+    1.0922801494598389
+   ]
+  },
+  {
+   "bufferView": 6,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC3",
+   "min": [
+    -8.299921663678709e-17,
+    -1.3554800748825073,
+    -1.3489000797271729
+   ],
+   "max": [
+    8.299921663678709e-17,
+    1.3554800748825073,
+    1.3620600700378418
+   ]
+  },
+  {
+   "bufferView": 7,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC3",
+   "min": [
+    -9.992139305826621e-17,
+    -1.6318401098251343,
+    -1.6121001243591309
+   ],
+   "max": [
+    9.992139305826621e-17,
+    1.6318401098251343,
+    1.6384201049804688
+   ]
+  },
+  {
+   "bufferView": 8,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC3",
+   "min": [
+    -1.164406531120932e-16,
+    -1.9016201496124268,
+    -1.8818801641464233
+   ],
+   "max": [
+    1.164406531120932e-16,
+    1.9016201496124268,
+    1.9082001447677612
+   ]
+  },
+  {
+   "bufferView": 9,
+   "componentType": 5126,
+   "count": 63,
+   "type": "VEC3",
+   "min": [
+    -1.329599131659202e-16,
+    -2.171400308609009,
+    -2.151660203933716
+   ],
+   "max": [
+    1.329599131659202e-16,
+    2.171400308609009,
+    2.1845602989196777
+   ]
+  },
+  {
+   "bufferView": 10,
+   "componentType": 5123,
+   "count": 114,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 11,
+   "componentType": 5126,
+   "count": 9,
+   "type": "SCALAR",
+   "min": [
+    0
+   ],
+   "max": [
+    0.26666666666666666
+   ]
+  },
+  {
+   "bufferView": 12,
+   "componentType": 5126,
+   "count": 72,
+   "type": "SCALAR"
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 756,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 756,
+   "byteLength": 504,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 1260,
+   "byteLength": 756,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 2016,
+   "byteLength": 756,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 2772,
+   "byteLength": 756,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 3528,
+   "byteLength": 756,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 4284,
+   "byteLength": 756,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 5040,
+   "byteLength": 756,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 5796,
+   "byteLength": 756,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 6552,
+   "byteLength": 756,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 7308,
+   "byteLength": 228,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 7536,
+   "byteLength": 36
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 7572,
+   "byteLength": 288
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "ring.bin",
+   "byteLength": 7860
+  }
+ ],
+ "animations": [
+  {
+   "name": "Explo",
+   "samplers": [
+    {
+     "input": 11,
+     "output": 12,
+     "interpolation": "LINEAR"
+    }
+   ],
+   "channels": [
+    {
+     "sampler": 0,
+     "target": {
+      "node": 0,
+      "path": "weights"
+     }
+    }
+   ]
+  }
+ ]
+}

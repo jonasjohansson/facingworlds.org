@@ -76,6 +76,40 @@
       "from": "WarExplosion"
     }
   },
+  "impact": {
+    "ricochet": {
+      "sound": "ricochet",
+      "file": "assets/audio/ut/ricochet.mp3",
+      "from": "UT_WallHit.SpawnSound / weapon ProcessTraceHit (a literal, not a default)"
+    },
+    "impact1": {
+      "sound": "Impact1",
+      "file": "assets/audio/ut/impact1.mp3",
+      "from": "UT_WallHit.SpawnSound / weapon ProcessTraceHit (a literal, not a default)"
+    },
+    "impact2": {
+      "sound": "Impact2",
+      "file": "assets/audio/ut/impact2.mp3",
+      "from": "UT_WallHit.SpawnSound / weapon ProcessTraceHit (a literal, not a default)"
+    },
+    "chunkhit": {
+      "sound": "ChunkHit",
+      "file": "assets/audio/ut/chunkhit.mp3",
+      "from": "UT_WallHit.SpawnSound / weapon ProcessTraceHit (a literal, not a default)"
+    }
+  },
+  "misc": {
+    "rocketLoad": {
+      "sound": "Loading",
+      "file": "assets/audio/ut/loading.mp3",
+      "from": "UT_Eightball.CockingSound"
+    },
+    "rocketBarrel": {
+      "sound": "BarrelMove",
+      "file": "assets/audio/ut/barrelmove.mp3",
+      "from": "UT_Eightball.Misc3Sound"
+    }
+  },
   "pickup": {
     "sound": "WeaponPickup",
     "file": "assets/audio/ut/weaponpickup.mp3"

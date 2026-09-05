@@ -717,3 +717,94 @@ rifles low right with the receiver's side showing and the barrel on the crosshai
 few centimetres of what had been fitted. That is what ships. `MODEL_SCALE` survives only
 as a uniform factor about the eye — it moves nothing on screen and exists for the 0.05 m
 near plane.
+
+## Landed 2026-09-05, evening — what a shot LOOKS like, once it lands
+
+Three effects in this build were invented rather than read, and one of them was a lie about
+where a shot already was. All three are Epic's now, out of a new generated
+`src/shared/effects.js` (BotPack/UnrealShare, extracted alongside this work) and drawn by a
+new `src/game/components/ut-effects.js`.
+
+**The Shock Rifle had a tracer and a spark. It has neither.** `ShockRifle.SpawnEffect`
+spawns a chain of `ShockBeam` segments from the muzzle to the hit, one every 135 UU
+(3.17 m), and each segment spawns the NEXT one 0.05 s later — so the beam visibly GROWS
+toward the target rather than appearing whole, and a long shot across Face takes most of a
+second to arrive. Every segment lives 0.27 s, rolls about its own length at 95.9 rad/s, and
+fades with `ScaleGlow`. At the far end a `ut_RingExplosion5` plays its 'Explo' morph
+sequence once at AnimRate 0.35 — 0.37 m across to 4.7 m in 0.86 s — with a pooled PointLight
+for `ShockExplo`.
+
+The thing that would have been got wrong by reading the mesh instead of the actor: **a
+ShockBeam segment is not a mesh at all**. `bParticles` is true, and a UE1 particle actor
+never draws its triangles — the renderer draws each of the mesh's forty VERTICES as a
+camera-facing `jenergy2` sprite. Shockbm's 76 faces exist only to hold those forty points in
+place. Drawn as triangles it is a solid metal rod; drawn as points it is the fizzing dashed
+streak the Shock Rifle actually has. It is a `THREE.Points` over the contract's
+`particles.pointsM`, one draw call for forty sprites, and the sprite is the glTF's own
+texture.
+
+**The Enforcer and Sniper Rifle now do UT_WallHit.** A `BulletImpact` mesh flat against the
+surface for 67 ms (its Hit sequence is one frame at 30 fps), one `UT_SpriteSmokePuff` — a
+camera-facing quad playing one of four random 8-frame sheets at 0.05 s a frame, drifting up
+at 1.18 m/s for 1.5 s — Rand(N) `UT_Spark` billboards under gravity, a real `Pock` decal,
+and Epic's four-way sound roll: ricochet at Pitch 0.5–1.5, impact1, impact2, or, one time in
+four, NOTHING. The silence is Epic's; it is what keeps a held trigger from becoming a
+machine-gun of identical ricochets, and it looks exactly like a bug. `UT_HeavyWallHitEffect`
+(the Sniper) rolls a different table with no silence in it, so the odds are read from the
+contract rather than written in the renderer. Both guns eject a `UT_ShellCase`, at Epic's
+forward/right/up velocity ranges, bouncing at most three times.
+
+**Three deliberate deviations, all in the code:**
+
+1. The Enforcer and Sniper Rifle KEEP their tracer. UT99 draws none — the shot is instant
+   and there is nothing to see between muzzle and wall — but UT99 also has a 2D muzzle flash
+   filling a third of the screen, and in this build a missed Enforcer shot at 40 m is
+   otherwise completely invisible. It is the readability tax. The Shock Rifle has none,
+   because its beam IS the tracer and Epic's is better than the invented one.
+2. Chips are not drawn. The contract carries UT99's physics for them but names a mesh
+   (`ChipM`) the extraction does not ship. A chip is a debris slot that draws nothing, and
+   the count is still spent on it, because `UT_WallHit` spends a spark to get one and
+   removing the roll would be inventing a livelier wall hit than UT99 has.
+3. The shell case is the ONE place the generated table is overruled. It says
+   `blend: "additive"`, which comes from `gen-effects.mjs`'s `style === 3 || unlitMaterials`
+   rule; the shell is only the second of those. `UT_ShellCase` extends `Debris`, whose Style
+   is `STY_Normal`, and its Style is not carried in the extraction at all. Unlit is not
+   translucent: drawn additively a brass case is a glowing smear with no depth.
+
+**A remote player's shot no longer flies.** `network.js` used to answer a `fire` message by
+spawning a `bullet` entity that TRAVELLED from the muzzle at 70 m/s and drew a tracer when
+it arrived. UT99 has no such thing — a hitscan shot lands the frame it is fired — and the
+ball was both wrong and a lie about where the shot already was. The same trace is now run
+locally on the receiving client and drawn instantly through the same entry point the local
+player's own shot uses, with the shooter's own weapon deciding whether that is a beam and a
+ring or a tracer and a wall hit, and the report attenuated by distance. `bullet.js` is
+deleted.
+
+**Two bugs the browser found.** First, the sprites faced the wrong way. A-Frame hangs the
+`THREE.PerspectiveCamera` off the `<a-entity camera>` and never rotates the camera itself —
+look-controls writes the pitch to that entity and the yaw to the rig above it — so
+`camera.quaternion` is the IDENTITY no matter where the player is looking. Copying it onto a
+billboard aims it at world −Z, and a 1.5 m smoke puff drew as a thin vertical smear that
+grew and shrank as you turned. It took a screenshot to see; `getWorldQuaternion` is the fix.
+(`ut-projectiles.js` copies the same local quaternion onto its blast quads and has the same
+latent bug — not touched here.) Second, `gravityMPerSec2` in the contract is UE1's SIGNED
+acceleration, −22.325, not a magnitude, so it is added rather than subtracted; the first
+version sent every spark and every shell case into the ceiling.
+
+Frame times, measured with `scripts/measure-frametimes.mjs` on the same machine and the same
+run shape as the 2026-09-05 morning session: a flat 8.4–8.6 ms mean and 9.2–9.3 ms p95
+through every phase, unchanged from before the effects landed, with every frame over 33 ms
+landing at the instant the probe took its own `page.screenshot()`. Nothing here allocates
+per shot: the pools are fixed (96 beam segments, 40 sparks, 24 pocks, 8 smoke puffs, 8
+impacts, 6 shells, 4 rings), halved on mobile, sized from `GAME_CONFIG.EFFECTS`, and every
+model and texture is loaded once and cloned into them.
+
+The contract is read defensively throughout — dynamic import inside a try, every field
+through a reader that takes a list of candidate names and Epic's own fallback — so a missing
+or half-regenerated `src/shared/effects.js` costs the procedural effect for that shot rather
+than the shot. `server/test/ut-effects.test.mjs` covers the arithmetic (the beam chain, the
+sound roll including its silent quarter, the distance falloff) and the shape of the committed
+contract: that every asset it names is on disk, that the fields the renderer reads are the
+ones the generator writes, that the beam's spacing really is 135 UU through THIS build's
+scale, that gravity is signed, and that the models are longest along the forward axis they
+declare.

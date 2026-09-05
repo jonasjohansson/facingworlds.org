@@ -235,6 +235,38 @@ export const GAME_CONFIG = {
     DECAL_OPACITY: 0.85,
     IMPACT_LIGHT_INTENSITY: 12,
     IMPACT_LIGHT_RANGE: 4,
+
+    // ---- UT99's own hit effects (src/game/components/ut-effects.js) ----
+    // Pool sizes, halved on mobile there, exactly as the three above are. A beam is the
+    // only effect that claims many slots at once — one shock shot lays a segment every
+    // 135 UU (3.17 m) from the muzzle to the wall — so it gets most of the budget, and
+    // UT_BEAM_MAX_PER_SHOT stops a single long shot taking the whole pool and blanking
+    // the shot before it. Everything ABOUT each effect (lifespans, draw scales, animation
+    // rates, spark physics) is Epic's and lives in the generated src/shared/effects.js;
+    // only what this build can afford to draw at once is decided here.
+    UT_MAX_BEAM_SEGMENTS: 96,
+    UT_BEAM_MAX_PER_SHOT: 40,
+    UT_MAX_RINGS: 4,
+    UT_MAX_IMPACTS: 8,
+    UT_MAX_SMOKE: 8,
+    UT_MAX_SPARKS: 40,
+    UT_MAX_SHELLS: 6,
+    // Pock decals — UT99's real ones, 18 to 23 seconds each, so more of them are alive at
+    // once than of anything else here.
+    UT_MAX_POCKS: 24,
+
+    // The ShockRifle's `shockexplo`. Brighter and further-reaching than a bullet's spark
+    // light because it is a plasma ring rather than a hot chip of masonry, and shorter
+    // lived because UT99's is a one-tick light actor.
+    SHOCK_LIGHT_INTENSITY: 18,
+    SHOCK_LIGHT_RANGE: 6,
+    SHOCK_LIGHT_LIFE: 0.1,
+
+    // Distance falloff for the pooled HTMLAudioElements the impact sounds use. There is no
+    // positional audio graph in this build, so volume is scaled by ref/(ref+d): flat within
+    // SOUND_REF_M of the camera, and silent rather than inaudible past SOUND_CULL_M.
+    SOUND_REF_M: 8,
+    SOUND_CULL_M: 120,
   },
 
   // Target settings

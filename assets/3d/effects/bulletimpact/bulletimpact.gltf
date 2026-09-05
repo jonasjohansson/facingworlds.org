@@ -1,0 +1,147 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "build-ut-effects.mjs"
+ },
+ "extensionsUsed": [
+  "KHR_materials_unlit"
+ ],
+ "extras": {
+  "utMesh": "BulletImpact",
+  "utActor": "BulletImpact",
+  "drawScale": 0.2800000011920929,
+  "baseFrame": 0,
+  "sceneFrame": "actor forward +X, up +Y, right +Z (map-transform's uuToScene axes); RotOrigin baked in",
+  "epicRotOriginDeg": [
+   -90,
+   0,
+   0
+  ],
+  "meshOriginUU": [
+   0,
+   0,
+   0
+  ]
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0,
+   "name": "bulletimpact"
+  }
+ ],
+ "meshes": [
+  {
+   "name": "bulletimpact",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "TEXCOORD_0": 1
+     },
+     "indices": 2,
+     "material": 0
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "slot0",
+   "doubleSided": false,
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 0
+    },
+    "metallicFactor": 0,
+    "roughnessFactor": 1
+   },
+   "alphaMode": "BLEND",
+   "extensions": {
+    "KHR_materials_unlit": {}
+   }
+  }
+ ],
+ "textures": [
+  {
+   "source": 0,
+   "sampler": 0
+  }
+ ],
+ "images": [
+  {
+   "uri": "s0.png"
+  }
+ ],
+ "samplers": [
+  {
+   "magFilter": 9729,
+   "minFilter": 9987,
+   "wrapS": 10497,
+   "wrapT": 10497
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 71,
+   "type": "VEC3",
+   "min": [
+    -4.448113461496051e-18,
+    -0.17687041365879536,
+    -0.12712560981725918
+   ],
+   "max": [
+    0.8606641199017334,
+    0.19582081512223776,
+    0.1516032117075389
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 71,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5123,
+   "count": 126,
+   "type": "SCALAR"
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 852,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 852,
+   "byteLength": 568,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 1420,
+   "byteLength": 252,
+   "target": 34963
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "bulletimpact.bin",
+   "byteLength": 1672
+  }
+ ]
+}

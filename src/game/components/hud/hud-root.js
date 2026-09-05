@@ -1111,9 +1111,9 @@ function createHud() {
 
   // ---- local shot detection ----
   // first-person-weapon owns firing and stamps `lastFireTime` on every LOCAL
-  // shot. The scene's `bullet-fired` event is no good here: network.js spawns
-  // bullet entities for remote players too, so it would drain your magazine when
-  // someone else shoots. Reading the component's own stamp is a one-property
+  // shot. The scene's `bullet-fired` event is no good here: network.js emits it for
+  // remote players' shots too (it draws their hits), so it would drain your magazine
+  // when someone else shoots. Reading the component's own stamp is a one-property
   // compare per frame and needs no change to the fire path.
   let rafId = 0;
   let lastSeenFire = 0;

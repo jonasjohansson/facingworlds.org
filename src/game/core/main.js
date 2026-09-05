@@ -15,7 +15,6 @@ import "../utils/performance.js";
 import "../config/game-config.js";
 
 // Import component modules
-import "../components/bullet.js";
 import "../components/blaster.js";
 import "../components/character.js";
 import "../components/health.js";

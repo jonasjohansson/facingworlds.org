@@ -319,7 +319,11 @@ export function updateProjectiles(dt) {
       continue;
     }
     setFrame(slot, Math.min(slot.frames - 1, Math.floor(t * slot.frames)));
-    if (cam) slot.mesh.quaternion.copy(cam.quaternion);
+    // WORLD quaternion, not .quaternion: A-Frame hangs the PerspectiveCamera off the
+    // <a-entity camera> and never rotates the camera object itself, so its local
+    // quaternion is the identity and a blast "facing the camera" faced +Z instead —
+    // edge-on from most angles. ut-effects.js found the same bug on its smoke puffs.
+    if (cam) cam.getWorldQuaternion(slot.mesh.quaternion);
   }
 }
 
