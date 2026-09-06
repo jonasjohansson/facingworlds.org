@@ -195,9 +195,7 @@ export class FirstPersonWeapon {
     this._up = new THREE.Vector3();
     this._muzzleLocal = new THREE.Vector3();
     this._muzzleWorld = new THREE.Vector3();
-    this._ray = new THREE.Raycaster();
     this._quat = new THREE.Quaternion();
-    this._normalMatrix = new THREE.Matrix3();
 
     // ---- feel state ----
     this.crosshairBloom = 0;
@@ -733,8 +731,8 @@ export class FirstPersonWeapon {
    * the world's flat mesh list and every remote player's analytic CAPSULE with UT99's
    * headshot sphere on top of it, and reports a surface normal for the decal. The stand-in
    * that lived here traced the avatars' DRAWN TRIANGLES instead — enough to stop a shot at
-   * a body, but it had no head and no radial normal — and the world half read
-   * player/colliders.js, which hitscan's getWorldColliders() now owns.
+   * a body, but it had no head and no radial normal — and the world half read a
+   * stand-in collider list that hitscan's getWorldColliders() now owns.
    *
    * No `excludeId`: bodies() carries no local body, so there is nothing to exclude the way
    * the A-Frame call site's `excludeEl: #soldier` had to. Same result shape as before.
@@ -794,8 +792,6 @@ export class FirstPersonWeapon {
       // wall hit (BulletImpact mesh, smoke puff, sparks, one of its four sounds). And
       // Botpack's two cartridge weapons throw a UT_ShellCase out of the muzzle; the
       // helper ignores every other weapon.
-      // Task 10 registers this — until then a shot is silent on the wall, and the trace
-      // above is the only part of it that exists.
       const fx = this.game.systems.get("ut-effects");
       fx?.drawHitscanShot?.(this.weaponId, this.muzzlePosition, result, this.dual);
       fx?.ejectShell?.(this.weaponId, this.muzzlePosition, dir);

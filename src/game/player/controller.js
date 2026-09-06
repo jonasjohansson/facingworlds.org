@@ -90,7 +90,7 @@ import { GAME_CONFIG } from "../config/game-config.js";
 import { ASSETS, attachModel } from "../engine/assets.js";
 import { createUtMovement } from "./ut-movement-model.js";
 import { createViewShake, DEFAULT_SHAKE } from "./view-shake.js";
-import { worldColliders } from "./colliders.js";
+import { getWorldColliders } from "../systems/hitscan.js";
 import { createPointerLockPrompt } from "./pointer-lock-prompt.js";
 import { handleError } from "../utils/error-handler.js";
 
@@ -379,7 +379,7 @@ export class PlayerController {
    * a fifth of a second, on every respawn.
    */
   probeFloor() {
-    const meshes = worldColliders(this.game);
+    const meshes = getWorldColliders(this.game);
     if (!meshes.length) return 0;
     const p = this.rig.position;
     this._rayOrigin.set(p.x, p.y + FLOOR_PROBE_UP, p.z);

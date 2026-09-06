@@ -19,6 +19,7 @@
 // events that used to be filtered by every instance separately, and hands hitscan the
 // list of hit volumes.
 import * as THREE from "three";
+import { getWorldColliders } from "./hitscan.js";
 import { SnapshotBuffer, lerpYaw } from "../../shared/net/interpolation.js";
 import { GAME_CONFIG } from "../config/game-config.js";
 import { fireState, pickFireClip } from "./remote-fire-state.js";
@@ -1074,7 +1075,6 @@ export class RemoteAvatars {
     this.avatars = new Map(); // id -> RemoteAvatar
     this._bodies = [];
     this._bodiesDirty = true;
-    this._colliders = null;
 
     // The three scene events every instance used to listen to and filter by id. One
     // subscription each, routed by the map — network.js emits exactly what it always did.
@@ -1182,25 +1182,11 @@ export class RemoteAvatars {
   }
 
   /**
-   * The map's meshes, for the floor probe. Cached once — the map is loaded before any
-   * avatar can spawn and never reloads.
-   *
-   * TEMPORARY: Task 10's hitscan.js exports `getWorldColliders(game)`, which is the same
-   * list with the local player's own body excluded and an invalidation hook. Swap this
-   * for that import when it lands; the probe window and the lerp rate do not change.
+   * The map's meshes, for the floor probe: hitscan.js's list, which is cached on the map
+   * root's identity and shared with the local floor probe and every shot's world ray.
    */
   worldColliders() {
-    if (this._colliders) return this._colliders;
-    const map = this.game && this.game.map;
-    const root = map && (map.userData.mesh || map);
-    if (!root) return EMPTY;
-    const meshes = [];
-    root.traverse((o) => {
-      if (o.isMesh && o.geometry) meshes.push(o);
-    });
-    if (!meshes.length) return EMPTY; // not loaded yet — don't cache the empty result
-    this._colliders = meshes;
-    return meshes;
+    return getWorldColliders(this.game);
   }
 
   update(dt, now) {
@@ -1211,6 +1197,5 @@ export class RemoteAvatars {
     for (const off of this._offs) off();
     this._offs.length = 0;
     this.clear();
-    this._colliders = null;
   }
 }
