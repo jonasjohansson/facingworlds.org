@@ -272,6 +272,21 @@ files. Everything here is deliberate or already shipped; none of it is a parity 
 - **The shell-casing pool is 6.** `GAME_CONFIG.EFFECTS.UT_MAX_SHELLS` is 6, which sustained
   fire runs dry — ~12 is what it wants. Left at 6: it is the old BUDGET value and parity is
   the bar.
+- **The player is clamped on every frame; the bots' paths are not the player's.** Measured
+  2026-09-06 by walking all 224 walkable edges of the bots' graph (`server/nav-graph.js`)
+  in both builds from the same start, same heading, bots off: 186 edges reach the same
+  distance to within a metre; on 17 the new build gets further (the blue- and red-base
+  island seams `navclamp.js` bridges and the old cache could not cross); on 21 it stops
+  short. Every one of those 21 starts from a point that is NOT on a navmesh polygon
+  (checked with `getClosestNode(…, checkPolygon: true)`), where aframe-extras' empty
+  polygon cache ran the rig UNCLAMPED after the teleport — through the hole, until it hit a
+  polygon. All 20 server spawn points ARE on polygons, so that free run never happened in
+  play; it was only ever the probe's teleport. In-game the two builds stop at the same
+  holes. "Bots run where I can't" is the fan navmesh: 110 of the 224 edges cross a plan
+  hole of a metre or more in it (both bases' interiors, the lift shafts, the bridge
+  approach), and the bots get through because they are snapped to the DRAWN floor
+  (`server/navmesh-surface.js`) rather than clamped to the navmesh. Pre-existing on
+  `main`; the fix is a navmesh built from the drawn floor, not a clamp change.
 
 ## Risks
 
