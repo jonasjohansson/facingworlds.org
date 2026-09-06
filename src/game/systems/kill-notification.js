@@ -12,10 +12,14 @@ import { getHud } from "../components/hud/hud-root.js";
 
 const DEFAULTS = {
   enabled: true,
-  // Kept for compatibility with anything that sets them; the rail's four-line cap
-  // and 3 s LocalMessage lifetime are the source's, not ours.
+  // index.html's two markup values, carried across so the registration in main-three.js
+  // is not passing numbers this file disagrees with. NOTHING READS EITHER: the rail's
+  // four-line cap and its 3 s LocalMessage lifetime are ChallengeHUD's, owned by
+  // hud-root.js, and pushMessage() takes no duration. They are kept only because
+  // deleting a schema entry that markup sets is a silent behaviour change if the HUD
+  // ever grows a knob for it.
   maxEntries: 4,
-  displayDuration: 3000,
+  displayDuration: 4000,
 };
 
 export class KillNotification {

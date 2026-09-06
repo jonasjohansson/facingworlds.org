@@ -49,6 +49,9 @@ const RECONNECT_JITTER = 0.3; // ±30% so a server restart doesn't stampede ever
  *   main.js did — right after the player, before the offline navmesh placement — and the
  *   rest of the registry is filled in on the same synchronous run, long before a socket
  *   can deliver anything.
+ * @returns {{dispose: () => void}} the client, shaped as a system: main-three.js
+ *   registers it so game.dispose() closes the socket and clears the timers. See
+ *   dispose() at the bottom for what would otherwise outlive the game.
  */
 export function startNetwork(game) {
   const WS_URL = getWebSocketUrl();
@@ -68,6 +71,11 @@ export function startNetwork(game) {
   let reconnectTimer = null;
   let closedByUs = false;
   let statusEl = null;
+  // The 20 Hz pose sampler's interval id, and the one-way latch dispose() sets. Both
+  // exist because startNetwork returns a handle now: nothing in this closure is
+  // garbage-collectable while a timer, a socket or a bus subscription still points at it.
+  let poseTimer = null;
+  let disposed = false;
 
   // ---- the systems this file speaks to ----
   // `remotes` (a Map of id -> rig element) is the registry now. It, and the two effect
@@ -120,7 +128,8 @@ export function startNetwork(game) {
   startPoseLoop();
 
   // Best effort: tell the server we are going away so it doesn't wait for a timeout
-  window.addEventListener("beforeunload", () => {
+  window.addEventListener("beforeunload", onBeforeUnload);
+  function onBeforeUnload() {
     closedByUs = true;
     if (ws) {
       try {
@@ -129,7 +138,7 @@ export function startNetwork(game) {
         /* nothing useful to do here */
       }
     }
-  });
+  }
 
   // ---- connection status indicator ----
   function createStatusIndicator() {
@@ -595,6 +604,8 @@ export function startNetwork(game) {
   }
 
   // ---- pose loop ----
+  // The handle keeps the interval id: a 20 Hz timer that outlives the page it was
+  // sampling would go on reading a disposed rig for ever. dispose() clears it.
   function startPoseLoop() {
     let lastPosition = { x: 0, y: 0, z: 0 };
     let lastRotation = 0;
@@ -602,7 +613,7 @@ export function startNetwork(game) {
     let lastSampleTime = performance.now();
     const threshold = 0.005; // Lower threshold for smoother updates
 
-    setInterval(() => {
+    poseTimer = setInterval(() => {
       const rig = game.rig;
       const player = game.player;
       if (!myId || !rig || !player) return;
@@ -1033,10 +1044,9 @@ export function startNetwork(game) {
     if (mine) claimName(mine);
   }, CLAIM_TTL / 2);
 
-  window.addEventListener("pagehide", () => {
-    clearInterval(claimTimer);
-    for (const off of offBus) off();
-    offBus.length = 0;
+  // Drop this tab's claim so the name is free for the next tab rather than held for
+  // CLAIM_TTL. On the way out of the PAGE, and equally on the way out of the client.
+  function releaseNameClaim() {
     const mine = sessionStorage.getItem(NAME_KEY);
     if (!mine) return;
     const claims = readClaims();
@@ -1044,7 +1054,55 @@ export function startNetwork(game) {
       delete claims[mine];
       writeClaims(claims);
     }
-  });
+  }
+
+  window.addEventListener("pagehide", onPageHide);
+  function onPageHide() {
+    dispose();
+  }
+
+  /**
+   * Shut the client down: what the page unload used to do, callable.
+   *
+   * startNetwork() used to return undefined, which was fine while the only way out of a
+   * session was closing the tab. It is not fine now that it is registered as a system:
+   * game.dispose() walks the registry and every one of the four things below would have
+   * outlived it — a 20 Hz interval sampling a rig nobody is drawing, a socket still
+   * feeding poses into a torn-down avatar registry, a pending reconnect timer that would
+   * open a NEW socket after the game was gone, and six bus subscriptions holding this
+   * whole closure alive. Idempotent: `pagehide` and game.dispose() may both fire.
+   */
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    // Before the close, so onclose reads it and does not schedule a reconnect.
+    closedByUs = true;
+    clearInterval(claimTimer);
+    if (poseTimer) clearInterval(poseTimer);
+    poseTimer = null;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    for (const off of offBus) off();
+    offBus.length = 0;
+    window.removeEventListener("beforeunload", onBeforeUnload);
+    window.removeEventListener("pagehide", onPageHide);
+    const sock = ws;
+    // Dropping the reference first is what makes every handler on that socket stale()
+    // — including the onclose the close() below is about to fire.
+    ws = null;
+    if (sock) {
+      try {
+        sock.close(1000, "client disposed");
+      } catch {
+        /* nothing useful to do here */
+      }
+    }
+    if (statusEl && statusEl.parentNode) statusEl.parentNode.removeChild(statusEl);
+    statusEl = null;
+    releaseNameClaim();
+  }
 
   function getPersistentScore() {
     const stored = localStorage.getItem("facingworlds_player_score");
@@ -1118,6 +1176,10 @@ export function startNetwork(game) {
     ];
     return names[Math.floor(Math.random() * names.length)];
   }
+
+  // The client, as a system: no update(), one dispose(). core/main-three.js registers it
+  // so game.dispose() reaches it in the same reverse-order sweep as everything else.
+  return { dispose };
 }
 
 export default startNetwork;

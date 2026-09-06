@@ -1,17 +1,32 @@
 // name-changer.js — the dialog behind N for changing your persistent player name.
 //
-// Ported from components/name-changer.js. Two things moved and nothing else did:
+// THIS IS THE FIRST BUILD IN WHICH IT IS LIVE. components/name-changer.js was written,
+// imported by core/main.js — and then never attached to anything: `grep changer
+// index.html` finds nothing, and an A-Frame component registered but never named in
+// markup has no instance, so no listener, no dialog, no N. There is therefore no old
+// behaviour to be at parity with here; what follows is the choice this build makes, not
+// a port of one that shipped.
 //
-//   the key   was a window keydown listener of its own that preventDefault()ed N. It is
-//             engine/input.js's edge now, polled once a frame (consumePress). That fixes
-//             a real bug for free: the old listener fired on EVERY N, including the ones
-//             typed into this dialog's own text box, so typing a name with an "n" in it
-//             closed the dialog under your fingers. input.js ignores key events whose
-//             target is an INPUT/TEXTAREA, so the box keeps its letters.
+// The markup is components/name-changer.js's, unchanged. Two things are wired
+// differently, because there is now an input layer to wire them to:
+//
+//   the key   the old component would have owned a window keydown listener that
+//             preventDefault()ed N. It is engine/input.js's edge instead, polled once a
+//             frame (consumePress), so this file adds no second listener for a key the
+//             input layer already tracks.
 //   the emit  `sceneEl.emit("change-name", …)` is `game.events.emit("change-name", …)`,
 //             the same name and payload network.js has always listened for.
 //
-// The persistent name itself still lives behind window.getPlayerName/setPlayerName, which
+// WHAT THAT MAKES N DO, PRECISELY. input.js ignores key events whose target is an INPUT,
+// TEXTAREA or contenteditable, which is what keeps an "n" typed into the box below from
+// reaching this system at all — a name with an "n" in it types straight through. The
+// cost is the other half of the same rule: while the box has focus (which show() gives
+// it), N cannot CLOSE the dialog either. toggle() below is still the contract — press N
+// on the map, the dialog opens; press N with focus anywhere outside the box, it closes —
+// but the way out of an open dialog in practice is Escape, Cancel or Save, all three of
+// which are handled on the dialog's own elements and none of which go through input.js.
+//
+// The persistent name itself lives behind window.getPlayerName/setPlayerName, which
 // network.js installs — this dialog only asks for a string and hands it over.
 const DEFAULTS = {
   enabled: true,

@@ -29,9 +29,9 @@
 //
 // On the wire the old code sent `rig.rotation.y + cam.rotation.y` because look-controls
 // put the mouse yaw on the camera and the rig's own yaw only moved on Q/E and spawns.
-// The sum is now simply rig.rotation.y. network.js is ported in Task 13; until then this
-// file is what defines the contract: rig.position is the wire position, the hop is a
-// separate visualOffset(), and the yaw sent is the rig's.
+// The sum is now simply rig.rotation.y, and network.js sends exactly that: rig.position
+// is the wire position, the hop rides beside it as visualOffset(), and the yaw is the
+// rig's alone.
 //
 // ---------------------------------------------------------------------------
 // WHY THE HOP IS NOT ON THE RIG

@@ -59,8 +59,10 @@ async function boot() {
   //   camera pin -> the DOM systems (announcer, scoreboard, kill feed, name dialog) ->
   //   bloom (render hook).
   // A system that needs another's result THIS frame goes after it; say why in a comment.
-  // The network layer is NOT in this list: it has no update(), it is started below the
-  // player where the old main.js started it, and it reaches everything by method call.
+  // The network layer and the local Health are in the registry but not in that order:
+  // neither has an update(). They are registered for their dispose(), which is the only
+  // teardown game.dispose() can reach. The socket opens below the player, where the old
+  // main.js opened it, and reaches everything else by method call.
 
   /*
     The player. FIRST of the per-frame systems, because it is what moves the camera:
@@ -110,6 +112,10 @@ async function boot() {
     dispose() {
       if (this.character) this.character.dispose();
       this.character = null;
+      // The field below is published for network.js's pose loop; leaving a disposed
+      // mixer's target object reachable through game.player would be a lie about what
+      // this body is doing.
+      if (game.player) game.player.character = null;
     },
   };
   game.register("player-character", playerCharacter);
@@ -135,12 +141,16 @@ async function boot() {
 
     network.js reaches it as game.player.health for `hit`, `health` and `respawn`; the
     attach() makes it findable from the node the way el.components.health was.
+
+    REGISTERED AS WELL AS ATTACHED, even though it has no update(): game.dispose() walks
+    the system registry and nothing else, so an attach()-only Health would never have its
+    own dispose() run — leaking the label sprite's canvas texture and, because Health
+    releases the HUD ref it was handed, leaving the HUD singleton's refcount stuck at one
+    for ever. A system with no update() costs the frame loop one property test.
   */
-  game.player.health = game.attach(
-    game.player.soldier,
-    "health",
-    new Health(game, game.player.soldier, { local: true, hud: game.hud, max: 100, current: 100 })
-  );
+  const localHealth = new Health(game, game.player.soldier, { local: true, hud: game.hud, max: 100, current: 100 });
+  game.attach(game.player.soldier, "health", localHealth);
+  game.player.health = game.register("local-health", localHealth);
 
   /*
     THE SOCKET. Where the old main.js put it: connect FIRST, because it is the slow remote
@@ -151,9 +161,13 @@ async function boot() {
     which are three lines up; the systems it talks to (remote-avatars, ut-effects,
     ut-projectiles) are registered further down this same synchronous run and are looked up
     lazily, long before a socket can deliver a message.
+
+    Registered for its dispose() alone — it has no update(). game.dispose() then closes
+    the socket, clears the 20 Hz pose interval and any pending reconnect, and drops the
+    bus subscriptions; without that the client outlives the game it is reporting on.
   */
   try {
-    startNetwork(game);
+    game.register("network", startNetwork(game));
   } catch (e) {
     handleError(e, "network");
   }
