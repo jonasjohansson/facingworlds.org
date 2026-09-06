@@ -190,6 +190,7 @@ export function startNetwork(game) {
 
   // ---- websocket wiring ----
   function connect() {
+    if (disposed) return;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
@@ -559,7 +560,14 @@ export function startNetwork(game) {
       console.log("[network] WebSocket closed:", event.code, event.reason);
       if (stale()) return;
       clearRemotes();
+      // Our own id is dead with the socket too: the next `hello` hands out a fresh one,
+      // and the scoreboard would otherwise keep the old row beside it.
+      if (myId != null) events.emit("player-leave", { id: myId });
       myId = null;
+      // Fresh ids on the other side of the reconnect; a stale loadout under an old id
+      // would only ever mis-pick a fire sound, but the map would grow by one set of
+      // players per drop for ever.
+      remoteWeapons.clear();
       if (game.rig) delete game.rig.userData.playerId;
       // The next connection assigns a team from scratch; holding the old one would
       // colour the HUD for a side we may not be on any more. It has to go through
@@ -578,7 +586,7 @@ export function startNetwork(game) {
   // Exponential backoff with jitter, capped. Retries forever — the indicator tells
   // the player what is happening and can be clicked to retry immediately.
   function scheduleReconnect(forcedDelay) {
-    if (reconnectTimer) return;
+    if (disposed || reconnectTimer) return;
     reconnectAttempts++;
 
     let delay = forcedDelay;
@@ -1083,6 +1091,15 @@ export function startNetwork(game) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
+    // The socket's own onclose is stale() by the time close() fires it (see below), so
+    // what it would have undone is undone here — while the bus is still attached, because
+    // the flag system drops both flags off `local-team`. The document tint and the id
+    // on the rig go with the team.
+    setLocalTeam(null);
+    if (myId != null) events.emit("player-leave", { id: myId });
+    myId = null;
+    if (game.rig) delete game.rig.userData.playerId;
+    remoteWeapons.clear();
     for (const off of offBus) off();
     offBus.length = 0;
     window.removeEventListener("beforeunload", onBeforeUnload);
@@ -1101,6 +1118,12 @@ export function startNetwork(game) {
     if (statusEl && statusEl.parentNode) statusEl.parentNode.removeChild(statusEl);
     statusEl = null;
     releaseNameClaim();
+    // The four console/UI helpers published at the bottom of this closure; they would
+    // otherwise keep the whole closure — and its game — reachable from window.
+    delete window.setPlayerName;
+    delete window.getPlayerName;
+    delete window.getPlayerScore;
+    delete window.setPlayerScore;
   }
 
   function getPersistentScore() {

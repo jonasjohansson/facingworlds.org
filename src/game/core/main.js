@@ -42,6 +42,12 @@ async function boot() {
   // module-scoped, exactly as window.__arTable is for the AR page.
   window.__fw = game;
 
+  // The FPS monitor's requestAnimationFrame chain is the one perpetual thing boot()
+  // starts outside the registry, so it gets the smallest system there is: no update(),
+  // only the dispose() that stops it — the pattern the network layer and the local
+  // Health use to be reached by game.dispose().
+  game.register("performance-monitor", { dispose: () => performanceMonitor.stopMonitoring() });
+
   // The HUD. Still DOM (hud/hud-root.js); it is handed `game` so its CTF feed reads
   // game.events and its shot counter finds the weapon system. Built BEFORE the systems that take a
   // reference to it (the weapon, and health when the network layer lands), because it is a
@@ -105,10 +111,14 @@ async function boot() {
   */
   const playerCharacter = {
     character: null,
+    disposed: false,
     update(dt) {
       if (this.character) this.character.update(dt, game.player.speedMps);
     },
     dispose() {
+      // Read by the .then() below: a body that resolves after this must not build a
+      // Character into a game that is gone.
+      this.disposed = true;
       if (this.character) this.character.dispose();
       this.character = null;
       // The field below is published for network.js's pose loop; leaving a disposed
@@ -120,8 +130,9 @@ async function boot() {
   game.register("player-character", playerCharacter);
   game.player.ready
     .then(async (root) => {
-      if (!root) return;
+      if (!root || playerCharacter.disposed) return;
       const { animations } = await loadGltf(ASSETS.soldierModel);
+      if (playerCharacter.disposed) return;
       playerCharacter.character = new Character(root, animations, { receiveShadow: false });
       // network.js's pose loop reads the blend targets off here to tell everyone else
       // whether this player is idling, walking or running.

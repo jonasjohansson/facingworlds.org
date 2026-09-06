@@ -112,6 +112,15 @@ export function createGame({ canvas, pixelRatioCap = 2 } = {}) {
       window.removeEventListener("resize", onResize);
       for (const s of [...systems.values()].reverse()) if (s.dispose) s.dispose();
       systems.clear();
+      // The input is main.js's, assigned after createGame(), but it is the engine's
+      // teardown that has to reach it: its keydown swallows Space/Tab/X page-wide and its
+      // mousedown re-requests the pointer lock, and both would go on doing so for a
+      // game nobody is drawing. The lock itself is released with it.
+      if (game.input) {
+        game.input.dispose();
+        game.input = null;
+      }
+      if (typeof document !== "undefined") document.exitPointerLock?.();
       renderer.dispose();
     },
   };

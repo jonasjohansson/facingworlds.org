@@ -129,6 +129,9 @@ export async function runEffects({ browser, base = baseUrl(), out = process.env.
     w.setWeapon("enforcer");
     await new Promise((r) => setTimeout(r, 400)); // let the bring-up animation finish
     const before = fx.stats().live.shells;
+    // The pool is round-robin and the bots' Enforcers throw cases into it too, so the
+    // probe follows the slot its own shot is about to take, not the last live one.
+    const slot = fx.stats().shellSlot;
     w.fireBullet();
     // 600 ms, because a UT_ShellCase is thrown UP at 3.8-4.9 m/s first: under UE1's
     // -22.325 m/s^2 it peaks around 200 ms and only then falls. A series that rises and
@@ -141,7 +144,7 @@ export async function runEffects({ browser, base = baseUrl(), out = process.env.
       const s = fx.stats();
       series.push({
         t: Math.round(performance.now() - t0),
-        y: s.shellY.length ? +s.shellY[s.shellY.length - 1].toFixed(3) : null,
+        y: s.shellY[slot] == null ? null : +s.shellY[slot].toFixed(3),
       });
     }
     const ys = series.map((p) => p.y).filter((y) => y !== null);

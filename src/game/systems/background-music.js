@@ -30,6 +30,10 @@ export class BackgroundMusic {
     this.listener = null;
     this.musicStarted = false;
     this.offBulletFired = null;
+    // The AudioLoader's callbacks land whenever the 6 MB download does; both check this
+    // first so a game disposed mid-download neither builds an Audio on a removed listener
+    // nor starts the fallback drone that nothing would ever stop.
+    this.disposed = false;
 
     // Listen for bullet events to start music. `sceneEl.addEventListener` is the bus now;
     // the handler still reads nothing off the event, as before.
@@ -56,6 +60,7 @@ export class BackgroundMusic {
     this.audioLoader.load(
       this.data.musicUrl,
       (buffer) => {
+        if (this.disposed) return;
         if (this.listener) {
           this.audio = new THREE.Audio(this.listener);
           this.audio.setBuffer(buffer);
@@ -78,6 +83,7 @@ export class BackgroundMusic {
       },
       undefined,
       (error) => {
+        if (this.disposed) return;
         console.warn("[background-music] Failed to load music:", error);
         // Create a simple ambient sound as fallback
         this.createAmbientSound();
@@ -148,6 +154,7 @@ export class BackgroundMusic {
   }
 
   dispose() {
+    this.disposed = true;
     if (this.offBulletFired) this.offBulletFired();
     if (this.audio) {
       this.audio.stop();
@@ -155,6 +162,7 @@ export class BackgroundMusic {
     if (this.listener && this.listener.parent) {
       this.listener.parent.remove(this.listener);
     }
+    this.listener = null;
     if (this.fallbackOscillator) {
       this.fallbackOscillator.stop();
     }

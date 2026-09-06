@@ -625,6 +625,9 @@ function makeWeaponSlot(w) {
 }
 
 export function createHud(game) {
+  if (!game || !game.events || !game.systems) {
+    throw new Error("createHud: needs the engine handle (game.events, game.systems) — see core/main.js getHud(game)");
+  }
   ensureFont();
 
   // ---- the two things this DOM module needs from the scene ----

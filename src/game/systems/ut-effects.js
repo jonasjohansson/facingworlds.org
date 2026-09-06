@@ -1528,7 +1528,9 @@ export function disposeUtEffects() {
 async function preload(game) {
   ensureRoot(game);
   await loadContract();
-  if (!FX) return;
+  // disposeUtEffects() nulls the root; a contract that lands after it must not rebuild
+  // the sheets and textures it just released (loadModel's builds already check this).
+  if (!state.root || !FX) return;
 
   // The last argument says whether the mesh should be LONGEST along the contract's forward
   // axis — true for a beam segment, an impact flash and a shell case, false for the ring,
@@ -1666,8 +1668,11 @@ export class UtEffects {
       // UTRingex's 'Explo' is a 9-frame vertex animation (8 morph targets plus the base
       // pose); server/test/effects.test.mjs pins the same number on the glTF.
       ringFrames: ringClip && ringClip.tracks.length ? ringClip.tracks[0].times.length : 0,
-      // Every live shell's height, so a probe can watch one fall under UE1's gravity.
-      shellY: state.shells ? state.shells.filter((s) => s.life > 0).map((s) => s.obj.position.y) : [],
+      // Every shell slot's height (null while dead), and the slot the NEXT shell takes,
+      // so a probe can watch ITS OWN case fall under UE1's gravity while a bot's cases
+      // come and go in the other slots: read shellSlot before the shot, then shellY[it].
+      shellY: state.shells ? state.shells.map((s) => (s.life > 0 ? s.obj.position.y : null)) : [],
+      shellSlot: state.shells ? state.shellIdx % state.shells.length : 0,
       lightIntensity: state.light ? state.light.intensity : 0,
     };
   }

@@ -89,6 +89,7 @@
 import * as THREE from "three";
 import { GAME_CONFIG } from "../config/game-config.js";
 import { ASSETS, attachModel } from "../engine/assets.js";
+import { MOUSE_RAD_PER_PX } from "../engine/input.js";
 import { createUtMovement } from "./ut-movement-model.js";
 import { createViewShake, DEFAULT_SHAKE } from "./view-shake.js";
 import { getWorldColliders } from "../systems/hitscan.js";
@@ -101,10 +102,11 @@ const MOVEMENT = GAME_CONFIG.MOVEMENT;
 // note records the same figure as measured in the running scene.
 const EYE_HEIGHT = 1.4;
 
-// A-Frame look-controls' own rate, radians per pixel of movementX/movementY, and its own
-// sign (`yawObject.rotation.y += movementX * 0.002 * -1`): the mouse moving right turns
-// right, the mouse moving down looks down.
-const LOOK_RAD_PER_PX = 0.002;
+// The look rate is input.js's MOUSE_RAD_PER_PX — A-Frame look-controls' own, radians per
+// pixel of movementX/movementY — applied with its own sign (`yawObject.rotation.y +=
+// movementX * 0.002 * -1`): the mouse moving right turns right, the mouse moving down
+// looks down. Imported rather than spelled again here because input.js pre-scales touch
+// deltas to that same rate; a second copy could drift from it.
 const PITCH_LIMIT = Math.PI / 2;
 
 // A single-frame vertical shift larger than this is a respawn, not terrain: at the UT99
@@ -283,9 +285,9 @@ export class PlayerController {
    */
   updateLook() {
     const look = this.game.input.look(this._look);
-    if (look.x !== 0) this.yaw -= look.x * LOOK_RAD_PER_PX;
+    if (look.x !== 0) this.yaw -= look.x * MOUSE_RAD_PER_PX;
     if (look.y !== 0) {
-      this.pitch -= look.y * LOOK_RAD_PER_PX;
+      this.pitch -= look.y * MOUSE_RAD_PER_PX;
       this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
     }
     this.rig.rotation.y = this.yaw;

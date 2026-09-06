@@ -16,7 +16,8 @@
 import * as THREE from "three";
 import { GAME_CONFIG } from "../config/game-config.js";
 
-const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const isMobileDevice =
+  typeof navigator !== "undefined" && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
 const state = {
   root: null,

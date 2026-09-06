@@ -342,6 +342,27 @@ export function clearProjectiles() {
 }
 
 /**
+ * Everything ensureRoot/ensureBlasts/atlasFor built, back to the empty module state.
+ * clearProjectiles() alone leaves the root in the scene and the pool built, so a second
+ * createGame() would find state.root set and ensureBlasts() returning early into a scene
+ * nobody renders. The model clones' GLTFs stay with the shared cache in engine/assets.js
+ * (ut-effects.js says why); only this file's own map entries are dropped.
+ */
+export function disposeProjectiles() {
+  clearProjectiles();
+  // One PlaneGeometry is shared by every blast quad (ensureBlasts).
+  if (state.blasts.length) state.blasts[0].mesh.geometry.dispose();
+  for (const slot of state.blasts) slot.mat.dispose();
+  for (const tex of state.atlases.values()) tex.dispose();
+  if (state.root && state.root.parent) state.root.parent.remove(state.root);
+  state.blasts.length = 0;
+  state.blastIdx = 0;
+  state.atlases.clear();
+  state.models.clear();
+  state.root = state.game = null;
+}
+
+/**
  * The system. Registered in core/main.js after the weapon and ut-effects.
  *
  * THE PUBLIC SURFACE, which is what network.js (Task 13) calls — one method per server
@@ -389,6 +410,6 @@ export class UtProjectiles {
   }
 
   dispose() {
-    clearProjectiles();
+    disposeProjectiles();
   }
 }
