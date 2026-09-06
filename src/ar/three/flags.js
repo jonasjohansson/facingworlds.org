@@ -8,10 +8,11 @@ import { AR_CONFIG } from "../config/ar-config.js";
 // and therefore what everyone on the rock is doing.
 //
 // SAME PRIMITIVES AS THE GAME, deliberately rebuilt rather than imported. The
-// game's flag (src/game/components/ctf-flag.js) is an A-Frame component and this
-// page has no A-Frame, so the construction - stand disc and ring, pole, finial,
-// and a 16x8 plane waved in the vertex shader by an onBeforeCompile injection -
-// is repeated here in plain three. The numbers come from AR_CONFIG.ctf, which
+// game's flag (src/game/systems/ctf-flag.js) is a plain three.js system class,
+// but one wired to the game's registry, config and network messages, so the
+// construction - stand disc and ring, pole, finial, and a 16x8 plane waved in
+// the vertex shader by an onBeforeCompile injection - is repeated here in plain
+// three. The numbers come from AR_CONFIG.ctf, which
 // carries the same proportions.
 //
 // COORDINATES. Flag positions arrive in game world coordinates, exactly like

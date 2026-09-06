@@ -257,10 +257,10 @@ export const AR_CONFIG = {
 
   // The two flags, and the score.
   //
-  // Same primitives as the game's own flag (src/game/components/ctf-flag.js): a
+  // Same primitives as the game's own flag (src/game/systems/ctf-flag.js): a
   // stand, a pole, a finial and a plane waved in the vertex shader. Deliberately
-  // NOT the same module - that one is an A-Frame component and this page has no
-  // A-Frame - so the construction is repeated in plain three here.
+  // NOT the same module - that one is a game system class wired to the game's
+  // registry, config and network - so the construction is repeated in plain three here.
   //
   // Dimensions below are quoted in GAME UNITS BEFORE `scale`, exactly like the
   // avatar props, and ride inside `scale` for the same reason: positions come off

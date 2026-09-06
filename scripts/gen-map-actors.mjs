@@ -34,7 +34,7 @@
 // (scripts/lib/navmesh.mjs): it reads assets/3d/navmesh.gltf, takes y from the polygon
 // under the actor ON ITS OWN STOREY, and — if there is no such polygon — walks the x/z
 // to the nearest spot that has one with mesh all around it. This is the build-time twin
-// of the downward raycast src/game/core/spawn.js does at runtime, run once over the
+// of the downward raycast src/game/player/spawn.js does at runtime, run once over the
 // whole set instead of one point at a time by whoever happens to spawn there.
 import fs from "node:fs";
 import path from "node:path";
@@ -130,7 +130,7 @@ const stand = (label, p) => {
   return s;
 };
 
-// z-fighting lift in renderer units (see src/game/core/spawn.js), not a world distance,
+// z-fighting lift in renderer units (see src/game/player/spawn.js), not a world distance,
 // so it is deliberately NOT scaled by WORLD_SCALE. Anything that stands ON the navmesh —
 // flag stands, player spawns — sits at surface + this.
 const NAVMESH_LIFT = 0.05;

@@ -10,7 +10,7 @@
 // original actor was on solid floor. Trusting the raw fit there produces a flag stand
 // hanging in the air, or a PlayerStart the navmesh constraint has to rescue.
 //
-// This is the build-time twin of what src/game/core/spawn.js does at runtime with a
+// This is the build-time twin of what src/game/player/spawn.js does at runtime with a
 // THREE.Raycaster: cast straight down, and if nothing is under you, walk to the
 // nearest walkable polygon. Doing it here means the whole set is validated once, in
 // the generator, instead of one point at a time by whoever happens to spawn there.

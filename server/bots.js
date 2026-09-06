@@ -154,7 +154,7 @@ const GROUND_WINDOW = 4.0;
 // that a step or a ramp edge does not pop on the wire. A hard assignment would also
 // hand the pose validator a vertical jump on every kerb.
 const GROUND_LERP = 25.0;
-// Feet-to-NAVMESH offset. src/game/core/spawn.js lifts the local rig by the same amount
+// Feet-to-NAVMESH offset. src/game/player/spawn.js lifts the local rig by the same amount
 // and server.js stores every spawn already lifted, so a bot standing on the navmesh is
 // at exactly the height a human standing on the same polygon is. It applies ONLY where
 // the navmesh is what answered: since the standing surface became the drawn floor

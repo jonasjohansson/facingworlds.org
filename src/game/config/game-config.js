@@ -17,11 +17,6 @@ export const GAME_CONFIG = {
   PLAYER: {
     HEALTH_MAX: 100,
     HEALTH_CURRENT: 100,
-    // A-Frame extras movement-controls' own `speed` knob. It is NOT metres per second:
-    // the component multiplies it by 16.667 to get m/s, so this is MOVEMENT.GROUND_SPEED
-    // / 16.667. ut-controls bypasses it for keyboard and touch, but gamepad and trackpad
-    // still run through it, so it is kept in step with the UT99 ground speed.
-    MOVEMENT_SPEED: 0.563,
     // How far above the navmesh bbox the placement raycast starts. World-anchored, so
     // x WORLD_SCALE (see src/shared/map-transform.js); spawn.js carries the same number.
     SPAWN_HEIGHT_ABOVE: 18.68,

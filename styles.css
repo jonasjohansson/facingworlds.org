@@ -2,7 +2,7 @@
    Facing Worlds — global chrome + HUD
    ----------------------------------------------------------------------------
    The HUD is authored here rather than inline in JS. Everything under the `ut-`
-   prefix is built by src/game/components/hud/hud-root.js, which only ever writes
+   prefix is built by src/game/hud/hud-root.js, which only ever writes
    text, `data-*` and `is-*` classes — the entire look lives in this file.
 
    Visual target: the UT2003/2004 status bar, checked against a full-size retail

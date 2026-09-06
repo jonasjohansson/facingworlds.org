@@ -304,7 +304,8 @@ files. Everything here is deliberate or already shipped; none of it is a parity 
 `src/game/components/` (the HUD moved to `src/game/hud/`), `src/shared/components/`, the
 `three-aframe` shim, the frozen `network-aframe.js`, the old `core/spawn.js` and the three
 `utils/*-helpers.js`, `ar/aframe.html` with `src/ar/components/` and `src/ar/core/`, and the
-encantar A-Frame plugin are deleted — 137 files, ~16,900 lines. `git grep -i aframe` outside
+encantar A-Frame plugin are deleted — 122 files changed, 70 of them deleted, +875 / −17,676
+(net −16,801 lines). `git grep -i aframe` outside
 `docs/` and `*.md` finds only `_cameraFrameId` / `msaaFrameBuffer` in the stock
 `assets/three-addons/three.webgpu.js`, which is not loaded by anything.
 

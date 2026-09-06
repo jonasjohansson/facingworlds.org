@@ -63,7 +63,7 @@ src/
 │   └── utils/
 ├── ar/                        # the AR page: src/ar/three/, its config, vendored loaders
 └── shared/
-    ├── *.js                   # GENERATED tables (map actors, weapons, effects, ...)
+    ├── *.js                   # GENERATED tables (map actors, weapons, effects, ...) plus the hand-written map-transform.js
     └── net/                   # snapshot interpolation + spectator client
 ```
 

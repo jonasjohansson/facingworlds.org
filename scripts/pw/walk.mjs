@@ -28,8 +28,8 @@
 //   4. FLOOR  the camera's height above the DRAWN floor, raycast straight down against
 //             the map meshes. This is the number behind "the avatars don't follow the
 //             ground the way I do": the navmesh sits up to half a metre above what you
-//             can see. Reported; the number to compare against is the one the A-Frame
-//             build measured, 1.4 m eye height plus the drawn-floor correction.
+//             can see. Asserted against EXPECTED_FLOOR_M: the 1.4 m eye height plus the
+//             drawn-floor correction, the 1.400 both builds measured in the parity table.
 //
 //   5. YAW    pointer-lock mouse deltas cannot be synthesised from Playwright, so the
 //             heading is tested where it is USED rather than where it comes from: set the
@@ -48,6 +48,8 @@ import { SPAWNS } from "../../src/shared/map-actors.js";
 const GROUND_SPEED = 9.4; // GAME_CONFIG.MOVEMENT.GROUND_SPEED
 const SPEED_TOLERANCE = 0.05; // 5% on the best window
 const MAX_Y_STEP = 0.35; // metres between two consecutive frames
+const EXPECTED_FLOOR_M = 1.4; // camera above the drawn floor at START; both builds measured 1.400 (design doc parity table)
+const FLOOR_TOLERANCE_M = 0.05;
 const WALK_MS = 3000;
 const WINDOW_MS = 500; // the "best window" width
 const RAMP_MS = 500; // the config claims 0.183 s to 95% of top speed; leave margin
@@ -314,6 +316,10 @@ export async function runWalk({ browser, base = baseUrl() } = {}) {
     if (r.maxYStep > MAX_Y_STEP) problems.push(`${r.name}: y jumped ${r.maxYStep.toFixed(3)} m in one frame (limit ${MAX_Y_STEP})`);
     if (!(r.peak > 0.3)) problems.push(`${r.name}: jump only reached ${r.peak.toFixed(3)} m over the standing baseline`);
     if (r.landedAt === null || r.landedAt > 1000) problems.push(`${r.name}: the jump did not return to the standing height within 1 s`);
+    if (r.floor === null || Math.abs(r.floor - EXPECTED_FLOOR_M) > FLOOR_TOLERANCE_M)
+      problems.push(
+        `${r.name}: camera above drawn floor is ${r.floor === null ? "unmeasured (no floor hit)" : `${r.floor.toFixed(3)} m`}, expected ${EXPECTED_FLOOR_M} ±${FLOOR_TOLERANCE_M}`
+      );
     // A heading can be deflected by the map itself — CTF-Face's middle is rock, and the
     // clamp slides you along it — so what is asserted is that at least two of the three
     // headings are travelled DEAD ON. A yaw the controller ignored entirely would fail
