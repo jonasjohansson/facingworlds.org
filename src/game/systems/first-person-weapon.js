@@ -188,7 +188,12 @@ export class FirstPersonWeapon {
     this.spreeCount = 0;
     this._burstShots = 0;
 
-    // ---- hitscan scratch vectors (reused, no per-shot allocation) ----
+    // ---- hitscan scratch vectors ----
+    // The ray this system builds — origin, direction, and the basis and muzzle vectors it
+    // is built from — is written into these instead of into fresh Vector3s per shot. The
+    // trace itself still allocates: systems/hitscan.js returns a result object with its own
+    // `point` and `normal` for every call, exactly as the A-Frame hitscan did. Firing is
+    // rate-limited and this is the same garbage the old build made, so it is left alone.
     this._rayOrigin = new THREE.Vector3();
     this._rayDir = new THREE.Vector3();
     this._right = new THREE.Vector3();
@@ -347,7 +352,7 @@ export class FirstPersonWeapon {
     this.setupWeapon();
   }
 
-  // A-Frame's `update()` hook: health.js flips this on death and respawn.
+  // What A-Frame's `update()` hook did: health.js flips this on death and respawn.
   get enabled() {
     return this.data.enabled;
   }
@@ -974,8 +979,9 @@ export class FirstPersonWeapon {
   // is nailed to the centre of the screen at a fixed integer scale. The one
   // thing that moves it is a pickup: for 0.4 s afterwards XScale is multiplied
   // by 1+5t while t < 0.2 and by 3-5t after, i.e. it grows to 2x and comes back.
-  // `crosshairBloom` is still fed by fireBullet() and still drives the weapon's
-  // own spread feel; it just no longer reaches the crosshair.
+  // `crosshairBloom` is still set by fireBullet() and decayed below, and nothing reads
+  // it — not here and not in the A-Frame build. Spread comes from `data.spread` alone.
+  // It is kept because it is the hook a future recoil/bloom model would grow from.
   decayCrosshairBloom(dt) {
     if (this.crosshairPulse > 0) {
       this.crosshairPulse = Math.max(0, this.crosshairPulse - dt);

@@ -190,7 +190,10 @@ async function boot() {
 
     The sway settings are index.html's, off #player-weapon: a very small, fast sway and no
     bob at all. They live here rather than in the component because they are markup values,
-    like every other number on this page.
+    like every other number on this page. `muzzleOffset` is NOT one of those: it is the
+    DEFAULTS value from first-person-weapon.js, which index.html happened to spell out on
+    the entity as the identical `0.8 0.1 0`. It is repeated here for the same reason it was
+    repeated there — the muzzle is worth seeing at the call site — and overrides nothing.
   */
   game.register(
     "first-person-weapon",
@@ -213,10 +216,18 @@ async function boot() {
   /*
     What a shot LOOKS like. All three AFTER first-person-weapon, because they draw the
     shot it resolved THIS frame: fireBullet() traces, then calls
-    game.systems.get("ut-effects").drawHitscanShot(...) and .ejectShell(...) inline, so an
-    effect system registered above the weapon would run its decay pass for the frame
-    before the effect it is decaying was spawned — one frame of a beam segment or a
-    smoke puff drawn at full glow and then immediately stepped.
+    game.systems.get("ut-effects").drawHitscanShot(...) and .ejectShell(...) inline. Either
+    order draws that shot on the frame it was fired — there is one render at the end of the
+    frame — so what the order really decides is which dt a new effect pays. Below the
+    weapon, as here, the decay pass for the frame runs AFTER the spawn, so a fresh effect is
+    stepped once before it is ever drawn: a 67 ms BulletImpact is first seen about a frame
+    into its life. Above the weapon it would instead be drawn at full glow and start
+    decaying only on the NEXT frame, outliving its lifespan by one. A frame of decay on the
+    way in is the cheaper of the two, and it keeps the frame one-way: everything that spawns
+    into these pools runs above everything that steps them. The hard constraint is the
+    PLAYER rather than the weapon — every camera-facing sprite here is oriented from the
+    camera's world quaternion, at spawn and on every step, so all three must run after
+    player/controller.js has moved the camera this frame.
 
     Within the three the order is: ut-effects (Epic's own wall hit, beam, ring, shells) →
     ut-projectiles (the server-simulated rockets and blades) → impact-effects LAST, because

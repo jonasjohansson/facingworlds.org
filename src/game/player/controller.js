@@ -75,7 +75,8 @@
 // from it. Move the rig without resetting and the next step is clamped from where the
 // player used to be, dragging them back across the map. spawnAt() does the reset, so
 // SPAWN, RESPAWN AND EVERY SERVER-DRIVEN TELEPORT GO THROUGH spawnAt() — player/spawn.js
-// does, and network.js's applyLocalSpawn must when it is ported (Task 13).
+// does, and so does network.js's applyLocalSpawn, which is the only supported way to move
+// the rig from outside this file.
 //
 // ---------------------------------------------------------------------------
 // #view-shake IS GONE
@@ -207,6 +208,7 @@ export class PlayerController {
 
     // Scratch, allocated once: this all runs every frame.
     this._look = { x: 0, y: 0 };
+    this._move = { x: 0, z: 0 };
     this._desired = { x: 0, y: 0, z: 0 };
     this._ray = new THREE.Raycaster();
     this._rayOrigin = new THREE.Vector3();
@@ -294,7 +296,7 @@ export class PlayerController {
   // 2. MOVE, THEN CLAMP
   // -------------------------------------------------------------------------
   updateMove(dt, now) {
-    const input = this.game.input.move();
+    const input = this.game.input.move(this._move);
     // The heading, in world xz. movement-controls built this from the camera's full
     // quaternion and then flattened it; with yaw on its own node it is one rotation
     // about Y, which also means looking straight up no longer degenerates the heading

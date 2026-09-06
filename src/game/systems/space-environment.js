@@ -170,6 +170,7 @@ export class SpaceEnvironment {
     this.data = { ...DEFAULTS, ...opts };
 
     this.skyGroup = null;
+    this.background = null;
     this.stars = null;
     this.brightStars = null;
     this.asteroids = [];
@@ -185,8 +186,11 @@ export class SpaceEnvironment {
 
     // What `sceneEl.setAttribute("background", …)` did. scene/world.js paints the same
     // colour as a fallback so the page is never white before this system exists; this is
-    // the owner of the value.
-    game.scene.background = new THREE.Color(this.data.backgroundColor);
+    // the owner of the value. Kept on the instance so dispose() can check the scene is
+    // still showing OUR colour before putting the fallback back, the way
+    // environment-map.js guards `scene.background === this.envMap`.
+    this.background = new THREE.Color(this.data.backgroundColor);
+    game.scene.background = this.background;
 
     // Everything that belongs to the sky rides in here. It hangs straight off the scene
     // now — in A-Frame it hung off the component's <a-entity>, which sat at the scene
@@ -411,8 +415,10 @@ export class SpaceEnvironment {
       this.skyGroup.rotateOnWorldAxis(this._axis, THREE.MathUtils.degToRad(this.data.rotationSpeed) * dt);
     }
 
-    if (this.asteroids.length === 0) return;
-    this.asteroids.forEach((asteroid) => {
+    // Index loop, not forEach: this runs every frame, and the callback would be a fresh
+    // closure per frame for nothing.
+    for (let i = 0; i < this.asteroids.length; i++) {
+      const asteroid = this.asteroids[i];
       const userData = asteroid.userData;
       this._tmpVec.copy(userData.direction).multiplyScalar(userData.speed);
       asteroid.position.add(this._tmpVec);
@@ -426,10 +432,18 @@ export class SpaceEnvironment {
         const phi = Math.acos(2 * Math.random() - 1);
         asteroid.position.set(radius * Math.sin(phi) * Math.cos(theta), radius * Math.sin(phi) * Math.sin(theta), radius * Math.cos(phi));
       }
-    });
+    }
   }
 
   dispose() {
+    // Hand the backdrop back. Only if the scene is still showing the colour this system
+    // set — something later may own it now — and back to scene/world.js's fallback
+    // (BACKGROUND there is this DEFAULTS value), not to null, which would leave the
+    // canvas showing the clear colour instead of space.
+    if (this.game.scene.background === this.background) {
+      this.game.scene.background = new THREE.Color(DEFAULTS.backgroundColor);
+    }
+    this.background = null;
     if (this.skyGroup) this.game.scene.remove(this.skyGroup);
     this.asteroids.forEach((asteroid) => this.game.scene.remove(asteroid));
     this.asteroids.length = 0;
@@ -564,6 +578,11 @@ export class BaseCoronas {
     });
   }
 
+  /**
+   * `dt` is unused and stays only to hold the position of `now` in the engine's
+   * `update(dt, now)` call: the breathe below is a function of absolute time, not of
+   * elapsed time, so a corona's phase does not drift with the frame rate.
+   */
   update(dt, now) {
     if (!this.data.enabled || this.coronas.length === 0) return;
     // Camera world position: it is (or will be) a child of the rig, so its local position
@@ -571,7 +590,10 @@ export class BaseCoronas {
     this.game.camera.getWorldPosition(this._camPos);
 
     const d = this.data;
-    this.coronas.forEach((corona) => {
+    // Index loop, not forEach: this runs every frame, and the callback would be a fresh
+    // closure per frame for nothing.
+    for (let i = 0; i < this.coronas.length; i++) {
+      const corona = this.coronas[i];
       corona.sprite.getWorldPosition(this._worldPos);
       const dist = this._camPos.distanceTo(this._worldPos);
 
@@ -596,7 +618,7 @@ export class BaseCoronas {
       const growth = 1 + (Math.min(dist, d.fadeOutEnd) / d.fadeOutEnd) * d.distanceGrowth;
       const size = d.size * growth;
       corona.sprite.scale.set(size, size, 1);
-    });
+    }
   }
 
   dispose() {

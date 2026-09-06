@@ -8,8 +8,14 @@
 /** A-Frame look-controls' mouse rate; the controller applies it to the look accumulator. */
 export const MOUSE_RAD_PER_PX = 0.002;
 
-/** Pure: keys map + active touch count -> {x, z} in rig space, length <= 1. */
-export function moveVectorFrom(keys, touchCount) {
+/**
+ * Pure: keys map + active touch count -> {x, z} in rig space, length <= 1.
+ *
+ * Writes into `out` and returns it. Called once per frame, so the caller passes a scratch
+ * object rather than letting this mint one; `out` defaults to a fresh object for tests and
+ * one-off callers.
+ */
+export function moveVectorFrom(keys, touchCount, out = { x: 0, z: 0 }) {
   let x = 0;
   let z = 0;
   if (keys.KeyW || keys.ArrowUp) z -= 1;
@@ -26,7 +32,9 @@ export function moveVectorFrom(keys, touchCount) {
     x /= len;
     z /= len;
   }
-  return { x, z };
+  out.x = x;
+  out.z = z;
+  return out;
 }
 
 export function createInput(canvas) {
@@ -39,6 +47,9 @@ export function createInput(canvas) {
   let jumpHeld = false;
   let fireHeld = false; // level; the weapon detects its own rising edge (burst reset)
   const drag = { active: false, x: 0, y: 0 };
+  // move() fills this rather than allocating a vector every frame, the way look() fills
+  // the object the controller hands it.
+  const moveOut = { x: 0, z: 0 };
   const edges = new Map(); // code -> pressed-since-last-consume, for Tab/N style keys
 
   const locked = () => document.pointerLockElement === canvas;
@@ -144,8 +155,12 @@ export function createInput(canvas) {
     requestPointerLock() {
       if (!locked()) canvas.requestPointerLock();
     },
-    move() {
-      return moveVectorFrom(keys, touchCount);
+    /**
+     * This frame's movement vector. Written into `out`, or into a scratch object owned by
+     * this input — valid until the next move() call, which is all the controller needs.
+     */
+    move(out = moveOut) {
+      return moveVectorFrom(keys, touchCount, out);
     },
     /** Drains the look delta: pixels since the last call. */
     look(out) {
