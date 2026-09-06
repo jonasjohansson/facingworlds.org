@@ -9,7 +9,7 @@
 //
 // THE FILE UNDER TEST IS src/game/systems/ut-effects.js — the three r180 port, the one the
 // client actually runs. It used to be the A-Frame component, which needed a hand-built
-// `globalThis.AFRAME.THREE` stub to survive being evaluated in Node; the port removed the
+// global THREE stub to survive being evaluated in Node; the port removed the
 // need for it. `import * as THREE from "three"` resolves to the devDependency here exactly
 // as the import map resolves it in the browser, so this test loads the real r180 module,
 // and neither ut-effects.js nor the modules it pulls in (impact-effects.js, hitscan.js,

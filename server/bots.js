@@ -185,7 +185,7 @@ const LOS_SAMPLES = 12;
 // it is standing on.
 const LOS_CLEARANCE = 0.6;
 
-// Animation thresholds, copied from src/game/components/character.js so a bot's blend
+// Animation thresholds, copied from src/game/systems/character.js so a bot's blend
 // matches what the same speed produces on a human rig: moveThreshold 0.2, runThreshold
 // GROUND_SPEED * 0.53. Clients read `animation` straight off the wire, so getting these
 // wrong is what makes a bot moonwalk.

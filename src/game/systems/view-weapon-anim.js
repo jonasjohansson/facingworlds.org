@@ -1,8 +1,5 @@
 // view-weapon-anim.js — UT99's view-mesh animation states, over a THREE.AnimationMixer.
 //
-// (Moved from src/game/components/ in the three.js port; index.html re-exports it from
-// the old path.)
-//
 // UE1 view weapons are not rigged; they are VERTEX animations, a table of whole-mesh poses
 // the engine tweens between. scripts/build-ut-viewmodels.mjs bakes each named sequence out
 // as a glTF morph-target clip with the sequence's own name ("Select", "Shoot", "Sway",

@@ -251,7 +251,7 @@ const entity = new THREE.Object3D();
  * One `<a-entity light="…" position="…" rotation="…">`, as a three light.
  *
  * Two A-Frame behaviours have to be reproduced or the rig moves, and they are both in
- * A-Frame's light component (assets/libraries/aframe, src/components/light.js):
+ * A-Frame's light component (src/components/light.js in the A-Frame 1.x source):
  *
  *  1. "HACK solution for issue #1624": for spot, directional and hemisphere lights the
  *     light object3D is `translateY(-1)`-ed inside the entity. That does NOT push the

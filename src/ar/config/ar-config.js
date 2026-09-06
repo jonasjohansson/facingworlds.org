@@ -1,8 +1,7 @@
 // AR Configuration
 //
-// Single source of truth for the AR experience. Both AR pages read from here:
-// ar/index.html (pure Three.js, the live spectator table) and ar/aframe.html (the
-// A-Frame fallback), so tuning the look is a one-file edit.
+// Single source of truth for the AR experience: ar/index.html (the live spectator
+// table) reads from here, so tuning the look is a one-file edit.
 //
 // Coordinate note: encantar places the AR root in *marker space*. The reference
 // image lies in the XY plane and spans roughly 2 units across its longest side,

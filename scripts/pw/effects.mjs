@@ -1,5 +1,4 @@
-// effects.mjs — Task 10's probe: does a shot on play.html draw what a shot on index.html
-// draws?
+// effects.mjs — Task 10's probe: does a shot draw what Epic's numbers say it should?
 //
 // It plants the player looking at a surface about five metres away (found by sweeping the
 // yaw and pitch circle from wherever the spawn put them), fires the Enforcer ten
@@ -10,8 +9,7 @@
 // announces — and fires the Shock Rifle once to check the beam is forty sprites and the
 // ring carries UTRingex's nine-frame Explo.
 //
-// Finally it screenshots the same wall hit on both pages, from the same world pose, so the
-// impact sprite size, the smoke, the decal and the beam can be compared by eye.
+// Finally it screenshots the wall hit, the decal it leaves and the shock beam, for the eye.
 //
 // HEADED, always: the headless shell renders through SwiftShader, which would happily
 // "prove" a match that the real driver does not draw (ground rule in
@@ -20,7 +18,7 @@
 // Usage:
 //   node scripts/pw/effects.mjs [outDir]
 // Also exported as runEffects({ browser, base, out }) so scripts/pw/parity.mjs can run it
-// beside the other three probes in one browser and fold its verdict into one table.
+// beside the other probes in one browser and fold its verdict into one table.
 import { launchQuiet } from "./launch.mjs";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -40,15 +38,12 @@ export async function runEffects({ browser, base = baseUrl(), out = process.env.
   mkdirSync(OUT, { recursive: true });
   const errors = [];
 
-  // ---------------------------------------------------------------------------
-  // play.html — the port
-  // ---------------------------------------------------------------------------
   const page = await browser.newPage({ viewport: VIEWPORT, ignoreHTTPSErrors: true });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("console", (m) => {
     if (m.type() === "error") errors.push(`console error: ${m.text()}`);
   });
-  await page.goto(`${BASE}/play.html`, { waitUntil: "load" });
+  await page.goto(`${BASE}/index.html`, { waitUntil: "load" });
 
   // The gun in hand AND every effect asset landed: the pools are built as the glTFs arrive,
   // so a shot fired before them draws the procedural fallback and proves nothing.
@@ -230,15 +225,15 @@ export async function runEffects({ browser, base = baseUrl(), out = process.env.
     }
   }, pose);
   await page.waitForTimeout(70);
-  const shotPlay = path.join(OUT, "fx-play.png");
-  await page.screenshot({ path: shotPlay });
+  const shot = path.join(OUT, "fx.png");
+  await page.screenshot({ path: shot });
 
   // The same hits 2.3 s later: the flash (67 ms), the sparks (1 s) and the smoke (1.5 s)
   // have all gone and only UT99's Pock decals are left, which live 18-23 s. This is the
   // pair that shows whether the decal survived r180 — see isModulate() in ut-effects.js.
   await page.waitForTimeout(2300);
-  const decalPlay = path.join(OUT, "fx-play-decal.png");
-  await page.screenshot({ path: decalPlay });
+  const decal = path.join(OUT, "fx-decal.png");
+  await page.screenshot({ path: decal });
 
   // The Shock beam, held for a frame or two so the segments have shown themselves.
   await page.evaluate(async (p) => {
@@ -249,106 +244,30 @@ export async function runEffects({ browser, base = baseUrl(), out = process.env.
     w.fireBullet();
   }, pose);
   await page.waitForTimeout(120);
-  const beamPlay = path.join(OUT, "fx-play-beam.png");
-  await page.screenshot({ path: beamPlay });
+  const beam = path.join(OUT, "fx-beam.png");
+  await page.screenshot({ path: beam });
 
-  // ---------------------------------------------------------------------------
-  // index.html — the A-Frame reference, planted on the same world pose
-  // ---------------------------------------------------------------------------
-  const ref = await browser.newPage({ viewport: VIEWPORT, ignoreHTTPSErrors: true });
-  const refErrors = [];
-  ref.on("pageerror", (e) => refErrors.push(`pageerror: ${e.message}`));
-  await ref.goto(`${BASE}/index.html`, { waitUntil: "load" });
-  await ref.waitForFunction(
-    () => {
-      const cam = document.querySelector("#cam");
-      const c = cam && cam.components && cam.components["first-person-weapon"];
-      return !!(c && c.el.sceneEl.systems["ut-effects"]);
-    },
-    null,
-    { timeout: 60000 }
-  );
-  await ref.waitForTimeout(6000);
-
-  await ref.evaluate((p) => {
-    const rig = document.querySelector("#rig");
-    rig.setAttribute("position", `${p.x} ${p.y} ${p.z}`);
-    // look-controls owns the view rotation and rewrites it every frame from these two
-    // objects, so setting the entity's rotation would last exactly one tick.
-    //
-    // AND THE YAW IS SPLIT IN TWO HERE, which play.html's is not. index.html's rig carries
-    // the spawn heading the server sent (rig.rotation.y, about -1.43 rad at the blue base)
-    // and look-controls adds its own on the CAMERA, so the world yaw is the sum. The three
-    // build puts the whole yaw on the rig (player/controller.js setYaw), so the reference
-    // page has to be given the difference or the two screenshots look in different
-    // directions from the same point.
-    const cam = document.querySelector("#cam");
-    const lc = cam.components["look-controls"];
-    if (lc) {
-      lc.yawObject.rotation.y = p.yaw - rig.object3D.rotation.y;
-      lc.pitchObject.rotation.x = p.pitch;
-    }
-  }, pose);
-  await ref.waitForTimeout(600);
-
-  const refInfo = await ref.evaluate(async (p) => {
-    const cam = document.querySelector("#cam");
-    const c = cam.components["first-person-weapon"];
-    const camObj = cam.getObject3D("camera");
-    camObj.updateMatrixWorld(true);
-    const pos = new AFRAME.THREE.Vector3();
-    camObj.getWorldPosition(pos);
-    for (let i = 0; i < 3; i++) {
-      c.fireBullet();
-      await new Promise((r) => setTimeout(r, 60));
-    }
-    return { camera: pos.toArray().map((v) => +v.toFixed(3)) };
-  }, pose);
-  await ref.waitForTimeout(70);
-  const shotIndex = path.join(OUT, "fx-index.png");
-  await ref.screenshot({ path: shotIndex });
-
-  await ref.waitForTimeout(2300);
-  const decalIndex = path.join(OUT, "fx-index-decal.png");
-  await ref.screenshot({ path: decalIndex });
-
-  await ref.evaluate(async () => {
-    const c = document.querySelector("#cam").components["first-person-weapon"];
-    c.setWeapon("shock");
-    await new Promise((r) => setTimeout(r, 500));
-    c.fireBullet();
-  });
-  await ref.waitForTimeout(120);
-  const beamIndex = path.join(OUT, "fx-index-beam.png");
-  await ref.screenshot({ path: beamIndex });
-
-  // The play.html camera, for the record: the two screenshots are only comparable if the
-  // two cameras ended up in the same place.
-  const playCam = await page.evaluate(() => {
+  // The camera, for the record, so a screenshot can be placed.
+  const cam = await page.evaluate(() => {
     const v = new window.__fw.THREE.Vector3();
     window.__fw.camera.getWorldPosition(v);
     return v.toArray().map((n) => +n.toFixed(3));
   });
-
+  await page.close();
 
   console.log("pose:", JSON.stringify(pose));
-  console.log("camera play/index:", JSON.stringify(playCam), JSON.stringify(refInfo.camera));
+  console.log("camera:", JSON.stringify(cam));
   console.log("shell:", JSON.stringify(shell));
   console.log("volley:", JSON.stringify(volley));
   console.log("shock:", JSON.stringify(shock));
-  console.log(shotPlay);
-  console.log(decalPlay);
-  console.log(beamPlay);
-  console.log(shotIndex);
-  console.log(decalIndex);
-  console.log(beamIndex);
-  console.log("play.html:", errors.length ? errors.join("\n") : "no console errors");
-  console.log("index.html:", refErrors.length ? refErrors.join("\n") : "no page errors");
-
+  console.log(shot);
+  console.log(decal);
+  console.log(beam);
+  console.log(errors.length ? errors.join("\n") : "no console errors");
 
   /* --------------------------------------------------------------------- the rows --
-     The detail above is what you read when a shot looks wrong. These are the six lines
-     that say a shot on play.html draws what a shot on index.html draws. */
+     The detail above is what you read when a shot looks wrong. These are the five lines
+     that say a shot draws what Epic's numbers say. */
   const checks = createChecks();
   const P = volley.peak;
   checks.row("the pose aims at a surface ~5 m off", `${pose.aimType} at ${pose.aimDistance} m`, pose.aimType === "world" && Math.abs(pose.aimDistance - 5) < 2);
@@ -366,10 +285,9 @@ export async function runEffects({ browser, base = baseUrl(), out = process.env.
     `${shock.beamParticles} particles, ring ${shock.ringFrames} frames, ${shock.longShotSegments} segment(s) over ${shock.longShotDistance} m (wanted >= ${wantSegments})`,
     shock.beamParticles === BEAM_PARTICLES && shock.ringFrames === RING_FRAMES && shock.longShotSegments >= wantSegments
   );
-  checks.row("both pages fired from the same point", `play ${JSON.stringify(playCam)} vs index ${JSON.stringify(refInfo.camera)}`, playCam.every((v, i) => Math.abs(v - refInfo.camera[i]) < 0.25));
-  checks.row("no page errors", `play.html ${errors.length}, index.html ${refErrors.length}`, errors.length === 0 && refErrors.length === 0);
+  checks.row("no page errors", `${errors.length}`, errors.length === 0);
 
-  return { rows: checks.rows, pose, shell, volley, shock, shots: { shotPlay, decalPlay, beamPlay, shotIndex, decalIndex, beamIndex }, errors, refErrors };
+  return { rows: checks.rows, pose, shell, volley, shock, shots: { shot, decal, beam }, errors };
 }
 
 if (isMain(import.meta.url)) {

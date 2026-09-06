@@ -24,7 +24,7 @@ const DEFAULTS = {
   current: 100,
   // Is this the local player (screen chrome, death events)?
   local: false,
-  // The HUD facade — getHud() from components/hud/hud-root.js. Only the local player's
+  // The HUD facade — getHud() from hud/hud-root.js. Only the local player's
   // Health is ever given one.
   hud: null,
   // Height of the readout above the body's origin, in metres. What the A-Frame text

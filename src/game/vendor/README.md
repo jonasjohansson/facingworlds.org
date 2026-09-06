@@ -13,7 +13,7 @@ itself, import-mapped as `"three"` by both pages.
 - **Version:** 1.3.0
 - **Source:** https://www.npmjs.com/package/three-pathfinding (`package/dist/three-pathfinding.module.js`)
 - **License:** MIT (Don McCurdy) — see the package's LICENSE
-- **Imports:** the bare specifier `"three"`, resolved by the import map in `play.html`
+- **Imports:** the bare specifier `"three"`, resolved by the import map in `index.html`
   in the browser and by `node_modules/three` (a devDependency) in the Node tests.
 
 ```bash

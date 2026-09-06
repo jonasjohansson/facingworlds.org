@@ -40,7 +40,7 @@
 // wrong here, but the reason has changed and the old explanation (ut-movement.js) was
 // only half right. It said clampStep "assumes the start point lies ON the navmesh". It
 // does not: three-pathfinding's clampStep never reads its `start` argument at all. What
-// broke was the CALLER. aframe-extras asked for the containing polygon with
+// broke was the CALLER. A-Frame extras asked for the containing polygon with
 // `checkPolygon: true`, which returns null the moment the rig is more than half a metre
 // off the surface, and when it got null it SKIPPED the clamp for that frame
 // (`out.copy(end)`) and tried to re-acquire at the end point. So a lifted rig got a
@@ -242,13 +242,13 @@ export class PlayerController {
    * remote avatar wears the same MeshStandardMaterial objects as this body. Editing them
    * in place would make every player on the map invisible.
    *
-   * VERIFIED IN THE BROWSER, both pages, by toggling this body's castShadow and
-   * diffing the frames: the same shadow appears and disappears on the ground on
-   * play.html and on index.html. It takes a probe to see, because the key light as
+   * VERIFIED IN THE BROWSER, on both this build and the A-Frame one, by toggling this
+   * body's castShadow and diffing the frames: the same shadow appears and disappears on
+   * the ground on each. It takes a probe to see, because the key light as
    * shipped throws no visible shadow ANYWHERE on this map — 330x330 units of ortho
    * frustum over a 933-unit depth range with bias -0.0007 washes out the tower's shadow
    * as thoroughly as the player's. That is scene/lights.js's number, copied from
-   * index.html, and identical in both builds; it is not this file's to change.
+   * the A-Frame markup, and identical in both builds; it is not this file's to change.
    *
    * The old component's `depthWrite: false` line (invisible-to-player.js:62-67) was there
    * because opacity 0 still leaves a DEPTH-WRITING mesh wrapped around the camera,

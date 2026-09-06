@@ -9,9 +9,9 @@
 // is two people shouting. A new line cuts the one before it, which is what UT99 does when
 // a capture lands on top of a killing spree.
 //
-// Ported from components/announcer.js. The only change is the wrapper: the A-Frame system
+// Ported from the A-Frame announcer.js. The only change is the wrapper: the A-Frame system
 // whose init() warmed the cache is the `Announcer` class below, registered under the same
-// name (`ut-announcer`) in core/main-three.js. `announce()` is still a plain module
+// name (`ut-announcer`) in core/main.js. `announce()` is still a plain module
 // function, because network.js calls it from a message handler and never had a system
 // instance to go through.
 import { ANNOUNCEMENTS, announcementUrl } from "../../shared/announcer.js";

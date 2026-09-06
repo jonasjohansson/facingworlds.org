@@ -1,7 +1,7 @@
 {
   "name": "unrealfest-avatar",
   "version": "1.0.0",
-  "description": "A multiplayer 3D avatar game built with A-Frame and WebSockets",
+  "description": "Facing Worlds: a browser multiplayer FPS on three.js r180 and WebSockets, recreating UT99's CTF-Face",
   "main": "index.html",
   "scripts": {
     "start": "npx http-server . -p 8080 -c-1",
@@ -9,7 +9,7 @@
     "build": "echo 'No build step required for this project'",
     "server": "node server/server.js",
     "server:tls": "SSL_CERT=$HOME/.local-certs/facingworlds/cert.pem SSL_KEY=$HOME/.local-certs/facingworlds/key.pem node server/server.js",
-    "test": "node src/shared/net/interpolation.test.mjs",
+    "test": "node src/shared/net/interpolation.test.mjs && npm run test:server",
     "test:ctf": "node --test server/test/ctf.test.mjs",
     "test:bots": "node --test server/test/bots.test.mjs server/test/bots-gate.test.mjs server/test/bots-los.test.mjs",
     "test:surface": "node --test server/test/navmesh-surface.test.mjs",
@@ -37,7 +37,7 @@
     "inspect:assets": "gltf-transform inspect"
   },
   "keywords": [
-    "aframe",
+    "three.js",
     "webgl",
     "websocket",
     "multiplayer",

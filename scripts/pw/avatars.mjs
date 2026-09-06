@@ -1,7 +1,7 @@
 // avatars.mjs — the remote-avatar probe (Task 12).
 //
-// The network layer is not ported yet, so this drives systems/remote-avatars.js directly:
-// it registers the system on the running play.html, spawns three bodies with the exact
+// This drives systems/remote-avatars.js directly rather than through the server: it takes
+// the registry off the running page, spawns three bodies with the exact
 // payload shape network.js's spawnRemote receives (server.js publicPlayer: id, name, hp,
 // x/y/z, ry, speed, animation, dual, weapon, team, character), and then feeds a walking
 // pose stream at GROUND_SPEED for two seconds — the same 20 Hz cadence and the same
@@ -18,13 +18,10 @@
 //   fire         fire() plays the held mesh's own sequence and raises the FR twin
 //
 // Usage:
-//   node scripts/pw/avatars.mjs                 probe play.html, screenshot one avatar
-//   node scripts/pw/avatars.mjs --legacy        screenshot a BOT on the A-Frame index.html
-//                                               (needs the game server on 8081) for the
-//                                               side-by-side comparison
+//   node scripts/pw/avatars.mjs                 probe the page, screenshot one avatar
 //
-// Also exported as runAvatars({ browser, base, out, legacy }) so scripts/pw/parity.mjs can
-// run it beside the other three probes in one browser and fold its verdict into one table.
+// Also exported as runAvatars({ browser, base, out }) so scripts/pw/parity.mjs can run it
+// beside the other probes in one browser and fold its verdict into one table.
 import { launchQuiet } from "./launch.mjs";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -36,7 +33,7 @@ const GROUND_SPEED = 9.4;
 const WALK_MS = 2000;
 const POSE_HZ = 20;
 // soldier/malcom — one of the two bodies that carry the *FR firing twins and the anchor
-// node, and the one index.html's bots draw most often.
+// node, and the one the bots draw most often.
 const CHARACTER = 18;
 // How close is close enough, and every one of these was set from a measured run:
 const FLOOR_TOLERANCE = 0.05; // m of daylight under the feet (the old page held ~5 cm)
@@ -48,27 +45,20 @@ const RUN_WEIGHT = 0.9; // effective weight of Run when the wire says run: 1
 const LIFT_CORRECTED = 0.25;
 const LIFT_KEPT = 0.8;
 
-export async function runAvatars({ browser, base = baseUrl(), out = process.env.SCRATCHPAD || "/tmp", legacy = false } = {}) {
+export async function runAvatars({ browser, base = baseUrl(), out = process.env.SCRATCHPAD || "/tmp" } = {}) {
   const SCRATCH = out;
   mkdirSync(SCRATCH, { recursive: true });
-  const url = `${base}/${legacy ? "index.html" : "play.html"}`;
+  const url = `${base}/index.html`;
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errors = watchErrors(page);
 
   await page.goto(url);
-  const result = legacy ? await runLegacy(page, SCRATCH) : await runProbe(page, SCRATCH);
+  const result = await runProbe(page, SCRATCH);
 
   if (errors.length) console.log("\n--- console ---\n" + errors.join("\n"));
   await page.close();
 
-  // The legacy run is a screenshot for the eye, not a set of assertions — the checks
-  // below are all about the ported avatar, which is the thing that could be wrong.
   const checks = createChecks();
-  if (legacy) {
-    checks.row("index.html drew a bot", `${result.bots} remote avatars`, result.bots > 0);
-    return { rows: checks.rows, ...result, errors };
-  }
-
   const { report, floorFix, after } = result;
   const worst = (f) => Math.max(...report.map(f));
   checks.row("three bodies spawned and loaded", `${report.length} avatars: ${report.map((r) => r.id).join(", ")}`, report.length === 3);
@@ -91,11 +81,7 @@ export async function runAvatars({ browser, base = baseUrl(), out = process.env.
 
 if (isMain(import.meta.url)) {
   const browser = await launchQuiet();
-  const { rows } = await runAvatars({
-    browser,
-    base: baseUrl(),
-    legacy: process.argv.includes("--legacy"),
-  });
+  const { rows } = await runAvatars({ browser, base: baseUrl() });
   await browser.close();
   printChecks(rows, { title: "avatars" });
   process.exit(rows.filter((r) => !r.ok).length ? 1 : 0);
@@ -104,7 +90,7 @@ if (isMain(import.meta.url)) {
 // ---------------------------------------------------------------------------
 
 async function runProbe(page, SCRATCH) {
-  // Boot registers bloom last: once it is there, every system main-three.js builds is in.
+  // Boot registers bloom last: once it is there, every system main.js builds is in.
   await page.waitForFunction(() => window.__fw && window.__fw.systems.has("bloom"), null, { timeout: 40000 });
   await page.waitForFunction(() => window.__fw && window.__fw.map && window.__fw.map.userData.mesh, null, {
     timeout: 30000,
@@ -114,7 +100,7 @@ async function runProbe(page, SCRATCH) {
     async ({ START, CHARACTER, GROUND_SPEED }) => {
       const THREE = window.__fw.THREE;
       const game = window.__fw;
-      // main-three.js registers the registry at boot; only build one if it did not.
+      // main.js registers the registry at boot; only build one if it did not.
       let avatars = game.systems.get("remote-avatars");
       if (!avatars) {
         const { RemoteAvatars } = await import("/src/game/systems/remote-avatars.js");
@@ -182,7 +168,7 @@ async function runProbe(page, SCRATCH) {
       avatars.spawn(mk(902, 2.5, { team: "blue", dual: true }));
       avatars.spawn(mk(903, 5, { team: "red", weapon: "shock" }));
 
-      // ONLY THESE THREE. The network layer landed in Task 13, so play.html joins the
+      // ONLY THESE THREE. The page joins the
       // 8081 server and the same registry is also holding nine bots the server is
       // steering. Walking those would fight their pose stream and reading them would
       // report on the server's plans rather than on this probe's.
@@ -384,15 +370,14 @@ async function runProbe(page, SCRATCH) {
   console.log(JSON.stringify(after, null, 2));
 
   // ---- screenshot one avatar from a planted camera ----
-  const shot = path.join(SCRATCH, "avatars-three.png");
+  const shot = path.join(SCRATCH, "avatars.png");
   await page.evaluate(() => {
     const THREE = window.__fw.THREE;
     const game = window.__fw;
     const a = window.__avatars.get(901);
     const p = a.body.getWorldPosition(new THREE.Vector3());
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(a.body.getWorldQuaternion(new THREE.Quaternion()));
-    // In front of the body, at chest height, looking back at it — the framing the legacy
-    // shot below reproduces from the A-Frame page.
+    // In front of the body, at chest height, looking back at it.
     const eye = p.clone().addScaledVector(fwd, 3.4).add(new THREE.Vector3(0, 1.5, 0));
     const look = p.clone().add(new THREE.Vector3(0, 1.0, 0));
     // The camera is a CHILD of the player's head node, and the controller writes its roll
@@ -414,84 +399,4 @@ async function runProbe(page, SCRATCH) {
   await page.screenshot({ path: shot });
   console.log(`\nscreenshot: ${shot}`);
   return { spawned, report, floorFix, after, shot };
-}
-
-// ---------------------------------------------------------------------------
-// The A-Frame page, for the side-by-side: join the live server, wait for a bot, put the
-// local rig in front of it and look at it.
-async function runLegacy(page, SCRATCH) {
-  await page.waitForFunction(() => document.querySelectorAll("[remote-avatar]").length > 0, null, { timeout: 40000 });
-  await page.waitForTimeout(5000); // models, skins and the first poses in
-
-  const info = await page.evaluate(() => {
-    const THREE = AFRAME.THREE;
-    const v = new THREE.Vector3();
-    // A bot whose body has loaded AND which has been given a pose: a rig still sitting at
-    // the origin has never had setNetPose called on it and is not on the map at all.
-    const el = [...document.querySelectorAll("[remote-avatar]")].find(
-      (s) => s.getObject3D("mesh") && s.parentElement && s.parentElement.object3D.getWorldPosition(v).lengthSq() > 1
-    );
-    if (!el) return { bots: 0 };
-    const rig = el.parentElement;
-    const myRig = document.querySelector("#rig");
-    const cam = document.querySelector("#cam");
-
-    // THREE THINGS OWN THIS CAMERA AND ALL THREE HAVE TO BE TAKEN OFF IT.
-    //   movement-controls clamps the rig to the navmesh every tick FROM ITS CACHED
-    //     POLYGON, so a position written from outside is dragged straight back;
-    //   look-controls rewrites the camera entity's rotation every tick from its own
-    //     yaw/pitch objects (this is the leak the whole port is about);
-    //   the RIG carries the player's yaw, so a yaw written on the camera composes with it
-    //     — the rig has to be squared up or the shot points 80 degrees off.
-    myRig.setAttribute("movement-controls", "enabled", false);
-    cam.setAttribute("look-controls", "enabled", false);
-    cam.object3D.rotation.order = "YXZ";
-
-    // The bot is RUNNING. Framing it once and screenshotting two seconds later
-    // photographs an empty floor, so the framing is re-made every frame.
-    const p = new THREE.Vector3();
-    const q = new THREE.Quaternion();
-    const fwd = new THREE.Vector3();
-    const eye = new THREE.Vector3();
-    const to = new THREE.Vector3();
-    const up = new THREE.Vector3(0, 1, 0);
-    window.__follow = setInterval(() => {
-      rig.object3D.getWorldPosition(p);
-      rig.object3D.getWorldQuaternion(q);
-      fwd.set(0, 0, -1).applyQuaternion(q);
-      // In front of the body at chest height, looking back at it — the same framing the
-      // three.js probe plants its camera with, so the two shots are comparable.
-      eye.copy(p).addScaledVector(fwd, 3.4).addScaledVector(up, 1.5);
-      myRig.object3D.position.set(eye.x, eye.y - 1.4, eye.z); // the rig is at the feet
-      myRig.object3D.rotation.set(0, 0, 0);
-      to.copy(p).addScaledVector(up, 1.0).sub(eye);
-      cam.object3D.rotation.set(Math.asin(to.clone().normalize().y), Math.atan2(-to.x, -to.z), 0);
-    }, 16);
-
-    rig.object3D.getWorldPosition(p);
-    const health = el.components.health;
-    const text = health && health.label && health.label.getObject3D("text");
-    const box = text ? new THREE.Box3().setFromObject(text).getSize(new THREE.Vector3()) : null;
-    return {
-      bots: document.querySelectorAll("[remote-avatar]").length,
-      name: rig.getAttribute("data-name"),
-      model: el.getAttribute("gltf-model"),
-      skin: (rig.dataset.skin || "").split(",")[0],
-      weapon: rig.dataset.weapon,
-      dual: rig.dataset.dual || "",
-      botAt: p.toArray().map((n) => +n.toFixed(2)),
-      // The size the overhead HP number is drawn at TODAY, which is what health.js's
-      // sprite is scaled to match. See its widthM comment.
-      hpLabelSizeM: box ? box.toArray().map((n) => +n.toFixed(3)) : null,
-    };
-  });
-  console.log(JSON.stringify(info, null, 2));
-
-  // The same overlays the three.js shot hides, so the two are comparable.
-  await page.evaluate(HIDE_OVERLAYS);
-  await page.waitForTimeout(2000);
-  const shot = path.join(SCRATCH, "avatars-aframe.png");
-  await page.screenshot({ path: shot });
-  console.log(`screenshot: ${shot}`);
-  return { ...info, shot };
 }

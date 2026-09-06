@@ -1,6 +1,6 @@
 // weapon-sway.js — natural weapon movement based on player movement.
 //
-// Port of src/game/components/weapon-sway.js. Two things changed and nothing else did:
+// Port of the A-Frame weapon-sway component. Two things changed and nothing else did:
 //
 //   the movement source  was `#soldier`'s `character` component, with a rig-position-delta
 //                        FALLBACK for when that component was not there. player/controller.js
@@ -22,7 +22,7 @@
 import { GAME_CONFIG } from "../config/game-config.js";
 
 // The A-Frame schema's defaults, verbatim. index.html's #player-weapon overrode most of
-// them; those values live at the registration site (core/main-three.js), the way every
+// them; those values live at the registration site (core/main.js), the way every
 // other markup value does.
 const DEFAULTS = {
   enabled: true,

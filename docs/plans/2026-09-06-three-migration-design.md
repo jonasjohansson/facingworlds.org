@@ -297,3 +297,23 @@ files. Everything here is deliberate or already shipped; none of it is a parity 
 - **Hidden reliance on A-Frame lifecycle**: any component that waited on `loaded` or
   `model-loaded` ordering must get an explicit await in the new entry. Step milestones and the
   probes are there to catch it.
+
+## Landed 2026-09-06 — Task 16, the swap
+
+`play.html` is `index.html` and `main-three.js` is `core/main.js`; A-Frame, aframe-extras,
+`src/game/components/` (the HUD moved to `src/game/hud/`), `src/shared/components/`, the
+`three-aframe` shim, the frozen `network-aframe.js`, the old `core/spawn.js` and the three
+`utils/*-helpers.js`, `ar/aframe.html` with `src/ar/components/` and `src/ar/core/`, and the
+encantar A-Frame plugin are deleted — 137 files, ~16,900 lines. `git grep -i aframe` outside
+`docs/` and `*.md` finds only `_cameraFrameId` / `msaaFrameBuffer` in the stock
+`assets/three-addons/three.webgpu.js`, which is not loaded by anything.
+
+The probes lost their `--legacy` adapters and `screenshot-both.mjs`; `walk.mjs`,
+`effects.mjs` and `pickups.mjs` keep their absolute checks on the one page, and
+`multiplayer.mjs`'s two-client check is now a second tab. Measured after the swap, same
+machine, nine bots: **8.4 ms mean / 9.3 ms p95 over 5,813 frames, 219 draw calls,
+100,538 triangles, 63 programs, 95 geometries, 179 textures** (the run above read 247
+calls; the swap changed no rendering code). `npm test` is 68/68 + 201/201;
+`parity.mjs` 46/47, the one failure being `effects`' shell sample reading a bot's shell
+(`before: 6` live shells in the pool at the moment of the shot); alone, with an empty pool,
+it passes 5/5. Not a port regression — the probe assumes a pool it does not own is empty.

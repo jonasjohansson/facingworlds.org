@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from "../../config/game-config.js";
+import { GAME_CONFIG } from "../config/game-config.js";
 // hud-root.js — the shared status bar.
 //
 // Every 2D overlay the player sees while alive lives here: the bottom-left
@@ -376,8 +376,8 @@ let refCount = 0;
 /**
  * Build (or return) the HUD singleton. Call release() for each getHud().
  *
- * @param {object} [game] the three.js build's engine handle (core/main-three.js). Omitted
- *   on index.html, where the scene is A-Frame's — see the adapter in createHud().
+ * @param {object} game the engine handle (core/main.js): the bus is game.events and the
+ *   weapon is the registered "first-person-weapon" system.
  * @returns {object} the HUD facade
  */
 export function getHud(game) {
@@ -629,25 +629,11 @@ export function createHud(game) {
 
   // ---- the two things this DOM module needs from the scene ----
   //
-  // The HUD is DOM and stays DOM; these are its only two touch points, and each has a
-  // three.js form and an A-Frame form because index.html still runs on A-Frame until the
-  // swap. `game` present means the ported build (core/main-three.js): the bus is
-  // game.events and the weapon is a registered system. `game` absent means <a-scene> and
-  // #cam's component, exactly as before.
-  const sceneEl = game ? null : document.querySelector("a-scene");
-  const busOn = (name, handler) => {
-    if (game) game.events.on(name, handler);
-    else if (sceneEl) sceneEl.addEventListener(name, handler);
-  };
-  const busOff = (name, handler) => {
-    if (game) game.events.off(name, handler);
-    else if (sceneEl) sceneEl.removeEventListener(name, handler);
-  };
-  const findWeapon = () => {
-    if (game) return game.systems.get("first-person-weapon") || null;
-    const cam = document.querySelector("#cam");
-    return (cam && cam.components && cam.components["first-person-weapon"]) || null;
-  };
+  // The HUD is DOM and stays DOM; these are its only two touch points: the event bus
+  // (game.events) and the held weapon (the registered first-person-weapon system).
+  const busOn = (name, handler) => game.events.on(name, handler);
+  const busOff = (name, handler) => game.events.off(name, handler);
+  const findWeapon = () => game.systems.get("first-person-weapon") || null;
 
   const root = div("ut-hud");
   root.id = "ut-hud";
@@ -962,9 +948,7 @@ export function createHud(game) {
     paintBanner();
   };
 
-  // The CTF feed. On the ported build these are game.events; on index.html they are
-  // <a-scene>'s, which is in the document by the time any component's init() runs (the
-  // busOn adapter's null check is for the module being imported standalone).
+  // The CTF feed, off game.events.
   busOn("ctf-init", onCtfInit);
   busOn("local-team", onLocalTeam);
   busOn("flag-update", onFlagUpdate);
@@ -1003,16 +987,12 @@ export function createHud(game) {
   // inside it would composite against the HUD's own transparent background instead of
   // against the rendered game, and the muzzle texture's black field — the part that is
   // supposed to disappear — would stay black. So both live beside the HUD in the root
-  // stacking context, where their backdrop is the game canvas (A-Frame's on index.html,
-  // the <canvas id="game"> on play.html).
+  // stacking context, where their backdrop is the game canvas (<canvas id="game">).
   //
   // At z-index 899 they sit UNDER the whole HUD, which is also the order UE1 draws them
   // in: PlayerPawn.PostRender runs Weapon.RenderOverlays first and the HUD paints on top.
   //
-  // `display: block !important` is set INLINE and never changed, because A-Frame's
-  // fullscreen mode hides body children that are not the canvas and styles.css has to
-  // list each overlay by name to bring it back (see the html.a-fullscreen block there).
-  // An inline !important wins without needing to be on that list — which is why hiding
+  // `display: block !important` is set INLINE and never changed, which is why hiding
   // the flash below uses `visibility`, not `display`.
   const LAYER =
     "position:fixed;pointer-events:none;z-index:899;mix-blend-mode:screen;";
@@ -1177,7 +1157,7 @@ export function createHud(game) {
   }
   rafId = requestAnimationFrame(watchLocalShots);
 
-  // requestAnimationFrame is parked while the tab is hidden (so is A-Frame's own
+  // requestAnimationFrame is parked while the tab is hidden (so is the game's own
   // render loop), which means the stamp can move without the frames in between
   // ever running. Resync on the way back so a tab switch does not book one
   // phantom shot.

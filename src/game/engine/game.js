@@ -2,7 +2,7 @@
 //
 // This is what <a-scene> used to be. Systems are plain objects with update(dt, now) and
 // dispose(); they run in REGISTRATION ORDER, every frame, and that order is the contract
-// A-Frame used to express implicitly through attachment sequence (see core/main.js, where
+// A-Frame used to express implicitly through attachment sequence (see the old main.js, where
 // each registration says what it depends on).
 import * as THREE from "three";
 import { createEvents } from "./events.js";

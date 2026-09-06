@@ -1,7 +1,7 @@
-// walk.mjs — does the ported player move like the A-Frame one?
+// walk.mjs — does the player move the way UT99's numbers say it should?
 //
-// Runs the same measurements on BOTH pages, from the same spawn point, and prints them
-// side by side:
+// Written for the three.js port as a side-by-side against the A-Frame page; the A-Frame
+// page is gone, so what is left are the absolute checks, from a fixed spawn point:
 //
 //   1. WALK   hold W for 3 s at a fixed yaw, sampling the rig ON EVERY FRAME from inside
 //             the page (a page.evaluate per sample would add its own round-trip to the
@@ -14,7 +14,7 @@
 //             the polygon it lands in — so on a slope of angle t the horizontal speed is
 //             9.4 * cos^2(t), and against a wall it is zero. CTF-Face's middle is all
 //             ramp and rock. The BEST WINDOW is the flat-ground number, and that one must
-//             be 9.4 within 5% on both pages.
+//             be 9.4 within 5%.
 //
 //   2. Y      the largest single-frame step in the rig's y over the steady window. A
 //             navmesh clamp that slingshots (the failure the whole hop-off-the-rig design
@@ -28,7 +28,8 @@
 //   4. FLOOR  the camera's height above the DRAWN floor, raycast straight down against
 //             the map meshes. This is the number behind "the avatars don't follow the
 //             ground the way I do": the navmesh sits up to half a metre above what you
-//             can see, and the two pages must agree to within 2 cm.
+//             can see. Reported; the number to compare against is the one the A-Frame
+//             build measured, 1.4 m eye height plus the drawn-floor correction.
 //
 //   5. YAW    pointer-lock mouse deltas cannot be synthesised from Playwright, so the
 //             heading is tested where it is USED rather than where it comes from: set the
@@ -39,7 +40,7 @@
 //
 // Usage: node scripts/pw/walk.mjs [baseUrl]      default http://localhost:8080
 // Also exported as runWalk({ browser, base }) so scripts/pw/parity.mjs can run it beside
-// the other three probes in one browser and fold its verdict into one table.
+// the other probes in one browser and fold its verdict into one table.
 import { launchQuiet } from "./launch.mjs";
 import { baseUrl, createChecks, isMain, printChecks } from "./lib.mjs";
 import { SPAWNS } from "../../src/shared/map-actors.js";
@@ -50,12 +51,12 @@ const MAX_Y_STEP = 0.35; // metres between two consecutive frames
 const WALK_MS = 3000;
 const WINDOW_MS = 500; // the "best window" width
 const RAMP_MS = 500; // the config claims 0.183 s to 95% of top speed; leave margin
-// WHERE BOTH PAGES ARE MEASURED FROM. player/spawn.js's offline placement — the downward
-// raycast from above the navmesh bounding box's centre — which is deterministic and is the
-// same point in both builds. It has to be FORCED rather than merely waited for: both pages
-// talk to the game server now, and `hello.spawn` seats each of them on one of its own
-// team's PlayerStarts about a hundred metres from here, on whichever side the server had
-// room for. Neither page can be measured where it lands, so both are teleported here.
+// WHERE THE PAGE IS MEASURED FROM. player/spawn.js's offline placement — the downward
+// raycast from above the navmesh bounding box's centre — which is deterministic. It has to
+// be FORCED rather than merely waited for: the page talks to the game server, and
+// `hello.spawn` seats it on one of its own team's PlayerStarts about a hundred metres from
+// here, on whichever side the server had room for. The page cannot be measured where it
+// lands, so it is teleported here.
 const START = { x: 11.18, y: 14.41, z: -5.39 };
 // How far off a server spawn point a rig may land and still be said to be ON it:
 // server.js jitters each spawn by up to SPAWN_JITTER (1 m) in x and z.
@@ -72,14 +73,13 @@ const YAW_TEST_DEG = [45, 90, 315];
 const MAX_YAW_TRAVEL = 10;
 const YAW_ATTEMPTS = 3;
 
-/* ------------------------------------------------------------------ page adapters --
-   Each page exposes the same four probes as SELF-CONTAINED functions (they are stringified
-   and re-created inside the page, so they may not close over anything out here). The
-   A-Frame page is read through the DOM exactly as it was before this migration; the three
-   page is read through window.__fw, the debug handle the design doc asked for. Nothing is
-   injected into either page beyond one requestAnimationFrame sampler. */
+/* ------------------------------------------------------------------- page adapter --
+   The probes are SELF-CONTAINED functions (they are stringified and re-created inside the
+   page, so they may not close over anything out here), read through window.__fw, the
+   debug handle the design doc asked for. Nothing is injected into the page beyond one
+   requestAnimationFrame sampler. */
 const ADAPTERS = {
-  "play.html": {
+  "index.html": {
     ready: () => {
       const g = window.__fw;
       return !!(g && g.player && g.map && g.map.userData.mesh && g.rig.position.lengthSq() > 0);
@@ -105,49 +105,6 @@ const ADAPTERS = {
     // spawnAt is the controller's own teleport: it resets the navmesh clamp's polygon
     // cache, the velocity, the hop and the speed tracker. Exactly what a respawn does.
     teleport: (at) => window.__fw.player.spawnAt(at.x, at.y, at.z, (at.yawDeg * Math.PI) / 180),
-  },
-
-  "index.html": {
-    ready: () => {
-      const rig = document.querySelector("#rig");
-      const world = document.querySelector("#world");
-      return !!(rig && world && world.getObject3D("mesh") && rig.object3D.position.lengthSq() > 0);
-    },
-    pose: () => {
-      const p = document.querySelector("#rig").object3D.position;
-      return { x: p.x, y: p.y, z: p.z };
-    },
-    hop: () => {
-      const jump = document.querySelector("#rig").components["ut-jump"];
-      return jump ? jump.visualOffset() : 0;
-    },
-    floor: () => {
-      const from = new THREE.Vector3();
-      document.querySelector("#cam").getObject3D("camera").getWorldPosition(from);
-      const meshes = [];
-      document.querySelector("#world").object3D.traverse((o) => {
-        if (o.isMesh && o.geometry) meshes.push(o);
-      });
-      const hits = new THREE.Raycaster(from, new THREE.Vector3(0, -1, 0), 0, 50).intersectObjects(meshes, false);
-      return hits.length ? from.y - hits[0].point.y : null;
-    },
-    // look-controls keeps the mouse yaw on #cam and leaves the rig's own alone, so this
-    // is the rig yaw that spawns write (network.js applyLocalSpawn does the same); the
-    // heading maths in ut-controls reads the product of the two.
-    yaw: (radians) => {
-      document.querySelector("#rig").object3D.rotation.y = radians;
-    },
-    // movement-controls caches which navmesh polygon the rig is on and searches only
-    // three hops out from it, so a teleport without updateNavLocation() — its own public
-    // reset, the one the nav system calls when the mesh changes — is dragged back. This
-    // is the same cache player/controller.js resets through navClamp.reset().
-    teleport: (at) => {
-      const rig = document.querySelector("#rig");
-      rig.object3D.position.set(at.x, at.y, at.z);
-      rig.object3D.rotation.y = (at.yawDeg * Math.PI) / 180;
-      const mc = rig.components["movement-controls"];
-      if (mc) mc.updateNavLocation();
-    },
   },
 };
 
@@ -233,7 +190,7 @@ async function measure(browser, base, name, adapter) {
 
   // --- 3. JUMP ----------------------------------------------------------------------
   // Back to START: the hop baseline is the drawn-floor correction, which is a property of
-  // where you are standing, so the two pages have to be standing in the same place.
+  // where you are standing, so every run has to be standing in the same place.
   await page.evaluate(adapter.teleport, { ...START, yawDeg: WALK_YAW_DEG });
   await page.waitForTimeout(700);
   const baseline = await page.evaluate(adapter.hop);
@@ -263,7 +220,7 @@ async function measure(browser, base, name, adapter) {
   const floor = await page.evaluate(adapter.floor);
 
   // --- 5. YAW -----------------------------------------------------------------------
-  // BOTH PAGES ARE ON THE LIVE SERVER, and standing still in the middle of CTF-Face for
+  // THE PAGE IS ON THE LIVE SERVER, and standing still in the middle of CTF-Face for
   // half a second with nine bots on the map is a way to get shot. A respawn is a teleport
   // to a team base a hundred metres away, which arrives in this sample as a "walk" of 95 m
   // in 500 ms and reads as a heading the controller ignored. So a sample that travelled
@@ -301,8 +258,8 @@ async function measure(browser, base, name, adapter) {
 
 /* -------------------------------------------------------------------------- run -- */
 /**
- * Measure both pages and print the side-by-side table. Returns the raw measurements plus
- * the check rows (parity.mjs prints those; run directly, they are printed here).
+ * Measure the page and print the table. Returns the raw measurements plus the check rows
+ * (parity.mjs prints those; run directly, they are printed here).
  */
 export async function runWalk({ browser, base = baseUrl() } = {}) {
   const results = [];
@@ -359,8 +316,8 @@ export async function runWalk({ browser, base = baseUrl() } = {}) {
     if (r.landedAt === null || r.landedAt > 1000) problems.push(`${r.name}: the jump did not return to the standing height within 1 s`);
     // A heading can be deflected by the map itself — CTF-Face's middle is rock, and the
     // clamp slides you along it — so what is asserted is that at least two of the three
-    // headings are travelled DEAD ON, and (below) that both pages are deflected by the same
-    // amount on the rest. A yaw the controller ignored entirely would fail every heading.
+    // headings are travelled DEAD ON. A yaw the controller ignored entirely would fail
+    // every heading.
     const aligned = r.yawTest.filter((y) => y.alignment !== null);
     if (aligned.length < 2)
       problems.push(
@@ -370,41 +327,15 @@ export async function runWalk({ browser, base = baseUrl() } = {}) {
       problems.push(`${r.name}: fewer than two headings were walked dead on (${aligned.map((y) => `${y.deg}:${y.alignment.toFixed(3)}`).join(" ")})`);
   }
 
-  const [play, index] = results;
-  const gaps = {};
-  if (!play.failed && !index.failed) {
-    const compare = (label, a, b, limit, unit = "m") => {
-      const d = Math.abs(a - b);
-      gaps[label] = d;
-      console.log(`${pad(label, 36)}${col(round(d, 3) + " " + unit, 13)}${d > limit ? "  OVER LIMIT " + limit : ""}`);
-      if (d > limit) problems.push(`${label}: the two pages differ by ${d.toFixed(3)} ${unit} (limit ${limit})`);
-    };
-    console.log("play.html vs index.html");
-    console.log("-".repeat(49));
-    compare("camera above drawn floor", play.floor, index.floor, 0.02);
-    compare("best-window speed", play.bestWindow, index.bestWindow, 0.5, "m/s");
-    compare("jump peak", play.peak, index.peak, 0.05);
-    compare("time to peak", play.peakAt, index.peakAt, 40, "ms");
-    compare("back to standing", play.landedAt, index.landedAt, 40, "ms");
-    compare("standing hop baseline", play.baseline, index.baseline, 0.02);
-    compare("mean ground speed", play.meanSpeed, index.meanSpeed, 0.5, "m/s");
-    for (const deg of YAW_TEST_DEG) {
-      const a = play.yawTest.find((y) => y.deg === deg).alignment;
-      const b = index.yawTest.find((y) => y.deg === deg).alignment;
-      if (a !== null && b !== null) compare(`yaw ${deg} deg heading alignment`, a, b, 0.02, "");
-    }
-  }
-
   /* --------------------------------------------------------------------- the rows --
      The detail above is what you read when something is wrong. These are the eight lines
-     that say whether the ported player moves like the A-Frame one — the same eight the
-     parity table carries. A row is failed by any `problem` that names its subject. */
+     that say whether the player moves right — the same eight the parity table carries. A
+     row is failed by any `problem` that names its subject. */
   const checks = createChecks();
   const clean = (...keys) => !problems.some((p) => keys.some((k) => p.includes(k)));
-  const both = (f) => results.map((r) => (r.failed ? "FAILED" : f(r))).join(" / ");
-  const gap = (label, unit = "m") => (gaps[label] === undefined ? "" : ` (gap ${round(gaps[label], 3)} ${unit})`);
-  checks.row("page loads with no errors", both((r) => (r.errors.length ? `${r.errors.length} errors` : "clean")), clean("page errors", "FAILED"));
-  // Both pages are seated by the server, so what can be asserted about a spawn is that
+  const val = (f) => results.map((r) => (r.failed ? "FAILED" : f(r))).join(" / ");
+  checks.row("page loads with no errors", val((r) => (r.errors.length ? `${r.errors.length} errors` : "clean")), clean("page errors", "FAILED"));
+  // The page is seated by the server, so what can be asserted about a spawn is that
   // applyLocalSpawn put the rig ON the PlayerStart hello named — not near it, and not at
   // the origin, which is where a rig that was never spawned sits.
   const onStart = (r) =>
@@ -415,15 +346,15 @@ export async function runWalk({ browser, base = baseUrl() } = {}) {
         );
   checks.row(
     "spawned on a server PlayerStart (m off)",
-    both((r) => round(onStart(r), 2)),
+    val((r) => round(onStart(r), 2)),
     results.every((r) => onStart(r) !== null && onStart(r) < SPAWN_TOLERANCE)
   );
-  checks.row(`ground speed, best ${WINDOW_MS} ms (m/s)`, both((r) => round(r.bestWindow, 2)) + gap("best-window speed", "m/s"), clean("best-window speed"));
-  checks.row("no navmesh slingshot (max y step, m)", both((r) => round(r.maxYStep, 3)), clean("y jumped"));
-  checks.row("jump peak over baseline (m)", both((r) => round(r.peak, 3)) + gap("jump peak"), clean("jump only reached", "jump peak"));
-  checks.row("jump timing up/down (ms)", both((r) => `${round(r.peakAt, 0)}+${r.landedAt === null ? "never" : round(r.landedAt, 0)}`), clean("did not return", "time to peak", "back to standing"));
-  checks.row("camera above drawn floor (m)", both((r) => round(r.floor, 3)) + gap("camera above drawn floor"), clean("camera above drawn floor"));
-  checks.row("heading follows the yaw", both((r) => `${r.yawTest.filter((y) => y.alignment > 0.98).length}/${YAW_TEST_DEG.length} dead on`), clean("dead on", "room to walk", "heading alignment"));
+  checks.row(`ground speed, best ${WINDOW_MS} ms (m/s)`, val((r) => round(r.bestWindow, 2)), clean("best-window speed"));
+  checks.row("no navmesh slingshot (max y step, m)", val((r) => round(r.maxYStep, 3)), clean("y jumped"));
+  checks.row("jump peak over baseline (m)", val((r) => round(r.peak, 3)), clean("jump only reached", "jump peak"));
+  checks.row("jump timing up/down (ms)", val((r) => `${round(r.peakAt, 0)}+${r.landedAt === null ? "never" : round(r.landedAt, 0)}`), clean("did not return", "time to peak", "back to standing"));
+  checks.row("camera above drawn floor (m)", val((r) => round(r.floor, 3)), clean("camera above drawn floor"));
+  checks.row("heading follows the yaw", val((r) => `${r.yawTest.filter((y) => y.alignment > 0.98).length}/${YAW_TEST_DEG.length} dead on`), clean("dead on", "room to walk", "heading alignment"));
 
   return { results, problems, rows: checks.rows };
 }

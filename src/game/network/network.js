@@ -27,8 +27,7 @@
 //   drawHitscanShot(scene, …)           game.systems.get("ut-effects").…
 //   spawnProjectile(scene, m) etc.      game.systems.get("ut-projectiles").…
 //
-// index.html still runs on A-Frame until the swap; its copy of this file is frozen beside
-// it as network-aframe.js. Protocol fixes belong HERE.
+// Protocol fixes belong HERE.
 import * as THREE from "three";
 import { getWebSocketUrl } from "../utils/environment.js";
 import { GAME_CONFIG } from "../config/game-config.js";
@@ -45,11 +44,11 @@ const RECONNECT_JITTER = 0.3; // ±30% so a server restart doesn't stampede ever
 /**
  * @param {object} game the engine handle: needs `events`, `rig`, `player` and the
  *   `remote-avatars` / `ut-effects` / `ut-projectiles` systems. The three systems are
- *   looked up LAZILY, not here: core/main-three.js starts the network where the old
+ *   looked up LAZILY, not here: core/main.js starts the network where the old
  *   main.js did — right after the player, before the offline navmesh placement — and the
  *   rest of the registry is filled in on the same synchronous run, long before a socket
  *   can deliver anything.
- * @returns {{dispose: () => void}} the client, shaped as a system: main-three.js
+ * @returns {{dispose: () => void}} the client, shaped as a system: main.js
  *   registers it so game.dispose() closes the socket and clears the timers. See
  *   dispose() at the bottom for what would otherwise outlive the game.
  */
@@ -104,7 +103,7 @@ export function startNetwork(game) {
   const q3 = (n) => Math.round(n * 1000) / 1000;
 
   // ---- main init ----
-  // No DOM wait and no scene wait: main-three.js calls this after DOMContentLoaded and
+  // No DOM wait and no scene wait: main.js calls this after DOMContentLoaded and
   // after `await buildWorld()`, so the body, the rig and the player all exist already.
   const offBus = [
     events.on("local-fire", onLocalFire),
@@ -656,7 +655,7 @@ export function startNetwork(game) {
       const rotationChanged = Math.abs(currentRotation - lastRotation) > threshold;
 
       // Get current animation state from the local body's blend (systems/character.js,
-      // built on game.player.soldier by core/main-three.js once the model has loaded).
+      // built on game.player.soldier by core/main.js once the model has loaded).
       const character = player.character;
       const animationState = character
         ? {
@@ -1177,7 +1176,7 @@ export function startNetwork(game) {
     return names[Math.floor(Math.random() * names.length)];
   }
 
-  // The client, as a system: no update(), one dispose(). core/main-three.js registers it
+  // The client, as a system: no update(), one dispose(). core/main.js registers it
   // so game.dispose() reaches it in the same reverse-order sweep as everything else.
   return { dispose };
 }

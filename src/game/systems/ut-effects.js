@@ -61,7 +61,7 @@
 //     upgrade themselves the moment the glTF arrives, mid-firefight, without a reload.
 //
 // ---------------------------------------------------------------------------
-// WHAT THE PORT OFF A-FRAME CHANGED (src/game/components/ut-effects.js)
+// WHAT THE PORT OFF A-FRAME CHANGED (from the A-Frame build's ut-effects.js)
 // ---------------------------------------------------------------------------
 //   sceneEl.object3D        game.scene.
 //   sceneEl.camera          game.camera — and the sprites still face it through
@@ -77,7 +77,7 @@
 //                           gravity constant below was already in seconds — they are UE1's,
 //                           straight out of the contract — so the only /1000 in the file
 //                           was the tick's own, and it is gone rather than converted.
-//   registerSystem          `export class UtEffects`, registered in core/main-three.js
+//   registerSystem          `export class UtEffects`, registered in core/main.js
 //                           after first-person-weapon: it draws the shots that frame.
 //
 // The pools stay module-level, for the reason impact-effects.js gives at its own head:
@@ -217,7 +217,7 @@ let fxLoaded = false;
 /**
  * Pull in the generated table. Dynamic, and inside a try, on purpose: a static import of a
  * file the asset pipeline has not produced yet is a hard module-resolution failure that
- * takes every other import in main-three.js down with it.
+ * takes every other import in main.js down with it.
  */
 async function loadContract() {
   if (fxLoaded) return FX;
@@ -1574,7 +1574,7 @@ async function preload(game) {
 }
 
 /**
- * The system. Registered in core/main-three.js AFTER first-person-weapon, because it draws
+ * The system. Registered in core/main.js AFTER first-person-weapon, because it draws
  * the shots that were fired THIS frame.
  *
  * THE PUBLIC SURFACE, which is what network.js (Task 13) calls for a remote player's shot

@@ -6,13 +6,13 @@ renders through SwiftShader, whose frame times and rasterisation are not the GPU
 
 | probe | what it measures |
 |---|---|
-| `parity.mjs` | runs the four below in one browser, one pass/fail table. ~4 min. |
-| `walk.mjs` | speed, jump arc, floor contact, heading — play.html beside index.html |
+| `parity.mjs` | runs the four below in one browser, one pass/fail table. ~3 min. |
+| `walk.mjs` | speed (9.4 m/s best window), jump arc, floor contact, heading |
 | `effects.mjs` | a shot's impacts, ejected shell, decal and shock beam, plus screenshots |
-| `avatars.mjs` | remote bodies: clips, feet, facing, gun-on-hand, hp label, fire (`--legacy` shoots the A-Frame page instead) |
-| `multiplayer.mjs` | the live server: hello, team, spawn, bots, fire, scoreboard, name, two clients |
-| `pickups.mjs`, `smoke.mjs`, `screenshot-both.mjs` | per-task checks from the migration |
+| `avatars.mjs` | remote bodies: clips, feet, facing, gun-on-hand, hp label, fire |
+| `multiplayer.mjs` | the live server: hello, team, spawn, bots, fire, scoreboard, name, two tabs |
+| `pickups.mjs`, `smoke.mjs` | pickups/CTF against the live server; console errors and frames |
 
 Frame times and weapon motion live one level up: `node scripts/measure-frametimes.mjs`
-and `node scripts/measure-weapon-motion.mjs`, each with `--legacy` for index.html. Run the
-two pages back to back, never at once — a second connected client is two fewer bots.
+and `node scripts/measure-weapon-motion.mjs`. Run one probe at a time — a second connected
+client is two fewer bots, and the bot count is part of the measurement.

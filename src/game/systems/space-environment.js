@@ -381,7 +381,7 @@ export class SpaceEnvironment {
 
     // World-anchored orbit, x2.33552 with the world scale (src/shared/map-transform.js):
     // the belt has to sit outside the 259-unit map, not inside it. Inert while
-    // play.html passes asteroidCount:0, but wrong is wrong.
+    // core/main.js passes asteroidCount:0, but wrong is wrong.
     const radius = 70.07 + Math.random() * 116.78;
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);

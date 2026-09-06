@@ -169,25 +169,6 @@ html[data-team="blue"] {
   transition: opacity 160ms ease-out;
 }
 
-/* A-Frame stamps html.a-fullscreen on the document and its own stylesheet then
-   hides every body child that is not the canvas — which takes the entire HUD,
-   crosshair and credits with it. Put the overlay back: going fullscreen is the
-   one moment you most want the bar on screen. Verified by watching the HUD
-   vanish the moment that class appeared. */
-html.a-fullscreen body > .ut-hud,
-html.a-fullscreen body > .ut-crosshair,
-html.a-fullscreen body > .ut-hitmarker,
-html.a-fullscreen body > .ut-announce,
-html.a-fullscreen body > .ut-lock-prompt,
-html.a-fullscreen body > #credits-container,
-html.a-fullscreen body > #net-status {
-  display: block !important;
-}
-
-html.a-fullscreen body > .ut-modal {
-  display: flex !important;
-}
-
 /* ---- the chamfered plate ---------------------------------------------------
    The outline is the OUTER element's background showing through a 2px padding
    ring. Both boxes are cut with the same polygon, so the diagonal keeps its
@@ -702,9 +683,9 @@ html.a-fullscreen body > .ut-modal {
    dead moment is unavoidable and every browser shooter puts the same sign in it.
 
    pointer-events: none is load-bearing, not tidiness: the click that dismisses
-   this has to reach the canvas underneath, because A-Frame's look-controls is
-   what actually calls requestPointerLock. If the prompt swallowed the click
-   there would be nothing to swallow it FOR.
+   this has to reach the canvas underneath, because the canvas click handler
+   (src/game/engine/input.js) is what actually calls requestPointerLock. If the
+   prompt swallowed the click there would be nothing to swallow it FOR.
 
    Not UT99 art — UT99 has no such state — so it is deliberately plain, in the
    HUD's own message face rather than the heavy condensed plate lettering, and
@@ -1260,8 +1241,8 @@ html.a-fullscreen body > .ut-modal {
 
 /* index.html carries a desktop line and a touch line; exactly one of them is the
    truth on any given device, so show only that one. The touch line describes the
-   aframe-extras touch-controls path, which is the same query that lifts the ammo
-   bay clear of the FIRE button further down. */
+   touch path in src/game/engine/input.js, which is the same query that lifts the
+   ammo bay clear of the FIRE button further down. */
 .credit-instructions--touch {
   display: none;
 }
@@ -2904,8 +2885,7 @@ html[data-team="red"] .ut-flags {
   mask-image: var(--ut-idown);
 }
 
-/* The game canvas (play.html). A-Frame used to size and place its own canvas; this is
-   that rule. Fixed and full-viewport so the DOM HUD can overlay it at any size. */
+/* The game canvas. Fixed and full-viewport so the DOM HUD can overlay it at any size. */
 #game {
   position: fixed;
   inset: 0;

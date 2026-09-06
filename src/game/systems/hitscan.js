@@ -4,7 +4,7 @@
 // shared trace used by both the local weapon and the visual tracers spawned for remote
 // players, so everyone agrees on where a shot stops.
 //
-// Port of src/game/components/hitscan.js. NOT a system — it registers nothing and has no
+// Port of the A-Frame build's hitscan.js. NOT a system — it registers nothing and has no
 // update(); it is a library the weapon, the network layer and the effects call. What the
 // A-Frame version reached for through the DOM it is handed instead:
 //
@@ -23,7 +23,7 @@
 //                                     the body's own y, so the body's world position is the
 //                                     same ground-corrected feet the old rig's was (see the
 //                                     long comment above FLOOR_PROBE_UP there).
-//   AFRAME.THREE                      import * as THREE from "three".
+//   A-Frame's bundled THREE           import * as THREE from "three".
 //
 // The local player is not in bodies() at all, so the old `excludeEl: #soldier` — which
 // existed to stop a shot dying inside the shooter's own chest — has nothing to exclude

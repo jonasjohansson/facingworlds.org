@@ -922,3 +922,14 @@ amplitude — so the static offset (`weaponOffset()`, kept as the fallback) was 
 be enough. The third-person glTFs lost their nominal lift and are about the weapon's own
 origin; the anchor supplies the position. One incidental fix: the weapon child's
 `model-loaded` bubbled into the body's handler and rebuilt its mixer six times a spawn.
+
+## Landed 2026-09-06 — A-Frame removed
+
+- **The game runs on three r180.** `play.html` is `index.html`, `main-three.js` is
+  `core/main.js`, and A-Frame, aframe-extras, every `src/game/components/*` component, the
+  `three-aframe` shim, the frozen `network-aframe.js`, `ar/aframe.html` and its A-Frame
+  encantar plugin are gone — 3.9 MB of vendored library and ~16,900 lines. The HUD moved to
+  `src/game/hud/`. The `--legacy` flags and the side-by-side probes went with the old page;
+  the probes keep their absolute checks (walk 9.4 m/s best window, jump arc, floor, yaw;
+  effects against Epic's numbers; a second tab for the two-client check). See the migration
+  design doc for the numbers after the swap.

@@ -1,12 +1,13 @@
-// parity.mjs — the four in-browser checks that say the three.js build is the game, in one
-// run and one table.
+// parity.mjs — the four in-browser checks that say the game is the game, in one run and
+// one table.
 //
-// Task 8 (walk), Task 10 (effects), Task 12 (avatars) and Task 13 (multiplayer) each left a
-// probe behind. Each is worth running alone while its subsystem is being worked on — they
-// print their own detail, and that detail is what you read when something is wrong. What
-// was missing was the one answer: is play.html at parity with index.html today? So this
-// imports the four runners rather than repeating them, drives all four through ONE browser,
-// and prints one pass/fail line per check with the number behind it.
+// Task 8 (walk), Task 10 (effects), Task 12 (avatars) and Task 13 (multiplayer) of the
+// three.js migration each left a probe behind. Each is worth running alone while its
+// subsystem is being worked on — they print their own detail, and that detail is what you
+// read when something is wrong. What was missing was the one answer: does the whole of it
+// still hold today? So this imports the four runners rather than repeating them, drives
+// all four through ONE browser, and prints one pass/fail line per check with the number
+// behind it.
 //
 //   node scripts/pw/parity.mjs [baseUrl]        default http://localhost:8080
 //   FW_OUT=/tmp/parity node scripts/pw/parity.mjs      where the screenshots go
@@ -32,10 +33,10 @@ const base = baseUrl();
 const out = process.env.FW_OUT || process.env.SCRATCHPAD || "/tmp/facingworlds-parity";
 
 const PROBES = [
-  ["walk", "player movement, jump, floor, heading — both pages", (browser) => runWalk({ browser, base })],
-  ["effects", "a shot's impacts, shell, decal and shock beam — both pages", (browser) => runEffects({ browser, base, out })],
+  ["walk", "player movement, jump, floor, heading", (browser) => runWalk({ browser, base })],
+  ["effects", "a shot's impacts, shell, decal and shock beam", (browser) => runEffects({ browser, base, out })],
   ["avatars", "remote bodies: clips, feet, facing, the hand, hp, fire", (browser) => runAvatars({ browser, base, out })],
-  ["multiplayer", "the live 8081 server, and index.html in the next tab", (browser) => runMultiplayer({ browser, base })],
+  ["multiplayer", "the live 8081 server, and a second tab beside it", (browser) => runMultiplayer({ browser, base })],
 ];
 
 const browser = await launchQuiet();
@@ -57,7 +58,7 @@ for (const [name, what, run] of PROBES) {
 await browser.close();
 
 const failed = all.filter((r) => !r.ok);
-printChecks(all, { title: `PARITY — play.html vs index.html, ${base}`, group: true });
+printChecks(all, { title: `PARITY — ${base}`, group: true });
 console.log(
   `\n${all.length} checks, ${all.length - failed.length} passed, ${failed.length} failed` +
     (failed.length ? `\n\n${failed.map((r) => `  - ${r.group}: ${r.name} — ${r.value}`).join("\n")}` : "")

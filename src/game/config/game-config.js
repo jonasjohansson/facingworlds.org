@@ -17,7 +17,7 @@ export const GAME_CONFIG = {
   PLAYER: {
     HEALTH_MAX: 100,
     HEALTH_CURRENT: 100,
-    // aframe-extras movement-controls' own `speed` knob. It is NOT metres per second:
+    // A-Frame extras movement-controls' own `speed` knob. It is NOT metres per second:
     // the component multiplies it by 16.667 to get m/s, so this is MOVEMENT.GROUND_SPEED
     // / 16.667. ut-controls bypasses it for keyboard and touch, but gamepad and trackpad
     // still run through it, so it is kept in step with the UT99 ground speed.
@@ -190,11 +190,11 @@ export const GAME_CONFIG = {
     //
     //   * firing never moves ViewRotation.Pitch or .Yaw, so the crosshair does not drift.
     //     What a shot does is PlayerPawn.ShakeView — a cosmetic ROLL plus a vertical eye
-    //     jitter that leaves the aim alone. Ported in src/game/components/view-shake.js,
+    //     jitter that leaves the aim alone. Ported in src/game/player/view-shake.js,
     //     with each weapon's own numbers coming from its manifest `view.shake` block.
     //   * the weapon does not rotate when it fires either; it plays a baked vertex
     //     ANIMATION (PlayAnim('Shoot', rate)) off its own view mesh. See
-    //     src/game/components/view-weapon-anim.js.
+    //     src/game/systems/view-weapon-anim.js.
     //   * the muzzle flash is a 2D canvas icon in Weapon.RenderOverlays, not geometry, and
     //     four of the six weapons do not have one at all. It is drawn by the HUD now
     //     (hud-root.js muzzleFlash), and the screen brightening that used to come from the
@@ -236,7 +236,7 @@ export const GAME_CONFIG = {
     IMPACT_LIGHT_INTENSITY: 12,
     IMPACT_LIGHT_RANGE: 4,
 
-    // ---- UT99's own hit effects (src/game/components/ut-effects.js) ----
+    // ---- UT99's own hit effects (src/game/systems/ut-effects.js) ----
     // Pool sizes, halved on mobile there, exactly as the three above are. A beam is the
     // only effect that claims many slots at once — one shock shot lays a segment every
     // 135 UU (3.17 m) from the muzzle to the wall — so it gets most of the budget, and

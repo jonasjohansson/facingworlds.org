@@ -2,8 +2,8 @@
 // Everything here is preallocated into fixed-size pools: geometries and textures are
 // shared, each pool slot owns exactly one material, and nothing is created per shot.
 //
-// Port of src/game/components/impact-effects.js. The A-Frame touches were all one thing —
-// `sceneEl.object3D` for the root and `AFRAME.THREE` for the constructors — so the shape
+// Port of the A-Frame build's impact-effects.js. The A-Frame touches were all one thing —
+// `sceneEl.object3D` for the root and A-Frame's bundled THREE for the constructors — so the shape
 // of the file is unchanged: module-level pools, free spawner functions, and a thin system
 // class at the bottom that owns their lifetime.
 //
@@ -409,7 +409,7 @@ export function disposeImpactEffects() {
  *
  * A-Frame instantiated this system for every scene without an HTML attribute, which is
  * what kept the decay loop running no matter which component spawned the effect; the
- * registration in core/main-three.js is that guarantee now.
+ * registration in core/main.js is that guarantee now.
  */
 export class ImpactEffects {
   constructor(game) {

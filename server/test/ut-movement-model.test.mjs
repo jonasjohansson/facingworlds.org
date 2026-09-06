@@ -1,8 +1,8 @@
 // ut-movement-model.test.mjs — the UT99 acceleration model, lifted out of the A-Frame
 // component and pinned to the numbers in GAME_CONFIG.MOVEMENT.
 //
-// This is the arithmetic that used to live in ut-controls' step()/approach() (see
-// src/game/components/movement/ut-movement.js). It is worth testing on its own because
+// This is the arithmetic that used to live in the A-Frame ut-controls component's
+// step()/approach(). It is worth testing on its own because
 // every claim in the config's comment block — "0.183 s to 95% of top speed", "0.15 s from
 // full speed to a standstill", "a reversal bleeds 9.4 -> 3.1 m/s" — is a claim about
 // exactly these four lines, and nothing in the browser can assert them.

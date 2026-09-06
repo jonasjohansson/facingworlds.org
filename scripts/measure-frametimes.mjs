@@ -8,19 +8,15 @@
 //   npm i -D playwright && npx playwright install chromium     (one-off; ~100 MB of browser)
 //   node server/server.js (TLS on 8081) and the static server on 8080 must be running.
 //
-// Since the three.js port (Task 15) the DEFAULT TARGET IS play.html, read through the
-// `window.__fw` debug handle. `--legacy` runs the same phases on the A-Frame index.html
-// through the DOM selectors this probe was written against, so the two can be compared on
-// the same machine in the same session — which is the only way these numbers mean
-// anything. Task 16 deletes the flag along with index.html.
+// The page is read through the `window.__fw` debug handle. The numbers are only
+// meaningful against each other, on the same machine, in the same session.
 //
-//   node scripts/measure-frametimes.mjs             play.html   (three r180)
-//   node scripts/measure-frametimes.mjs --legacy    index.html  (A-Frame)
+//   node scripts/measure-frametimes.mjs
 //
 // THE BOT COUNT IS PART OF THE MEASUREMENT. The 8.3 ms baseline was taken with a full
 // roster, and the server fills one bot per side per 3 s sweep, so the probe waits for the
-// roster before it starts recording and prints what it got. Run the two pages BACK TO
-// BACK, never at once: two connected humans is two fewer bots each (server/bots.js —
+// roster before it starts recording and prints what it got. Run one measurement at a
+// time: two connected humans is two fewer bots each (server/bots.js —
 // BOTS_MIN_PER_TEAM 5, BOTS_MAX 10, so one human is served nine bots).
 //
 // HEADED on purpose: the headless shell renders through SwiftShader and its frame times say
@@ -31,62 +27,39 @@ import { launchQuiet } from "./pw/launch.mjs";
 import fs from "node:fs";
 import os from "node:os"; import path from "node:path";
 
-const legacy = process.argv.includes("--legacy");
 const BASE = (process.env.FW_BASE || "http://localhost:8080").replace(/\/$/, "");
 // Nine is what one human is served by a default server (BOTS_MIN_PER_TEAM 5 per side, one
 // of the ten slots taken by us). Waiting for it is what makes the two runs comparable.
 const WANT_BOTS = Number(process.env.FW_BOTS || 9);
 const BOT_WAIT_MS = 90000; // ~15 s of sweeps at full speed; long enough for a slow join
 
-/* ------------------------------------------------------------------ page adapters --
-   The same phases, driven through whichever handle the page has. Each entry is a set of
+/* ------------------------------------------------------------------- page adapter --
    SELF-CONTAINED functions: they are stringified into the page, so they may not close
    over anything out here. */
-const ADAPTERS = {
-  "play.html": {
-    url: `${BASE}/play.html`,
-    // The gun in hand. `primarySlot` is the permanent Object3D the weapon dresses;
-    // userData.mesh is what attachModel hung on it.
-    ready: () => {
-      const c = window.__fw && window.__fw.systems.get("first-person-weapon");
-      return !!(c && c.primarySlot && c.primarySlot.userData.mesh);
-    },
-    install: () => {
-      window.__comp = () => window.__fw.systems.get("first-person-weapon");
-      window.__slotLoaded = () => {
-        const c = window.__comp();
-        return !!(c.primarySlot.userData.mesh && c.primarySlot.userData.anim);
-      };
-      window.__bots = () => {
-        const r = window.__fw.systems.get("remote-avatars");
-        return r ? r.avatars.size : 0;
-      };
-      window.__renderer = () => window.__fw.renderer;
-    },
+const adapter = {
+  url: `${BASE}/index.html`,
+  // The gun in hand. `primarySlot` is the permanent Object3D the weapon dresses;
+  // userData.mesh is what attachModel hung on it.
+  ready: () => {
+    const c = window.__fw && window.__fw.systems.get("first-person-weapon");
+    return !!(c && c.primarySlot && c.primarySlot.userData.mesh);
   },
-
-  "index.html": {
-    url: `${BASE}/index.html`,
-    ready: () => {
-      const el = document.querySelector("[first-person-weapon]");
-      const c = el && el.components && el.components["first-person-weapon"];
-      return !!(c && c.primaryEl && c.primaryEl.getObject3D("mesh"));
-    },
-    install: () => {
-      window.__comp = () => document.querySelector("[first-person-weapon]").components["first-person-weapon"];
-      window.__slotLoaded = () => {
-        const c = window.__comp();
-        return !!(c.primaryEl.getObject3D("mesh") && c.primaryEl.__slotAnim);
-      };
-      window.__bots = () => document.querySelectorAll("[remote-avatar]").length;
-      window.__renderer = () => document.querySelector("a-scene").renderer;
-    },
+  install: () => {
+    window.__comp = () => window.__fw.systems.get("first-person-weapon");
+    window.__slotLoaded = () => {
+      const c = window.__comp();
+      return !!(c.primarySlot.userData.mesh && c.primarySlot.userData.anim);
+    };
+    window.__bots = () => {
+      const r = window.__fw.systems.get("remote-avatars");
+      return r ? r.avatars.size : 0;
+    };
+    window.__renderer = () => window.__fw.renderer;
   },
 };
 
-const name = legacy ? "index.html" : "play.html";
-const adapter = ADAPTERS[name];
-const OUT = path.join(os.tmpdir(), legacy ? "facingworlds-measure-legacy" : "facingworlds-measure") + path.sep;
+const name = "index.html";
+const OUT = path.join(os.tmpdir(), "facingworlds-measure") + path.sep;
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await launchQuiet({args: ["--autoplay-policy=no-user-gesture-required", "--enable-gpu-rasterization"]});
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true });
@@ -98,8 +71,8 @@ await page.goto(adapter.url, { waitUntil: "load" });
 await page.waitForFunction(adapter.ready, null, { timeout: 60000 });
 await page.evaluate(adapter.install);
 
-// The roster. Both pages join the same 8081 server and both draw the same bodies, so this
-// has to be the same number on both runs or the frame times are measuring the roster.
+// The roster. This has to be the same number on every run or the frame times are
+// measuring the roster.
 const bots = await page
   .waitForFunction((want) => window.__bots() >= want, WANT_BOTS, { timeout: BOT_WAIT_MS, polling: 500 })
   .then(() => page.evaluate(() => window.__bots()))
@@ -146,8 +119,8 @@ await wait(300); await shot("21-dual-firing.png"); await wait(2000);
 await page.evaluate(() => clearInterval(window.__fireTimer));
 await wait(500);
 
-// What the renderer is actually asked to do PER FRAME — the first place to look when one
-// page is slower than the other. renderer.info resets itself on every render() call, and
+// What the renderer is actually asked to do PER FRAME — the first place to look when a
+// run is slower than the last. renderer.info resets itself on every render() call, and
 // with the bloom composer there are several of those a frame, so the counters are frozen
 // (autoReset = false) and accumulated over a second, then divided by the frames counted.
 const rinfo = await page.evaluate(

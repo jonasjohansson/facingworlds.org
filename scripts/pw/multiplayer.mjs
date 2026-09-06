@@ -1,8 +1,8 @@
 // multiplayer.mjs — the network probe (Task 13). The milestone for step 4 of the
 // migration design doc: play against bots.
 //
-// It joins the real 8081 server from play.html and checks the whole of what network.js
-// now does through method calls rather than the DOM:
+// It joins the real 8081 server and checks the whole of what network.js does through
+// method calls rather than the DOM:
 //
 //   hello        the server's id lands on game.rig.userData.playerId (CTF reads it there)
 //   team         `local-team` fired with a side
@@ -11,22 +11,22 @@
 //                running — i.e. the wire's animation block reaches the mixer through
 //                avatar.setPose()
 //   hp           the local Health is wired to the HUD plate (100 on the tile)
-//   scoreboard   TAB opens it (the level input.js already tracks; hold-to-show, as in the
-//                A-Frame build — see systems/highscore-display.js)
+//   scoreboard   TAB opens it (the level input.js already tracks; hold-to-show — see
+//                systems/highscore-display.js)
 //   fire         five fireBullet() calls put five `fire` messages on the wire
 //   remote fx    a bot's shot comes back and is DRAWN here (ut-effects.drawHitscanShot)
 //   pickups/CTF  the `pickups-init` and `ctf-init` relays reached their systems
 //   name         the N dialog's save path emits `change-name` and the server echoes a
 //                `name` message back
-//   interop      a SECOND page on the A-Frame index.html, same server, same browser
-//                context: each page must see the other as a remote body with its name
+//   two clients  a SECOND tab on the same server, same browser context: each page must
+//                see the other as a remote body with its name
 //
 // Needs both servers: static on 8080 (`npm run dev`) and the game server on 8081
 // (`npm run server:tls`). Headed, as every probe here is.
 //
 // Usage: node scripts/pw/multiplayer.mjs [baseUrl]
 // Also exported as runMultiplayer({ browser, base }) so scripts/pw/parity.mjs can run it
-// beside the other three probes in one browser and fold its verdict into one table.
+// beside the other probes in one browser and fold its verdict into one table.
 import { launchQuiet } from "./launch.mjs";
 import { baseUrl, createChecks, isMain, printChecks, watchErrors } from "./lib.mjs";
 
@@ -80,8 +80,7 @@ requestAnimationFrame(tick);
 `;
 
 export async function runMultiplayer({ browser, base = baseUrl() } = {}) {
-  const url = `${base}/play.html`;
-  const LEGACY_URL = `${base}/index.html`;
+  const url = `${base}/index.html`;
   const checks = createChecks();
   const row = (name, value, ok) => checks.row(name, value, ok);
   const rows = checks.rows;
@@ -162,7 +161,7 @@ export async function runMultiplayer({ browser, base = baseUrl() } = {}) {
   row("bot Run/Walk clip weight", `run ${motion.run.toFixed(3)} / walk ${motion.walk.toFixed(3)}`, motion.run + motion.walk > 0);
 
   // ---- our own body, on the wire --------------------------------------------------
-  // The local Character is new here (main-three.js builds it on game.player.soldier once
+  // The local Character is new here (main.js builds it on game.player.soldier once
   // the model resolves) and the pose loop reads its blend targets, so a run has to reach
   // the `pose` message's animation block or every other client draws us gliding.
   const poseBefore = await page.evaluate(() => __probe.sent.pose || 0);
@@ -220,7 +219,7 @@ export async function runMultiplayer({ browser, base = baseUrl() } = {}) {
 
   // ---- getting shot ---------------------------------------------------------------
   // network.js routes `hit` / `health` / `respawn` for the local player to
-  // game.player.health — the Health instance main-three.js builds on the body. Whether a
+  // game.player.health — the Health instance main.js builds on the body. Whether a
   // bot lands a shot inside the probe's window is luck, so what is CHECKED here is the
   // wiring that routing depends on, driven through the same setHp() the message handler
   // calls: the HUD plate, the death card and the weapon lock-out. `hits` reports what the
@@ -286,57 +285,44 @@ export async function runMultiplayer({ browser, base = baseUrl() } = {}) {
   row("name change (DOM flow)", `${renamed.stored} · setName x${renamed.sentSetName} · scoreboard ${JSON.stringify(renamed.board)}`, renamed.matches && renamed.sentSetName >= 2 && renamed.closed);
 
   // ---- two clients, one server ----------------------------------------------------
-  // The A-Frame page in the SAME browser context, so it shares localStorage and has to go
+  // A second tab in the SAME browser context, so it shares localStorage and has to go
   // through network.js's per-tab name claim — which is exactly why it gets its own name.
-  const legacy = await context.newPage();
-  await legacy.goto(LEGACY_URL);
-  const legacyReady = await legacy
-    .waitForFunction(() => document.querySelector("#rig") && document.querySelector("#rig").dataset.playerId, null, { timeout: 40000 })
+  const other = await context.newPage();
+  await other.goto(url);
+  const otherReady = await other
+    .waitForFunction(() => window.__fw && window.__fw.rig && window.__fw.rig.userData.playerId, null, { timeout: 40000 })
     .then(() => true)
     .catch(() => false);
-  row("index.html (A-Frame) joined", String(legacyReady), legacyReady);
+  row("a second tab joined", String(otherReady), otherReady);
 
   await page.waitForTimeout(4000);
   // THE SERVER'S name for each page, not the browser's: the name a client asks for is a
   // request, and server.js disambiguates a collision by suffixing it ("Visse" -> "Visse 2")
   // when a bot already holds it. Both pages' own scoreboards are rebuilt from
   // `highscore-update`, so the local row is each page's copy of what the server settled on.
-  const names = await page.evaluate(
-    () => document.querySelector("#players-list .ut-row.is-local .ut-row__name")?.textContent || window.getPlayerName()
-  );
-  const legacyNames = await legacy.evaluate(
-    () => document.querySelector("#players-list .ut-row.is-local .ut-row__name")?.textContent || window.getPlayerName()
-  );
+  const serverName = () => document.querySelector("#players-list .ut-row.is-local .ut-row__name")?.textContent || window.getPlayerName();
+  const names = await page.evaluate(serverName);
+  const otherNames = await other.evaluate(serverName);
 
   const myId = await page.evaluate(() => window.__fw.rig.userData.playerId);
-  const legacyId = await legacy.evaluate(() => document.querySelector("#rig").dataset.playerId);
+  const otherId = await other.evaluate(() => window.__fw.rig.userData.playerId);
 
-  const seesLegacy = await page.evaluate(
-    ({ id, want }) => {
-      const r = window.__fw.systems.get("remote-avatars");
-      const a = r.get(id);
-      return { body: !!a, name: a ? a.name : null, ok: !!a && a.name === want };
-    },
-    { id: legacyId, want: legacyNames }
-  );
-  // The A-Frame page has NO name plates (Task 12 gave those to the three build) and its
-  // spawnRemote never wrote data-name from the join payload — only a later `name` message
-  // did — so the old page's own record of who we are is its rig element plus the scoreboard
-  // row the `player-join` / `highscore-update` relays fill in. Both are checked.
-  const legacySeesUs = await legacy.evaluate(
-    ({ id, want }) => {
-      const rig = document.querySelector(`#remote-rig-${id}`);
-      const board = [...document.querySelectorAll("#players-list .ut-row__name")].map((e) => e.textContent);
-      return { body: !!rig, board, ok: !!rig && board.includes(want) };
-    },
-    { id: myId, want: names }
-  );
-  row(`play.html sees "${legacyNames}"`, `body ${seesLegacy.body}, name ${seesLegacy.name}`, seesLegacy.ok);
-  row(`index.html sees "${names}"`, `body ${legacySeesUs.body}, scoreboard ${JSON.stringify(legacySeesUs.board)}`, legacySeesUs.ok);
+  // Each page's remote-avatars registry must carry the other as a body, under the name
+  // the server settled on.
+  const sees = ({ id, want }) => {
+    const r = window.__fw.systems.get("remote-avatars");
+    const a = r.get(id);
+    return { body: !!a, name: a ? a.name : null, ok: !!a && a.name === want };
+  };
+  const seesOther = await page.evaluate(sees, { id: otherId, want: otherNames });
+  const otherSeesUs = await other.evaluate(sees, { id: myId, want: names });
+  row(`tab 1 sees "${otherNames}"`, `body ${seesOther.body}, name ${seesOther.name}`, seesOther.ok);
+  row(`tab 2 sees "${names}"`, `body ${otherSeesUs.body}, name ${otherSeesUs.name}`, otherSeesUs.ok);
+  await other.close();
 
   // ---- teardown -------------------------------------------------------------------
   // LAST, because it takes the page down with it. startNetwork() returns a handle that
-  // main-three.js registers as a system, so game.dispose() has to reach the socket, the
+  // main.js registers as a system, so game.dispose() has to reach the socket, the
   // 20 Hz pose interval and the bus subscriptions — none of which the frame loop owns, and
   // all of which used to outlive it. The HUD refcount is the other half: it only reaches
   // zero (and takes #ut-hud out of the document) if the local Health's dispose() runs,

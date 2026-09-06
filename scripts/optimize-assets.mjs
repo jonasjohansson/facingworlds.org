@@ -191,9 +191,9 @@ const gltf = (subcommand, extra = []) => {
 // The scale is applied to each scene's ROOT nodes, not to vertex data: for a uniform
 // factor k, left-multiplying a node's world matrix T·R·S by kI is exactly
 // T(k·t)·R·(k·s), so scaling every root node's translation and scale is an exact
-// scale about the world origin whatever the hierarchy below looks like. aframe-extras'
-// nav-mesh component clones the mesh geometry and applies `matrixWorld` before handing
-// it to the pathfinder, so the navmesh node transform is honoured there too.
+// scale about the world origin whatever the hierarchy below looks like. The navmesh
+// clamp (src/game/player/navclamp.js) applies `matrixWorld` to the mesh geometry before
+// handing it to the pathfinder, so the navmesh node transform is honoured there too.
 //
 // gltf-transform's CLI has no scale subcommand, so this stage runs in-process against
 // @gltf-transform/core. That package is not a direct devDependency: it is @gltf-transform/cli's

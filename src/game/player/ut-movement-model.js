@@ -1,6 +1,6 @@
 // ut-movement-model.js — UT99 ground acceleration, as pure arithmetic.
 //
-// This is `ut-controls`' step()/approach() (src/game/components/movement/ut-movement.js,
+// This is the A-Frame `ut-controls` component's step()/approach() (ut-movement.js,
 // lines 117-154) with everything that was not arithmetic removed: no A-Frame component,
 // no keyboard/touch reading, no camera quaternion, no Vector3. The caller resolves the
 // heading to world xz — the controller does it with the rig's yaw — and hands it in.

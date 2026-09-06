@@ -77,8 +77,8 @@ export async function buildWorld(game) {
   );
 
   // Navmesh: loaded, hidden, kept for the player clamp and the spawn raycast. The
-  // aframe-extras `nav-mesh` component fed movement-controls; player/navclamp.js will
-  // take the geometry off this root instead.
+  // A-Frame extras' `nav-mesh` component fed movement-controls; player/navclamp.js
+  // takes the geometry off this root instead.
   const navNode = new THREE.Group();
   navNode.name = "navmesh";
   const { root: navRoot } = await attachModel(navNode, ASSETS.navmeshGltf);

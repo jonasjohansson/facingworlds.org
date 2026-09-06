@@ -1,7 +1,7 @@
-// Smoke test for play.html: loads it headed, collects console errors, checks that the
+// Smoke test for the game page: loads it headed, collects console errors, checks that the
 // renderer is producing frames. Usage: node scripts/pw/smoke.mjs [url]
 import { launchQuiet } from "./launch.mjs";
-const url = process.argv[2] || "http://localhost:8080/play.html";
+const url = process.argv[2] || "http://localhost:8080/index.html";
 const browser = await launchQuiet();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];

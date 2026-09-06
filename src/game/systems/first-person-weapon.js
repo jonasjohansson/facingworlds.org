@@ -3,7 +3,7 @@
 // world geometry and player capsules, with the tracer drawn from the muzzle to whatever
 // the trace hit. Nothing travels.
 //
-// Port of src/game/components/first-person-weapon.js. What the A-Frame version expressed
+// Port of the A-Frame first-person-weapon component. What the A-Frame version expressed
 // through the DOM is scene-graph and method calls here:
 //
 //   #view-shake        gone. The controller writes the shake to the camera and to
@@ -26,7 +26,7 @@ import { traceShot } from "./hitscan.js";
 import { createViewAnim } from "./view-weapon-anim.js";
 import { WeaponSway } from "./weapon-sway.js";
 import { UU_TO_M } from "../../shared/map-transform.js";
-import { getHud } from "../components/hud/hud-root.js";
+import { getHud } from "../hud/hud-root.js";
 
 // ---------------------------------------------------------------------------
 // WHAT A SHOT DOES, AND WHERE EACH PART OF IT LIVES

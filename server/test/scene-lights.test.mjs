@@ -1,6 +1,6 @@
 // scene-lights.test.mjs — the lighting rig, pinned.
 //
-// index.html carried 19 `light=` attributes, five of which sat inside HTML comments
+// The A-Frame index.html carried 19 `light=` attributes, five of which sat inside HTML comments
 // (three dead ambients and two dead directionals) and one of which was a *mention* of
 // `light="castShadow: true"` inside the #world comment. Fourteen were live, and those
 // fourteen — hand-tuned against the CTF-Face reference over several sessions, with the
@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { LIGHTS, makeLight } from "../../src/game/scene/lights.js";
 
-test("every live light from index.html is carried over — and no more", () => {
+test("every live light from the A-Frame markup is carried over — and no more", () => {
   assert.equal(LIGHTS.length, 14);
 });
 

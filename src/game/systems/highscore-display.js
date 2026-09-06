@@ -11,7 +11,7 @@
 // instead of adding a second listener for the same key. Same behaviour, one owner:
 // releasing the key closes the board, and a Tab that arrives while the name box has focus
 // never reaches input.js at all (it skips INPUT/TEXTAREA targets), so typing still tabs.
-import { getHud } from "../components/hud/hud-root.js";
+import { getHud } from "../hud/hud-root.js";
 
 const DEFAULTS = {
   enabled: true,

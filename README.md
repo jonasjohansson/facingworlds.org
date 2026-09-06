@@ -1,8 +1,9 @@
 # Facing Worlds
 
-A browser multiplayer FPS recreating UT99's CTF-Face, built on A-Frame 1.6 (three r164)
-with a WebSocket game server, plus an AR spectator page. Static site, no build step:
-GitHub Pages serves this repository as-is at <https://facingworlds.org>.
+A browser multiplayer FPS recreating UT99's CTF-Face, built on three.js r180 (vendored
+at `assets/libraries/three/`, no framework) with a WebSocket game server, plus an AR
+spectator page on the same three copy. Static site, no build step: GitHub Pages serves
+this repository as-is at <https://facingworlds.org>.
 
 ## HUD art
 
@@ -22,7 +23,7 @@ atlases exactly as `ChallengeHUD.uc` does, and the in-repo SVG/CSS recreation.
 ## Project Structure
 
 ```
-index.html                     # the game: scene graph, lights, asset manifest
+index.html                     # the game: one <canvas>, the import map, the credits
 ar/                            # the AR spectator page (separate entry point)
 marker.html                    # printable/displayable AR marker
 styles.css
@@ -44,21 +45,25 @@ server/
 assets/                        # source media. assets/3d/ is the optimizer's INPUT
 │                              # and is no longer downloaded by the browser
 ├── 3d/                        # original .gltf/.glb + loose PNGs (~35 MB)
-├── libraries/                 # A-Frame + aframe-extras, vendored
+├── libraries/                 # three r180 (+ addons), encantar, vendored
 ├── audio/  graphics/  images/  models/
 assets-optimized/3d/           # what index.html actually loads (committed, 4.5 MB)
 
 src/
 ├── game/
-│   ├── core/main.js           # entry point
-│   ├── network/network.js     # WebSocket client, remote avatars
+│   ├── core/main.js           # entry point: builds the world, registers the systems
+│   ├── engine/                # renderer + frame loop (game.js), input, asset loading
+│   ├── scene/                 # the map, its lights
+│   ├── player/                # the rig: controller, navmesh clamp, view shake, spawn
+│   ├── systems/               # everything that runs per frame: weapon, effects,
+│   │                          # projectiles, remote avatars, pickups, CTF, bloom, ...
+│   ├── hud/                   # the DOM HUD
+│   ├── network/network.js     # WebSocket client
 │   ├── config/game-config.js  # network URLs, health, camera, bullets
-│   ├── components/            # A-Frame components: hitscan, health, character,
-│   │                          # first-person-weapon, quality-tier, lighting/, HUD
 │   └── utils/
-├── ar/                        # AR-only components, config and entry point
+├── ar/                        # the AR page: src/ar/three/, its config, vendored loaders
 └── shared/
-    ├── components/            # used by both pages
+    ├── *.js                   # GENERATED tables (map actors, weapons, effects, ...)
     └── net/                   # snapshot interpolation + spectator client
 ```
 
@@ -112,7 +117,7 @@ mouse button did nothing — `first-person-weapon.js` only fires while
 `document.pointerLockElement` is set, which it never was.
 
 - **WASD**: Move
-- **Mouse**: Look (pointer-locked, A-Frame's 0.002 rad/px)
+- **Mouse**: Look (pointer-locked, 0.002 rad/px)
 - **Left click** or **X**: Fire
 - **Space**: Jump
 - **Q / E**: Turn the rig without the mouse
@@ -324,8 +329,8 @@ Two things that had to survive the pipeline, and did:
   bounding box, so scaling the world by `k` multiplies the quantization step by `k` too.
   The default 14 bits gave ±3.4 mm over the old 110-unit map; over the scaled 259-unit map
   it would give **±7.9 mm** — still sub-centimetre, but it eats most of the `0.01`-unit
-  coplanarity epsilon baked into the vendored `three-pathfinding` inside
-  `assets/libraries/aframe-extras.min.js`, which is world-anchored and did *not* scale.
+  coplanarity epsilon baked into the vendored `three-pathfinding`
+  (`src/game/vendor/`), which is world-anchored and did *not* scale.
   The two world assets are therefore encoded with `ceil(log2 k) = 2` extra bits of position
   precision (16-bit), giving **±2.0 mm on both the map and the navmesh** — better than the
   ±3.4 mm the unscaled map shipped with. It costs 1.2 KB on the map and 0.7 KB on the
@@ -358,25 +363,18 @@ is implemented but unverified** — the numbers above are all from the WebP path
 
 ### Wiring (done)
 
-`index.html` loads the optimized copies. Concretely:
+The game loads the optimized copies. The manifest is `ASSETS` in
+`src/game/engine/assets.js`:
 
-| `<a-asset-item>` | src |
+| key | src |
 | --- | --- |
-| `#world-gltf` | `assets-optimized/3d/map/FacingWorlds_tex_5.glb` |
-| `#navmesh-gltf` | `assets-optimized/3d/navmesh.glb` |
-| `#soldier-model` | `assets-optimized/3d/Soldier.glb` |
-| `#enforcer-weapon` | `assets-optimized/3d/enforcer.glb` |
+| `worldGltf` | `assets-optimized/3d/map/FacingWorlds_tex_5.glb` |
+| `navmeshGltf` | `assets-optimized/3d/navmesh.glb` |
+| `soldierModel` | `assets-optimized/3d/Soldier.glb` |
+| `enforcerWeapon` | `assets-optimized/3d/enforcer.glb` |
 
-`#player-weapon` (the first-person pistol) now resolves through `#enforcer-weapon`
-instead of carrying its own raw URL, so the entity and the preloader cannot drift onto
-different paths. This is *not* a download saving: A-Frame sets `THREE.Cache.enabled` and
-`<a-asset-item>` caches by exact URL string, so the raw-URL form was already served from
-cache — measured as one network request either way.
-
-Nothing under `src/game/` hardcodes an asset path — components resolve models through
-those `#id` selectors — so `index.html` was the only game file that had to change. The AR
-page is separate and does hardcode paths (`src/ar/config/ar-config.js`, `ar/index.html`,
-`ar/aframe.html`); see the note at the end of this section.
+Nothing else under `src/game/` hardcodes a model path. The AR page has its own list
+(`src/ar/config/ar-config.js`), optimized first with the original as a fallback.
 
 **Why these are committed rather than generated at deploy time.** GitHub Pages serves
 the repo as-is; there is no build step. Anything not committed does not exist in
@@ -384,76 +382,33 @@ production, so a gitignored `assets-optimized/` would mean the deployed site eit
 breaks or silently falls back to the 35 MB originals — the saving would never actually
 ship, which is the state this replaces. A runtime probe-and-fall-back was the
 alternative and is worse here: it costs a round trip before the first byte of the map
-on *every* load, `<a-asset-item>` starts fetching at parse time so intercepting it means
-hand-rolling A-Frame's asset system, and the only failure it guards against is the one
-committing eliminates. 4.5 MB of tracked binaries against the 35 MB of originals already
+on *every* load, and the only failure it guards against is the one committing
+eliminates. 4.5 MB of tracked binaries against the 35 MB of originals already
 in the repo is not a meaningful cost. A fresh clone therefore works with no asset step:
 `npm install` is only needed to *re-run* the optimizer.
 
 The originals under `assets/3d/` stay in the repo, byte-identical. They are the
 optimizer's input; the game page no longer downloads them.
 
-**The AR page is not covered by the table above.** `ar/index.html` and `ar/aframe.html`
-still point their `<a-asset-item>` at `../assets/3d/map/FacingWorlds_tex_5.gltf` — the
-14.3 MB original — and `src/ar/config/ar-config.js` carries its own candidate list. AR is
-the page people open on a phone over mobile data, so it is where the saving matters most.
-Switching it means changing the extension too (`.gltf` → `.glb`), and a pure-Three.js AR
-page must wire its own `DRACOLoader`: A-Frame's automatic `dracoDecoderPath` default does
-not apply outside A-Frame.
-
 ### glTF extensions the optimized files use
 
-Both are handled with **zero app-side wiring**, but for different reasons:
+- **`EXT_texture_webp`** — three's `GLTFLoader` registers `GLTFTextureWebPExtension`
+  unconditionally in its constructor, alongside the KHR extensions. WebP has been
+  supported in every current browser since 2020.
+- **`KHR_draco_mesh_compression`** — both pages build a `DRACOLoader` on the vendored
+  wasm decoder at `src/ar/vendor/draco/` (`src/game/engine/assets.js`,
+  `src/ar/three/assets.js`). Nothing is fetched from a CDN at runtime.
 
-- **`EXT_texture_webp`** — three r164's `GLTFLoader` registers
-  `GLTFTextureWebPExtension` unconditionally in its constructor, alongside the KHR
-  extensions. Confirmed by reading the three copy A-Frame bundles
-  (`assets/libraries/aframe/aframe.min.js`): the loader constructor contains an
-  unconditional `this.register(parser => new <webp-extension>(parser))`, and the class
-  it registers carries the `detectSupport()` probe that loads a 1×1 WebP data URI. It is
-  not gated on a flag or a plugin. WebP has been supported in every current browser
-  since 2020.
-- **`KHR_draco_mesh_compression`** — A-Frame 1.6's `gltf-model` *system* schema defaults
-  `dracoDecoderPath` to `https://www.gstatic.com/draco/versioned/decoders/1.5.6/` and
-  builds a `DRACOLoader` from it on init. Also confirmed by reading the bundle.
-
-#### Draco decoder: the one runtime dependency this adds
-
-All four optimized files are Draco-compressed, and the decoder is fetched from
-**gstatic.com at runtime**. If that host is unreachable — offline demo, locked-down
-network — *no model decodes* and the scene is empty. Everything else on the page loads
-from local files, so this is the only third-party runtime dependency the game has.
-
-Two ways out, both fine:
-
-- **Vendor the decoder** (preferred for offline/event use): copy `draco_decoder.js`,
-  `draco_decoder.wasm` and `draco_wasm_wrapper.js` from the `draco3d` package into e.g.
-  `assets/libraries/draco/`, then on `<a-scene>`:
-
-  ```html
-  <a-scene gltf-model="dracoDecoderPath: assets/libraries/draco/">
-  ```
-
-- **Drop Draco**: `npm run optimize:assets -- --geometry=none`. Measured cost of doing
-  so is **+1.18 MB** (4.48 MB → 5.66 MB total, still −83.9%), in exchange for having no
-  external runtime dependency at all.
-
-Draco is kept on by default because it is the larger win and A-Frame wires it with no
-configuration; the trade is documented here so it is a choice rather than a surprise.
+**Drop Draco** with `npm run optimize:assets -- --geometry=none`. Measured cost of doing
+so is **+1.18 MB** (4.48 MB → 5.66 MB total, still −83.9%).
 
 #### If you switch codecs
 
 Neither of these is in use today; both would need wiring that WebP does not.
 
-- **KTX2 only** — `basisTranscoderPath` defaults to `""`, which disables the loader. It
-  needs the Basis transcoder (`basis_transcoder.js` + `.wasm`) vendored into
-  `assets/libraries/`, then on `<a-scene>`:
-
-  ```html
-  <a-scene gltf-model="basisTranscoderPath: assets/libraries/basis/">
-  ```
-
-- **Meshopt only** — same shape, via `meshoptDecoderPath` (also defaults to `""`).
+- **KTX2 only** — needs the Basis transcoder (`basis_transcoder.js` + `.wasm`) vendored
+  and a `KTX2Loader` set on the `GLTFLoader` in `src/game/engine/assets.js`.
+- **Meshopt only** — same shape, via `setMeshoptDecoder`.
 
 ### Unreferenced assets
 

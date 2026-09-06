@@ -16,23 +16,15 @@
 //   npm i -D playwright && npx playwright install chromium     (one-off; ~100 MB of browser)
 //   node server/server.js (TLS on 8081) and the static server on 8080 must be running.
 //
-// Since the three.js port (Task 15) the DEFAULT TARGET IS play.html; `--legacy` runs the
-// same plan on the A-Frame index.html. The numbers are only meaningful against each other,
-// on the same machine, in the same session, so run the two back to back. Task 16 deletes
-// the flag along with index.html. Everything that differs between the two pages is the
-// handle, and it is all in ADAPTERS below:
+// The page is read through the `window.__fw` debug handle (the shims in `adapter`
+// below). The numbers are only meaningful against each other, on the same machine, in the
+// same session.
 //
-//     document.querySelector("[first-person-weapon]").components[...]  ->  __fw.systems.get("first-person-weapon")
-//     c.primaryEl.getObject3D("mesh") / c.primaryEl.__slotAnim         ->  c.primarySlot.userData.{mesh,anim}
-//     c.el.getObject3D("camera")                                       ->  __fw.camera
-//     AFRAME.THREE                                                     ->  __fw.THREE
-//     c.isFiring = true/false                                          ->  __fw.input.pressFire(true/false)
-//
-// The last one matters: the trigger is a LEVEL on engine/input.js in the three build and
-// the weapon re-reads it every frame, so writing isFiring there would be overwritten
-// before the next shot. Driving pressFire exercises the same rising edge, cadence,
-// FinishAnim gate and loop window a player's finger does — which is what `isFiring` was on
-// the A-Frame page, where the key handler wrote exactly that field.
+// The trigger is driven through __fw.input.pressFire(true/false), and that matters: the
+// trigger is a LEVEL on engine/input.js and the weapon re-reads it every frame, so writing
+// the weapon's own field would be overwritten before the next shot. Driving pressFire
+// exercises the same rising edge, cadence, FinishAnim gate and loop window a player's
+// finger does.
 //
 // HEADED on purpose: the headless shell renders through SwiftShader and its frame times say
 // nothing about the GPU a player has. A Chromium window opens for about a minute.
@@ -40,63 +32,32 @@ import { launchQuiet } from "./pw/launch.mjs";
 import fs from "node:fs";
 import os from "node:os"; import path from "node:path";
 
-const legacy = process.argv.includes("--legacy");
 const BASE = (process.env.FW_BASE || "http://localhost:8080").replace(/\/$/, "");
 
-/* ------------------------------------------------------------------ page adapters --
-   Each installs the same five shims on `window`, and the sampler below is written once
-   against those. They are stringified into the page, so they may close over nothing. */
-const ADAPTERS = {
-  "play.html": {
-    url: `${BASE}/play.html`,
-    ready: () => {
-      const c = window.__fw && window.__fw.systems.get("first-person-weapon");
-      return !!(c && c.primarySlot && c.primarySlot.userData.mesh);
-    },
-    install: () => {
-      window.__comp = () => window.__fw.systems.get("first-person-weapon");
-      window.__three = () => window.__fw.THREE;
-      window.__cam = () => window.__fw.camera;
-      window.__mesh = () => window.__comp().primarySlot.userData.mesh;
-      window.__slotLoaded = () => {
-        const c = window.__comp();
-        return !!(c.primarySlot.userData.mesh && c.primarySlot.userData.anim);
-      };
-      window.__press = (down) => window.__fw.input.pressFire(down);
-    },
+/* ------------------------------------------------------------------- page adapter --
+   Installs five shims on `window`, and the sampler below is written against those. They
+   are stringified into the page, so they may close over nothing. */
+const adapter = {
+  url: `${BASE}/index.html`,
+  ready: () => {
+    const c = window.__fw && window.__fw.systems.get("first-person-weapon");
+    return !!(c && c.primarySlot && c.primarySlot.userData.mesh);
   },
-
-  "index.html": {
-    url: `${BASE}/index.html`,
-    ready: () => {
-      const el = document.querySelector("[first-person-weapon]");
-      const c = el && el.components && el.components["first-person-weapon"];
-      return !!(c && c.primaryEl && c.primaryEl.getObject3D("mesh"));
-    },
-    install: () => {
-      window.__comp = () => document.querySelector("[first-person-weapon]").components["first-person-weapon"];
-      window.__three = () => AFRAME.THREE;
-      window.__cam = () => window.__comp().el.getObject3D("camera");
-      window.__mesh = () => window.__comp().primaryEl.getObject3D("mesh");
-      window.__slotLoaded = () => {
-        const c = window.__comp();
-        return !!(c.primaryEl.getObject3D("mesh") && c.primaryEl.__slotAnim);
-      };
-      // On the A-Frame page the key handler writes this field directly, so this IS the
-      // trigger path a finger takes. `_burstShots` is reset so each press is a fresh
-      // burst, exactly as the rising edge does in the three build's input layer.
-      window.__press = (down) => {
-        const c = window.__comp();
-        if (down) c._burstShots = 0;
-        c.isFiring = down;
-      };
-    },
+  install: () => {
+    window.__comp = () => window.__fw.systems.get("first-person-weapon");
+    window.__three = () => window.__fw.THREE;
+    window.__cam = () => window.__fw.camera;
+    window.__mesh = () => window.__comp().primarySlot.userData.mesh;
+    window.__slotLoaded = () => {
+      const c = window.__comp();
+      return !!(c.primarySlot.userData.mesh && c.primarySlot.userData.anim);
+    };
+    window.__press = (down) => window.__fw.input.pressFire(down);
   },
 };
 
-const name = legacy ? "index.html" : "play.html";
-const adapter = ADAPTERS[name];
-const OUT = path.join(os.tmpdir(), legacy ? "facingworlds-measure-legacy" : "facingworlds-measure") + path.sep;
+const name = "index.html";
+const OUT = path.join(os.tmpdir(), "facingworlds-measure") + path.sep;
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await launchQuiet({args: ["--autoplay-policy=no-user-gesture-required"]});
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true });

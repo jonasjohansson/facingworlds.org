@@ -23,7 +23,7 @@
 // reproducing them is the "very complex shader" this was explicitly scoped away from.
 //
 // ---------------------------------------------------------------------------
-// WHAT THE PORT OFF A-FRAME CHANGED (src/game/components/ut-projectiles.js)
+// WHAT THE PORT OFF A-FRAME CHANGED (from the A-Frame build's ut-projectiles.js)
 // ---------------------------------------------------------------------------
 //   sceneEl.object3D        game.scene.
 //   sceneEl.camera          game.camera, still read through getWorldQuaternion — see
@@ -342,7 +342,7 @@ export function clearProjectiles() {
 }
 
 /**
- * The system. Registered in core/main-three.js after the weapon and ut-effects.
+ * The system. Registered in core/main.js after the weapon and ut-effects.
  *
  * THE PUBLIC SURFACE, which is what network.js (Task 13) calls — one method per server
  * message, with the same names the module functions have always had:

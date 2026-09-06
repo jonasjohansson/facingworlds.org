@@ -29,7 +29,7 @@ const DEFAULTS = {
 };
 
 /**
- * What AFRAME.utils.device.isMobile() answered. A-Frame ran the detectmobilebrowsers.com
+ * What A-Frame's utils.device.isMobile() answered. A-Frame ran the detectmobilebrowsers.com
  * pair of regexes and then OR-ed in `isIOS() || isTablet() || isR7()`. This keeps the
  * first regex (the substantive one) verbatim and drops the second, a table of
  * four-character device-code prefixes for pre-2010 feature phones that cannot run WebGL2
@@ -55,7 +55,7 @@ function isMobileBrowser() {
   return /android|ipad|playbook|silk/i.test(ua);
 }
 
-/** AFRAME.utils.device.isMobileVR() — standalone headset browsers. */
+/** A-Frame's utils.device.isMobileVR() — standalone headset browsers. */
 function isHeadsetBrowser() {
   const ua = window.navigator.userAgent || "";
   return /OculusBrowser|Quest|Pico|Vive|SamsungBrowser.+VR|Wolvic/i.test(ua);

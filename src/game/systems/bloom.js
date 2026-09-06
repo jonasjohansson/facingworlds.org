@@ -1,19 +1,19 @@
 /**
  * Unreal Bloom — the composer that owns the screen path.
  *
- * Ported from src/game/components/lighting/bloom.js. Originally adapted from Akbartus's
+ * Ported from the A-Frame build's lighting/bloom.js. Originally adapted from Akbartus's
  * post-processing A-Frame integration (https://github.com/akbartus/A-Frame-Component-Postprocessing);
  * nothing of the A-Frame wrapper survives, but the pass configuration and the two shader
  * guards below do, verbatim, along with the measurements that justify them.
  *
  * The passes come from the stock three addons vendored in assets/three-addons/, which
  * resolve their own `import ... from "three"` through the <script type="importmap"> in
- * play.html — the same r180 module build engine/game.js's renderer is built from, so the
- * passes share class identity with it. (The old file went through a shim,
- * lighting/three-aframe.js, that re-exported A-Frame's bundled r164. There is no shim now.)
+ * index.html — the same r180 module build engine/game.js's renderer is built from, so the
+ * passes share class identity with it. (The A-Frame build went through a shim that
+ * re-exported A-Frame's bundled r164. There is no shim now.)
  *
  * The addon import stays DYNAMIC and guarded on purpose: post-processing is a
- * nice-to-have, and a failed module resolution must not take main-three.js's module graph
+ * nice-to-have, and a failed module resolution must not take main.js's module graph
  * down with it. A static import would. `ready` resolves to true only when the composer is
  * actually built and hooked up, so callers can wait before assuming bloom is on.
  *
@@ -340,7 +340,7 @@ export class Bloom {
 
   /**
    * The try covers the WHOLE path, not just the import. buildComposer() allocates GPU
-   * targets and rewrites shader text, and main-three.js registers this system without
+   * targets and rewrites shader text, and main.js registers this system without
    * awaiting `ready`, so anything thrown out here would surface as an unhandled rejection
    * rather than the "resolves false" the field above promises. Whatever fails, the page
    * ends up where it would have been without bloom: no render hook, no half-built chain.
