@@ -22,8 +22,8 @@ cp package/dist/three-pathfinding.module.js src/game/vendor/three-pathfinding.mo
 ```
 
 Byte-identical to the published dist except for the trailing `//# sourceMappingURL=` comment,
-which is dropped because we do not ship the `.map` (nothing else vendored in this repo carries
-one either, and it would 404 with devtools open).
+which is dropped because we do not ship the `.map` (of the vendored libraries only encantar,
+under `assets/libraries/`, carries one; here it would 404 with devtools open).
 
 **Why it is here.** aframe-extras bundled this library inside its minified build and exposed it
 only through the `nav` system + `nav-mesh` + `movement-controls constrainToNavMesh`. Leaving

@@ -21,15 +21,15 @@
 //
 // HEADED on purpose: the headless shell renders through SwiftShader and its frame times say
 // nothing about the GPU a player has. A Chromium window opens for about a minute. Shots are
-// driven through the component's own trigger path (`isFiring`), never by calling
-// fireBullet() directly, so cadence, FinishAnim and the loop window are all exercised.
+// fired by calling the weapon system's fireBullet() on a timer at each phase's cadence, so
+// the trace, the effects and the view animation are exercised; the trigger path is not.
 import { launchQuiet } from "./pw/launch.mjs";
 import fs from "node:fs";
 import os from "node:os"; import path from "node:path";
 
 const BASE = (process.env.FW_BASE || "http://localhost:8080").replace(/\/$/, "");
 // Nine is what one human is served by a default server (BOTS_MIN_PER_TEAM 5 per side, one
-// of the ten slots taken by us). Waiting for it is what makes the two runs comparable.
+// of the ten slots taken by us). Waiting for it is what makes runs comparable.
 const WANT_BOTS = Number(process.env.FW_BOTS || 9);
 const BOT_WAIT_MS = 90000; // ~15 s of sweeps at full speed; long enough for a slow join
 

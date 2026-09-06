@@ -131,8 +131,9 @@ const DEFAULTS = {
   smoothing: 0.35,
   // Name plates over the heads. OFF, because the A-Frame game never drew them: the only
   // world-space text over a body was health.js's number. The AR spectator view draws
-  // names (src/ar/three/players.js) and this is the same label.js implementation, so
-  // turning them on here is one flag rather than a second copy of the canvas code.
+  // names with its own canvas code (src/ar/three/players.js, drawLabel); this one uses
+  // label.js, the sprite health.js already draws with, so turning names on here is one
+  // flag rather than a second copy of that code.
   showNames: false,
   nameY: 2.6,
 };

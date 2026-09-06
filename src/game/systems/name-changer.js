@@ -1,8 +1,8 @@
 // name-changer.js — the dialog behind N for changing your persistent player name.
 //
 // THIS IS THE FIRST BUILD IN WHICH IT IS LIVE. The A-Frame name-changer.js was written,
-// imported by the old main.js — and then never attached to anything: `grep changer
-// index.html` found nothing, and an A-Frame component registered but never named in
+// imported by the old main.js — and then never attached to anything: `grep changer`
+// over the A-Frame markup found nothing, and an A-Frame component registered but never named in
 // markup has no instance, so no listener, no dialog, no N. There is therefore no old
 // behaviour to be at parity with here; what follows is the choice this build makes, not
 // a port of one that shipped.

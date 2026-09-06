@@ -21,6 +21,7 @@
 // beside the other probes in one browser and fold its verdict into one table.
 import { launchQuiet } from "./launch.mjs";
 import { mkdirSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { baseUrl, createChecks, isMain, printChecks } from "./lib.mjs";
 
@@ -32,7 +33,7 @@ const BEAM_PARTICLES = 40;
 const RING_FRAMES = 9;
 const SEGMENT_M = 3.17; // 135 UU between ShockBeam segments
 
-export async function runEffects({ browser, base = baseUrl(), out = process.env.SCRATCHPAD || "." } = {}) {
+export async function runEffects({ browser, base = baseUrl(), out = process.env.SCRATCHPAD || path.join(os.tmpdir(), "facingworlds-measure") } = {}) {
   const OUT = out;
   const BASE = base;
   mkdirSync(OUT, { recursive: true });

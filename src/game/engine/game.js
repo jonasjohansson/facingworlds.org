@@ -13,7 +13,7 @@ const FOV_DEG = 80;
 // cloud shell (0.95 units above the surface, ~500 units out) flickered because both
 // landed in one depth bucket. 0.05 gives ~0.30 units of resolution there. It cannot go
 // much higher: the view weapon's nearest vertex is 0.325 units from the camera.
-// Measured in the running scene, not guessed. (From the old index.html.)
+// Measured in the running scene, not guessed. (From the A-Frame markup.)
 const NEAR = 0.05;
 const FAR = 10000;
 // Tab-throttled frames are clamped the way ut-controls clamped its own clock.

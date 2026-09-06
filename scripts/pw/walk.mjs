@@ -1,7 +1,7 @@
 // walk.mjs — does the player move the way UT99's numbers say it should?
 //
-// Written for the three.js port as a side-by-side against the A-Frame page; the A-Frame
-// page is gone, so what is left are the absolute checks, from a fixed spawn point:
+// Five absolute checks on the one page, from a fixed spawn point. (It began as a
+// side-by-side against the A-Frame page; that page is gone, the checks stayed.)
 //
 //   1. WALK   hold W for 3 s at a fixed yaw, sampling the rig ON EVERY FRAME from inside
 //             the page (a page.evaluate per sample would add its own round-trip to the
@@ -29,7 +29,7 @@
 //             the map meshes. This is the number behind "the avatars don't follow the
 //             ground the way I do": the navmesh sits up to half a metre above what you
 //             can see. Asserted against EXPECTED_FLOOR_M: the 1.4 m eye height plus the
-//             drawn-floor correction, the 1.400 both builds measured in the parity table.
+//             drawn-floor correction, measured 1.400 (design doc parity table).
 //
 //   5. YAW    pointer-lock mouse deltas cannot be synthesised from Playwright, so the
 //             heading is tested where it is USED rather than where it comes from: set the
@@ -48,7 +48,7 @@ import { SPAWNS } from "../../src/shared/map-actors.js";
 const GROUND_SPEED = 9.4; // GAME_CONFIG.MOVEMENT.GROUND_SPEED
 const SPEED_TOLERANCE = 0.05; // 5% on the best window
 const MAX_Y_STEP = 0.35; // metres between two consecutive frames
-const EXPECTED_FLOOR_M = 1.4; // camera above the drawn floor at START; both builds measured 1.400 (design doc parity table)
+const EXPECTED_FLOOR_M = 1.4; // camera above the drawn floor at START; measured 1.400 (design doc parity table)
 const FLOOR_TOLERANCE_M = 0.05;
 const WALK_MS = 3000;
 const WINDOW_MS = 500; // the "best window" width
@@ -340,7 +340,7 @@ export async function runWalk({ browser, base = baseUrl() } = {}) {
   const checks = createChecks();
   const clean = (...keys) => !problems.some((p) => keys.some((k) => p.includes(k)));
   const val = (f) => results.map((r) => (r.failed ? "FAILED" : f(r))).join(" / ");
-  checks.row("page loads with no errors", val((r) => (r.errors.length ? `${r.errors.length} errors` : "clean")), clean("page errors", "FAILED"));
+  checks.row("page loads with no errors", val((r) => (r.errors.length ? `${r.errors.length} errors` : "clean")), clean("page errors") && !results.some((r) => r.failed));
   // The page is seated by the server, so what can be asserted about a spawn is that
   // applyLocalSpawn put the rig ON the PlayerStart hello named — not near it, and not at
   // the origin, which is where a rig that was never spawned sits.
@@ -357,10 +357,10 @@ export async function runWalk({ browser, base = baseUrl() } = {}) {
   );
   checks.row(`ground speed, best ${WINDOW_MS} ms (m/s)`, val((r) => round(r.bestWindow, 2)), clean("best-window speed"));
   checks.row("no navmesh slingshot (max y step, m)", val((r) => round(r.maxYStep, 3)), clean("y jumped"));
-  checks.row("jump peak over baseline (m)", val((r) => round(r.peak, 3)), clean("jump only reached", "jump peak"));
-  checks.row("jump timing up/down (ms)", val((r) => `${round(r.peakAt, 0)}+${r.landedAt === null ? "never" : round(r.landedAt, 0)}`), clean("did not return", "time to peak", "back to standing"));
+  checks.row("jump peak over baseline (m)", val((r) => round(r.peak, 3)), clean("jump only reached"));
+  checks.row("jump timing up/down (ms)", val((r) => `${round(r.peakAt, 0)}+${r.landedAt === null ? "never" : round(r.landedAt, 0)}`), clean("did not return"));
   checks.row("camera above drawn floor (m)", val((r) => round(r.floor, 3)), clean("camera above drawn floor"));
-  checks.row("heading follows the yaw", val((r) => `${r.yawTest.filter((y) => y.alignment > 0.98).length}/${YAW_TEST_DEG.length} dead on`), clean("dead on", "room to walk", "heading alignment"));
+  checks.row("heading follows the yaw", val((r) => `${r.yawTest.filter((y) => y.alignment > 0.98).length}/${YAW_TEST_DEG.length} dead on`), clean("dead on", "room to walk"));
 
   return { results, problems, rows: checks.rows };
 }

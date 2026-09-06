@@ -15,7 +15,6 @@ atlases exactly as `ChallengeHUD.uc` does, and the in-repo SVG/CSS recreation.
 
 - **Multiplayer Support**: Real-time multiplayer with WebSocket networking
 - **3D Environment**: Immersive 3D world with navigation mesh
-- **Camera Controls**: Switch between 1st person, 3rd person, and overhead views (Press C)
 - **Combat System**: Shoot bullets and hit targets
 - **Character Animation**: Smooth character animations and movement
 - **Health System**: Player health with visual feedback
@@ -120,7 +119,6 @@ mouse button did nothing — `first-person-weapon.js` only fires while
 - **Mouse**: Look (pointer-locked, 0.002 rad/px)
 - **Left click** or **X**: Fire
 - **Space**: Jump
-- **Q / E**: Turn the rig without the mouse
 - **Tab**: Scores
 - **Esc**: Release the mouse
 
@@ -130,8 +128,7 @@ mouse button did nothing — `first-person-weapon.js` only fires while
 2. **3rd Person**: Orbit camera around character (Unreal Tournament style)
 3. **Overhead**: Top-down strategic view
 
-Note that only 1st person is wired up: the `C` handler in `first-person-weapon.js` is a
-guarded hook with no `swapCamera` behind it.
+Note that only 1st person is wired up: nothing reads a camera-switch key any more.
 
 ## Bots
 
@@ -279,12 +276,12 @@ identity transform, so game world coordinates are IDENTICAL to map-model coordin
 and `src/ar/three/players.js` drops raw server pose coordinates straight into the
 map-model's node on the strength of it. An entity scale would break the AR spectator
 silently — every figure 2.34x too far out, floating off the rock. Baking keeps both pages
-reading the same asset. `#world` and `#navmesh` stay at identity, and they must stay equal
-to each other or the player floats or sinks.
+reading the same asset. The `world` and `navmesh` nodes `src/game/scene/world.js` builds
+stay at identity, and they must stay equal to each other or the player floats or sinks.
 
 Everything else world-anchored — flag homes, spawns, pickups, map bounds, light positions
 and ranges, the shadow frustum, camera heights, trace ranges — is stored already-scaled in
-`server/server.js`, `index.html`, `src/game/config/game-config.js` and
+`server/server.js`, `src/game/scene/lights.js`, `src/game/config/game-config.js` and
 `server/test/ctf.test.mjs`. **Player**-anchored values (eye height, hitbox, speeds, jump,
 gravity, recoil, weapon offsets, flag and pickup prop sizes) were deliberately *not*
 scaled: the player did not change size, the world did.
@@ -319,10 +316,10 @@ bytes from `ls -l`, taken after the run that produced the committed files:
 
 Two things that had to survive the pipeline, and did:
 
-- **`Soldier.glb` clip order.** `index.html` selects animations by index
-  (`character="idleIdx:0; walkIdx:3; runIdx:1"`), so a reorder would silently swap the
-  avatar's animations. `gltf-transform inspect` reports the same four clips in the same
-  order before and after: `Idle, Run, TPose, Walk`.
+- **`Soldier.glb` clip order.** `src/game/systems/character.js` selects animations by
+  index (its defaults `idleIdx: 0, walkIdx: 3, runIdx: 1`), so a reorder would silently
+  swap the avatar's animations. `gltf-transform inspect` reports the same four clips in
+  the same order before and after: `Idle, Run, TPose, Walk`.
 - **`navmesh.glb` topology.** 791 triangles before and after; the vertex count drops
   2,373 → 853 only because `dedup` welds vertices that were duplicated per-face.
 - **Draco quantization at world scale.** Draco quantizes positions over the mesh's own
@@ -373,8 +370,11 @@ The game loads the optimized copies. The manifest is `ASSETS` in
 | `soldierModel` | `assets-optimized/3d/Soldier.glb` |
 | `enforcerWeapon` | `assets-optimized/3d/enforcer.glb` |
 
-Nothing else under `src/game/` hardcodes a model path. The AR page has its own list
-(`src/ar/config/ar-config.js`), optimized first with the original as a fallback.
+The one other model path under `src/game/` is the pickup props' —
+`src/game/systems/weapon-pickup.js` builds `assets/3d/pickups/<class>/<class>.gltf` from
+its `PICKUP_MODELS` table, straight from `assets/`, since the optimizer does not cover
+them. The AR page has its own list (`src/ar/config/ar-config.js`), optimized first with
+the original as a fallback.
 
 **Why these are committed rather than generated at deploy time.** GitHub Pages serves
 the repo as-is; there is no build step. Anything not committed does not exist in
@@ -412,7 +412,7 @@ Neither of these is in use today; both would need wiring that WebP does not.
 
 ### Unreferenced assets
 
-**139 MiB of the 200 MiB of media under `assets/`** is not referenced by
+**151 MiB of the 200 MiB of media under `assets/`** is not referenced by
 `index.html`, `src/`, or `ar/`. It is downloaded by nobody, but it is in the repo
 and in every clone. Deleting is a bigger win than compressing:
 
@@ -424,6 +424,7 @@ and in every clone. Deleting is a bigger win than compressing:
 | `graphics/gebco_08_rev_elev_21600x10800.png` | 17.6 MiB |
 | `models/klp.glb` | 16.9 MiB |
 | `images/tracker{,2,3,4}.png` + `Artboard 1.png` | 23.5 MiB |
+| `audio/…-foregone_destruction-i-gameplay-audio.mp3` | 12.1 MiB |
 
 The AR code uses `images/tracker.jpg` (0.57 MiB), not the 4.7 MiB PNGs.
 `assets/models/FacingWorlds_tex_4.*` is a near-duplicate of the map in
@@ -432,13 +433,14 @@ decision, not a compression one.
 
 ### Not covered by this script
 
-Audio. `index.html` references the 12.1 MiB
-`audio/…-foregone_destruction-i-gameplay-audio.mp3` while
-`src/game/components/background-music.js` points at a *different* 5.8 MiB file —
-both ship, for ~18 MiB of music on a map that needs one track. Re-encoding at a
-sane bitrate (or streaming rather than preloading) is the single biggest
-remaining first-load win after the glTF work above, and it needs a different tool
-(`ffmpeg`), not `gltf-transform`.
+Audio. The page fetches one track, `ASSETS.backgroundMusic` in
+`src/game/engine/assets.js` — the 5.8 MiB `audio/…-foregone_destruction-i.mp3`,
+downloaded and decoded whole by `AudioLoader` before the first shot can start it.
+(The 12.1 MiB "-gameplay-audio" mix the old `<a-assets>` declared is referenced by
+nothing now; it is in the table above.) Re-encoding that one file at a sane bitrate
+(or streaming rather than preloading) is the single biggest remaining first-load win
+after the glTF work above, and it needs a different tool (`ffmpeg`), not
+`gltf-transform`.
 
 ## Deployment
 
@@ -457,7 +459,8 @@ that is why `assets-optimized/` is tracked rather than ignored.
 
 - Modern browsers with WebGL support
 - WebSocket support required
-- ES6 modules support required
+- ES modules and import maps required — `index.html` resolves `three` through an
+  import map (Chrome 89 / Firefox 108 / Safari 16.4)
 - WebP decoding required — the optimized models carry `EXT_texture_webp`
   (universal in current browsers since 2020)
 

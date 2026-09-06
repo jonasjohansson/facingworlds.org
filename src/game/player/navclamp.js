@@ -1,6 +1,6 @@
 // navclamp.js — the player's navmesh constraint, on three-pathfinding directly.
 //
-// This is A-Frame extras' `nav` system + `nav-mesh` + `movement-controls
+// This is aframe-extras' `nav` system + `nav-mesh` + `movement-controls
 // constrainToNavMesh`, with two deliberate changes of behaviour.
 //
 // WHAT THE LIBRARY ACTUALLY DOES
@@ -117,20 +117,20 @@ export function createNavClamp(geometry, { zone = ZONE, bridgeGap = DEFAULT_BRID
   const bridge = { x: 0, y: 0, z: 0 };
 
   /**
-   * Which group is this point in? `checkPolygon: true`, where A-Frame extras passed false.
+   * Which group is this point in? `checkPolygon: true`, where aframe-extras passed false.
    *
    * The flag only adds a short-circuit: if the point is within 1 cm of a polygon's plane
    * AND inside that polygon, return its group immediately. CTF-Face is stacked — tower
    * floors sit 70 m above the terrain they overlap in x/z — so standing on a floor should
    * name that floor's group, not whichever centroid happens to be nearest in 3D. When the
    * point is NOT on a surface (a rig mid-hop, a probe with no y) the short-circuit cannot
-   * fire and this degenerates to exactly the nearest-centroid search A-Frame extras did.
+   * fire and this degenerates to exactly the nearest-centroid search aframe-extras did.
    */
   function groupAt(position) {
     return pf.getGroup(zone, position, true);
   }
 
-  /** The strict lookup A-Frame extras used, then the one that always answers. */
+  /** The strict lookup aframe-extras used, then the one that always answers. */
   function closestNode(position, g) {
     return pf.getClosestNode(position, zone, g, true) || pf.getClosestNode(position, zone, g, false);
   }
@@ -296,7 +296,7 @@ export function createNavClamp(geometry, { zone = ZONE, bridgeGap = DEFAULT_BRID
  * every mesh de-indexed, de-quantised and baked into world coordinates, positions only.
  *
  * TODAY THAT IS ONE MESH. `assets/.../navmesh.glb` is a single mesh with a single
- * primitive on an identity node, and A-Frame extras' `nav-mesh` component relied on that —
+ * primitive on an identity node, and aframe-extras' `nav-mesh` component relied on that —
  * it took the LAST mesh in the traverse and ignored any others. This walks all of them so
  * that a re-export which splits the mesh (or parents it under a transform) is a non-event
  * rather than a silent loss of half the floor.
@@ -313,7 +313,7 @@ export function createNavClamp(geometry, { zone = ZONE, bridgeGap = DEFAULT_BRID
 export function mergeNavmesh(root) {
   // Ancestors first, then descendants: `root` is a child of the navmesh node, which is a
   // child of the world group, and nothing has necessarily been rendered yet. This is what
-  // A-Frame extras' nav-mesh did (`updateWorldMatrix(true, false)`) before applying it.
+  // aframe-extras' nav-mesh did (`updateWorldMatrix(true, false)`) before applying it.
   root.updateWorldMatrix(true, true);
 
   const verts = [];

@@ -40,7 +40,7 @@ const FLOOR_TOLERANCE = 0.05; // m of daylight under the feet (the old page held
 const FACING_TOLERANCE = 0.98; // dot of the body's forward axis against the travel direction
 const HAND_TOLERANCE = 0.02; // m between a weapon slot and the animated weaponAnchor
 const RUN_WEIGHT = 0.9; // effective weight of Run when the wire says run: 1
-// The floor correction's acceptance window (remote-avatar.js _groundToFloor): a wire
+// The floor correction's acceptance window (systems/remote-avatars.js _groundToFloor): a wire
 // height wrong by less than it is pulled back down, one wrong by more is a jump and stands.
 const LIFT_CORRECTED = 0.25;
 const LIFT_KEPT = 0.8;
@@ -168,10 +168,10 @@ async function runProbe(page, SCRATCH) {
       avatars.spawn(mk(902, 2.5, { team: "blue", dual: true }));
       avatars.spawn(mk(903, 5, { team: "red", weapon: "shock" }));
 
-      // ONLY THESE THREE. The page joins the
-      // 8081 server and the same registry is also holding nine bots the server is
-      // steering. Walking those would fight their pose stream and reading them would
-      // report on the server's plans rather than on this probe's.
+      // ONLY THESE THREE. The page joins the 8081 server and the same registry is also
+      // holding nine bots the server is steering. Walking those would fight their pose
+      // stream and reading them would report on the server's plans rather than on this
+      // probe's.
       window.__probeIds = [901, 902, 903];
       window.__probeBodies = () => window.__probeIds.map((id) => window.__avatars.get(id));
       await Promise.all(window.__probeBodies().map((a) => a.ready));

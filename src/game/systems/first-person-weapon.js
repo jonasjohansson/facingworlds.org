@@ -83,7 +83,7 @@ const VIEW = {
 };
 
 // The LAST-RESORT held weapon, used only if the manifest ships a weapon with no view mesh
-// at all. It is the floor pickup model at the scale and muzzle offset index.html carried
+// at all. It is the floor pickup model at the scale and muzzle offset the A-Frame markup carried
 // before the view meshes existed — the barrel tip measured off the 247 vertices at
 // z <= -10, in that mesh's own local units. Not decoration: it is what keeps a broken or
 // half-regenerated src/shared/weapons.js from leaving the player empty-handed.
@@ -145,7 +145,7 @@ export function preloadWeaponSound(id) {
   warmSounds(id);
 }
 
-// What the A-Frame schema defaulted, and what index.html's `first-person-weapon=` set.
+// What the A-Frame schema defaulted, and what the A-Frame markup's `first-person-weapon=` set.
 const DEFAULTS = {
   enabled: true,
   // The floor pickup mesh, used as the held model only when a weapon has no view mesh in
@@ -164,7 +164,7 @@ const DEFAULTS = {
   spread: GAME_CONFIG.WEAPON.SPREAD, // Cone half-angle tangent
   // Multikill tracking
   multikillTimeout: 3000, // 3 seconds between kills for multikill
-  // weapon-sway's settings for the held node. index.html carried these on #player-weapon.
+  // weapon-sway's settings for the held node. The A-Frame markup carried these on #player-weapon.
   sway: null,
 };
 
@@ -218,14 +218,14 @@ export class FirstPersonWeapon {
     //
     // No gunRoot means no player controller: a stripped page or a test harness. The gun
     // then hangs off the camera and gets the primitive fallback below, exactly as the old
-    // component did when index.html's #player-weapon was missing.
+    // component did when the A-Frame markup's #player-weapon was missing.
     this.hasPlayer = !!(game.player && game.player.gunRoot);
     this.held = new THREE.Group();
     this.held.name = "player-weapon";
     (this.hasPlayer ? game.player.gunRoot : game.camera).add(this.held);
     this.sway = new WeaponSway(game, this.held, { ...(this.data.sway || {}), rest: { x: 0, y: 0, z: 0 } });
 
-    // Slot bookkeeping. `primarySlot` is what index.html called #player-weapon; the second
+    // Slot bookkeeping. `primarySlot` is what the A-Frame markup called #player-weapon; the second
     // slot only exists once you are holding two Enforcers. Everything a slot needs at
     // runtime is parked on the node itself (userData.slotUrl / .anim / .muzzle) so a slot
     // is self-describing and a mid-load weapon switch cannot cross the wires between them.
@@ -491,7 +491,7 @@ export class FirstPersonWeapon {
    * Enforcer arriving or leaving, and a respawn — because they used to be three separate
    * code paths and the Enforcer was in none of them. That is why the gun you spawn with
    * could not animate: setWeapon() returned early for it (its `model` is null, since it
-   * has no floor pickup) and index.html showed the pickup mesh, which has no clips.
+   * has no floor pickup) and the A-Frame markup showed the pickup mesh, which has no clips.
    *
    * WHICH HAND. UT99 draws the single Enforcer in the LEFT hand — its view mesh, AutoML,
    * is modelled as a left-hand gun — and the five rifles on the right. The rifles are
@@ -546,7 +546,7 @@ export class FirstPersonWeapon {
    * @param {boolean} show false while the gun is put away (dead / system disabled)
    */
   dressSlot(slot, view, side, mirror, model, playSelect, show) {
-    // The fallback pickup mesh keeps the placement index.html gave it for years.
+    // The fallback pickup mesh keeps the placement the A-Frame markup gave it for years.
     const FALLBACK_POS = { x: 0.2, y: -0.3, z: -0.5 };
     const sign = side === "left" ? -1 : 1;
 
@@ -695,7 +695,7 @@ export class FirstPersonWeapon {
    * The model is UT99's own FIRST-PERSON mesh, with the arm, not the pickup mesh that
    * spins on the floor — and, since this commit, that is true of the Enforcer too. This
    * method used to return early for it (`spec.model` is null: the Enforcer has no floor
-   * pickup) and leave index.html's static pickup mesh in your hands, which is precisely
+   * pickup) and leave the A-Frame markup's static pickup mesh in your hands, which is precisely
    * why the gun everyone spawns with was the one gun that could not animate.
    *
    * Nothing is created or destroyed here. The slots are permanent nodes and only their
@@ -1066,7 +1066,7 @@ export class FirstPersonWeapon {
    * Put the gun away. Called on death (health.js flips `enabled` off) and on dispose().
    *
    * HIDES the slots rather than destroying them. They used to be removeChild()'d, and
-   * because the primary one is #player-weapon — written in index.html, with the sway
+   * because the primary one is #player-weapon — written in the A-Frame markup, with the sway
    * settings on it — the FIRST DEATH deleted the real Enforcer from the DOM for the rest
    * of the session. Respawn set `enabled` back to true, setupWeapon() looked for
    * #player-weapon, found nothing, and built the crude primitive fallback instead: every

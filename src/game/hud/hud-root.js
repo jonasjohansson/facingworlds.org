@@ -995,8 +995,9 @@ export function createHud(game) {
   // At z-index 899 they sit UNDER the whole HUD, which is also the order UE1 draws them
   // in: PlayerPawn.PostRender runs Weapon.RenderOverlays first and the HUD paints on top.
   //
-  // `display: block !important` is set INLINE and never changed, which is why hiding
-  // the flash below uses `visibility`, not `display`.
+  // Nothing in styles.css names either element, so they carry no `!important` any more
+  // (A-Frame's fullscreen mode used to hide body children, which one inline `display`
+  // had to outrank). The flash is shown and hidden with `visibility`, never `display`.
   const LAYER =
     "position:fixed;pointer-events:none;z-index:899;mix-blend-mode:screen;";
 
@@ -1005,7 +1006,6 @@ export function createHud(game) {
   const instFlash = document.createElement("div");
   instFlash.className = "ut-inst-flash";
   instFlash.style.cssText = LAYER + "inset:0;opacity:0;background:#000;";
-  instFlash.style.setProperty("display", "block", "important");
   document.body.appendChild(instFlash);
 
   const muzzle = document.createElement("img");
@@ -1018,7 +1018,6 @@ export function createHud(game) {
     // The source art is a 128px UT99 texture shown at up to 2x on a 1280 viewport; a
     // smooth upscale turns a hard flash into a smudge.
     "image-rendering:pixelated;";
-  muzzle.style.setProperty("display", "block", "important");
   document.body.appendChild(muzzle);
 
   // ---- death screen ----

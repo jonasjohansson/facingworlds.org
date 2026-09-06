@@ -8,7 +8,8 @@
 // with +Z pointing out of the print. So "up" is +Z here, not +Y.
 //
 // The Facing Worlds map, on the other hand, is authored Y-up, and the game places
-// it at the identity transform (see #world in index.html). Game world coordinates
+// it at the identity transform (see `world` in src/game/scene/world.js). Game world
+// coordinates
 // are therefore *identical* to map-model coordinates - which is exactly why live
 // player poses can be dropped into the same node the model hangs from and land on
 // the right rooftop. See src/ar/three/players.js.

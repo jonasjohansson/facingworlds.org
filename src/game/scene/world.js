@@ -18,7 +18,7 @@ export async function buildWorld(game) {
   game.world.name = "world-root";
   scene.add(game.world);
 
-  // The fourteen live lights from index.html, at their tuned values. Directional and
+  // The fourteen live lights from the A-Frame markup, at their tuned values. Directional and
   // spot lights carry a `.target` Object3D whose world matrix three reads for the aim
   // direction — it has to be in the graph, so it joins the same group.
   const lights = new THREE.Group();
@@ -77,7 +77,7 @@ export async function buildWorld(game) {
   );
 
   // Navmesh: loaded, hidden, kept for the player clamp and the spawn raycast. The
-  // A-Frame extras' `nav-mesh` component fed movement-controls; player/navclamp.js
+  // aframe-extras' `nav-mesh` component fed movement-controls; player/navclamp.js
   // takes the geometry off this root instead.
   const navNode = new THREE.Group();
   navNode.name = "navmesh";

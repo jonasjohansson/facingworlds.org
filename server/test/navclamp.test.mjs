@@ -1,4 +1,4 @@
-// navclamp.test.mjs — the navmesh clamp that replaced A-Frame extras' movement-controls.
+// navclamp.test.mjs — the navmesh clamp that replaced aframe-extras' movement-controls.
 //
 // `movement-controls constrainToNavMesh` + `nav-mesh` were a thin wrapper around
 // three-pathfinding's `clampStep`, and leaving A-Frame means owning that wrapper. The
@@ -6,7 +6,7 @@
 // projects the *end* of the step onto the plane of the polygon you hand it and then
 // breadth-first searches that polygon's neighbours (depth 3) for the closest reachable
 // point. Everything that made the old rig behave — which polygon we think we are on, and
-// what happens when that answer is lost — lives in the caller. A-Frame extras' caller
+// what happens when that answer is lost — lives in the caller. aframe-extras' caller
 // asked for the containing polygon with `checkPolygon: true`, got `null` the moment the
 // rig left the surface, and then skipped the clamp entirely (`out.copy(end)`), which is
 // exactly why the jump had to be moved off the rig (ut-movement.js, "WHY THE HOP IS NOT

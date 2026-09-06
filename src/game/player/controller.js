@@ -16,7 +16,7 @@
 //                      off, so they leave no trace in the frame but still cast their
 //                      shadow — this is what invisible-to-player did. See
 //                      hideFromCamera() for why it is not a layer.
-//       head   Group   position.y = eye height 1.4 m (index.html had it on #cam).
+//       head   Group   position.y = eye height 1.4 m (the A-Frame markup had it on #cam).
 //                      rotation.x = pitch.
 //         camera        rotation.z = the shake's roll, position.y = the shake's eye lift.
 //         gunRoot Group the SAME roll and lift, so the gun stays nailed to the screen
@@ -40,7 +40,7 @@
 // wrong here, but the reason has changed and the old explanation (ut-movement.js) was
 // only half right. It said clampStep "assumes the start point lies ON the navmesh". It
 // does not: three-pathfinding's clampStep never reads its `start` argument at all. What
-// broke was the CALLER. A-Frame extras asked for the containing polygon with
+// broke was the CALLER. aframe-extras asked for the containing polygon with
 // `checkPolygon: true`, which returns null the moment the rig is more than half a metre
 // off the surface, and when it got null it SKIPPED the clamp for that frame
 // (`out.copy(end)`) and tried to re-acquire at the end point. So a lifted rig got a
@@ -81,7 +81,7 @@
 // ---------------------------------------------------------------------------
 // #view-shake IS GONE
 // ---------------------------------------------------------------------------
-// index.html needed an extra empty entity under #cam to hold the gun, because
+// The A-Frame markup needed an extra empty entity under #cam to hold the gun, because
 // look-controls rewrote #cam's rotation every frame and ut-jump owned its position.y, so
 // a shake written there would have been eaten or baked in. Both of those writers are this
 // file now, and it writes the shake to the camera's own local transform and to gunRoot —
@@ -98,7 +98,7 @@ import { handleError } from "../utils/error-handler.js";
 
 const MOVEMENT = GAME_CONFIG.MOVEMENT;
 
-// index.html put the camera at "0 1.4 0" under the rig, and GAME_CONFIG.MOVEMENT's scale
+// The A-Frame markup put the camera at "0 1.4 0" under the rig, and GAME_CONFIG.MOVEMENT's scale
 // note records the same figure as measured in the running scene.
 const EYE_HEIGHT = 1.4;
 

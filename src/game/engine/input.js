@@ -1,6 +1,6 @@
 // input.js — every input source the rig and the gun read, snapshotted once per frame.
 //
-// Replaces A-Frame extras' keyboard-controls and touch-controls, look-controls' pointer-lock
+// Replaces aframe-extras' keyboard-controls and touch-controls, look-controls' pointer-lock
 // plumbing, and the key/mouse listeners first-person-weapon used to own. It does NOT
 // interpret the input: the player controller turns move() into velocity and the weapon
 // turns fireHeld into shots, so touch, keyboard and mouse share one path each.

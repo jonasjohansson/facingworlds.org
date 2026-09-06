@@ -1,6 +1,6 @@
 # Facing Worlds — Leaving A-Frame for plain three.js
 
-**Drafted:** 2026-09-06 · **Status:** approved, not started
+**Drafted:** 2026-09-06 · **Status:** landed 2026-09-06 (see "Landed" below)
 
 ## Goal
 
@@ -59,9 +59,9 @@ src/game/
     game.js          createGame(): renderer, scene, camera, resize, loop, system registry
     assets.js        GLTFLoader + DRACOLoader (src/ar/vendor/draco/), one cache, same URLs
     events.js        the scene bus (EventTarget)
-    input.js         keyboard state, pointer lock, touch, gamepad snapshot
+    input.js         keyboard state, pointer lock, touch (as built: no gamepad snapshot)
   scene/
-    lights.js        the 19 lights, as data — values copied from index.html verbatim
+    lights.js        the 14 live lights, as data — values copied from index.html verbatim
     world.js         map + navmesh + flag stands + static entities
   player/
     controller.js    look + UT movement + navmesh clamp + jump/groundToFloor + shake + camera
@@ -91,8 +91,9 @@ calls a factory that returns an `Object3D` with a `RemoteAvatar` system instance
 
 **Health label**: A-Frame `text` → the canvas-sprite label already used for names.
 
-**Debug handle**: `window.__fw = { game, scene, camera, rig, systems }` so the Playwright
-probes and the console reach the same objects they used to reach through `#rig`/`#cam`.
+**Debug handle**: `window.__fw = game` (as built; the plan said a `{ game, scene, … }` bag)
+so the Playwright probes and the console reach the same objects they used to reach through
+`#rig`/`#cam`.
 
 ## Migration order
 
@@ -287,6 +288,10 @@ files. Everything here is deliberate or already shipped; none of it is a parity 
   approach), and the bots get through because they are snapped to the DRAWN floor
   (`server/navmesh-surface.js`) rather than clamped to the navmesh. Pre-existing on
   `main`; the fix is a navmesh built from the drawn floor, not a clamp change.
+- **Q/E rig turning and gamepad input were not ported.** `rotate-yaw` (Q/E turned the rig
+  without the mouse) was dropped when the player became one controller (513db70), and
+  aframe-extras' `gamepad-controls` went with A-Frame; `engine/input.js` reads keyboard,
+  mouse and touch only.
 
 ## Risks
 
@@ -318,3 +323,5 @@ calls; the swap changed no rendering code). `npm test` is 68/68 + 201/201;
 `parity.mjs` 46/47, the one failure being `effects`' shell sample reading a bot's shell
 (`before: 6` live shells in the pool at the moment of the shot); alone, with an empty pool,
 it passes 5/5. Not a port regression — the probe assumes a pool it does not own is empty.
+The `git grep -i aframe` check above was a tool for finding live code, not a ban on naming
+a package: comments that mean the `aframe-extras` package say `aframe-extras`.

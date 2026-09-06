@@ -35,7 +35,7 @@ import os from "node:os"; import path from "node:path";
 const BASE = (process.env.FW_BASE || "http://localhost:8080").replace(/\/$/, "");
 
 /* ------------------------------------------------------------------- page adapter --
-   Installs five shims on `window`, and the sampler below is written against those. They
+   Installs six shims on `window`, and the sampler below is written against those. They
    are stringified into the page, so they may close over nothing. */
 const adapter = {
   url: `${BASE}/index.html`,

@@ -49,9 +49,9 @@ async function boot() {
   game.register("performance-monitor", { dispose: () => performanceMonitor.stopMonitoring() });
 
   // The HUD. Still DOM (hud/hud-root.js); it is handed `game` so its CTF feed reads
-  // game.events and its shot counter finds the weapon system. Built BEFORE the systems that take a
-  // reference to it (the weapon, and health when the network layer lands), because it is a
-  // ref-counted singleton and the first caller is what decides which scene it is wired to.
+  // game.events and its shot counter finds the weapon system. Built BEFORE the systems
+  // that take a reference to it (the weapon, the local Health), because it is a
+  // ref-counted singleton and `createHud` reads `game` on the first call.
   game.hud = getHud(game);
 
   // 1. World: map, navmesh, lights, env map. Awaited — everything below stands on it.
@@ -78,7 +78,7 @@ async function boot() {
 
     It takes over game.camera: the constructor re-parents it under the rig's head node.
     Nothing else may re-parent or rotate it — the shake writes the camera's own local
-    transform, which is the reason index.html's #view-shake node no longer exists.
+    transform, which is the reason the A-Frame markup's #view-shake node no longer exists.
   */
   // No options: every number the controller runs on is a GAME_CONFIG.MOVEMENT default
   // inside it, exactly as the A-Frame schema defaults were, and the entry point has
@@ -198,10 +198,10 @@ async function boot() {
     the controller has already written this frame's shake roll and eye lift to. The three
     effect systems below go after this — they consume this frame's shots.
 
-    The sway settings are index.html's, off #player-weapon: a very small, fast sway and no
+    The sway settings are the A-Frame markup's, off #player-weapon: a very small, fast sway and no
     bob at all. They live here rather than in the component because they are markup values,
     like every other number on this page. `muzzleOffset` is NOT one of those: it is the
-    DEFAULTS value from first-person-weapon.js, which index.html happened to spell out on
+    DEFAULTS value from first-person-weapon.js, which the A-Frame markup happened to spell out on
     the entity as the identical `0.8 0.1 0`. It is repeated here for the same reason it was
     repeated there — the muzzle is worth seeing at the call site — and overrides nothing.
   */
@@ -282,8 +282,7 @@ async function boot() {
     THAT PIN IS WHY THEY GO HERE, near the end: they read the camera's world position
     (and the coronas its distance to each tower), so they must run after everything that
     moves the camera — the player controller, the jump/ground offset and the view shake,
-    all three of which are the one `player` system registered above. The weapons and
-    effects still to be ported also go above these, not below.
+    all three of which are the one `player` system registered above.
 
     space-environment also OWNS scene.background: scene/world.js paints the same #000006
     early so nothing flashes, and this overwrites it with the same value.

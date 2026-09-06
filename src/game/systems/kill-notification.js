@@ -12,7 +12,7 @@ import { getHud } from "../hud/hud-root.js";
 
 const DEFAULTS = {
   enabled: true,
-  // index.html's two markup values, carried across so the registration in main.js
+  // The A-Frame markup's two values, carried across so the registration in main.js
   // is not passing numbers this file disagrees with. NOTHING READS EITHER: the rail's
   // four-line cap and its 3 s LocalMessage lifetime are ChallengeHUD's, owned by
   // hud-root.js, and pushMessage() takes no duration. They are kept only because

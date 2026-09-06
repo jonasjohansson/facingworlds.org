@@ -40,8 +40,8 @@
 // ---------------------------------------------------------------------------
 // It is BAKED INTO THE GEOMETRY, not set as an entity `scale` attribute:
 // scripts/optimize-assets.mjs multiplies the root-node transform of the map and the
-// navmesh by WORLD_SCALE on its way to assets-optimized/. #world and #navmesh in
-// index.html therefore stay at the identity transform, which is the contract
+// navmesh by WORLD_SCALE on its way to assets-optimized/. The `world` and `navmesh` nodes
+// src/game/scene/world.js builds therefore stay at the identity transform, the contract
 // src/ar/config/ar-config.js documents and src/ar/three/players.js depends on (it
 // drops raw server pose coordinates straight into the map-model's node).
 //

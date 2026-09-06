@@ -13,7 +13,8 @@ import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
 //
 // COORDINATES - the part that is easy to get wrong. Player poses arrive in game world
 // coordinates. The game places the Facing Worlds glTF at the identity transform (see
-// #world in index.html), so game world coordinates and map-model coordinates are the
+// `world` in src/game/scene/world.js), so game world coordinates and map-model coordinates
+// are the
 // same numbers. This class therefore parents every figure to the SAME node the map
 // model hangs from - the node that carries the measured fit scale and centring offset
 // from model-fit.js - and writes raw pose coordinates straight into it. No second

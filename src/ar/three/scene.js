@@ -27,7 +27,8 @@ import { CtfFlags } from "./flags.js";
 //             +- flags     the two CTF flags and their stands, ditto
 //
 // `world` is GAME WORLD SPACE. The game places this same glTF at the identity (see
-// #world in index.html), so a pose from the server is written into `world` verbatim and
+// `world` in src/game/scene/world.js), so a pose from the server is written into `world`
+// verbatim and
 // lands on the map. Nothing is hardcoded: the scale and offset are measured from the
 // glTF's own bounds by model-fit.js, so a re-export moves the figures with the map.
 

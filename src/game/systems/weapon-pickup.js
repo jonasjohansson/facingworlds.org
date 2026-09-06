@@ -158,7 +158,7 @@ export class PickupItem {
    * reason a pedestal read as "a big object" rather than "a gun". UT99 draws a
    * weapon pickup a touch larger than the held weapon so it is findable across a
    * room, not twice life size; 0.029 gives 0.63 m, about 1.7x the 0.37 m the
-   * first-person gun measures at index.html's 0.025.
+   * first-person gun measures at the A-Frame markup's 0.025.
    *
    * TILT. Muzzle down and canted, so the silhouette is unmistakably a weapon from
    * any angle. Flat on the horizontal it spins through a moment, twice a turn, where

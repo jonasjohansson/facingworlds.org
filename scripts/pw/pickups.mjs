@@ -14,10 +14,11 @@
 //   needs `npm run dev` (8080) and `npm run server:tls` (8081).
 import { launchQuiet } from "./launch.mjs";
 import { mkdirSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { FLAG_HOMES } from "../../src/shared/map-actors.js";
+import { FLAG_HOMES, UT_PICKUPS, MED_BOXES } from "../../src/shared/map-actors.js";
 
-const OUT = process.argv[2] || process.env.SCRATCHPAD || ".";
+const OUT = process.argv[2] || process.env.SCRATCHPAD || path.join(os.tmpdir(), "facingworlds-measure");
 const BASE = process.env.FW_BASE || "http://localhost:8080";
 const VIEWPORT = { width: 1280, height: 720 };
 
@@ -35,6 +36,20 @@ const POSES = [
   { name: "items", eye: { x: SHOCK.x + 4, y: SHOCK.y + 1.8, z: SHOCK.z + 4 }, look: { x: SHOCK.x, y: SHOCK.y + 0.5, z: SHOCK.z } },
 ];
 const shotPath = (pose) => path.join(OUT, `pickups-${pose}.png`);
+
+// The ids the server places, built the way server/server.js builds them: the eight
+// MedBoxes from MED_BOXES as `medbox-<name>`, then every other class in UT_PICKUPS as
+// `<class>-<name>` (its MedBox rows are the same eight actors and are skipped there).
+// 56 today. A class the server has no PICKUP_TYPE row for would be missing here.
+const EXPECTED_PICKUP_IDS = new Set([
+  ...MED_BOXES.map((b) => `medbox-${b.name}`),
+  ...Object.entries(UT_PICKUPS)
+    .filter(([cls]) => cls !== "MedBox")
+    .flatMap(([cls, rows]) => rows.map((a) => `${cls}-${a.name}`)),
+]);
+// The glow is a point light on the FLAG's node (ctf-flag.js), 0.75 of the pole up it, so
+// it sits over FLAG_HOMES only while the flag is home.
+const GLOW_HEIGHT = 1.8;
 
 const fail = [];
 const check = (ok, label) => {
@@ -246,7 +261,12 @@ const nearArr = (a, b, eps = 0.01) => a.length === b.length && a.every((v, i) =>
 const byTeam = (rows) => Object.fromEntries(rows.map((r) => [r.team, r]));
 
 console.log("\n--- nodes ---");
-check(built.pickupNodes > 0, `${built.pickupNodes} pickup nodes`);
+check(
+  built.pickupNodes === EXPECTED_PICKUP_IDS.size,
+  `${built.pickupNodes} pickup nodes (tables: ${EXPECTED_PICKUP_IDS.size})`
+);
+const unknownIds = built.pickups.map((p) => p.id).filter((id) => !EXPECTED_PICKUP_IDS.has(id));
+check(unknownIds.length === 0, `every pickup id is in the tables${unknownIds.length ? ` — not: ${unknownIds.join(", ")}` : ""}`);
 check(built.withMesh === built.pickupNodes, `${built.withMesh}/${built.pickupNodes} pickups have a loaded mesh`);
 check(built.underWorld, "every pickup node hangs off game.world");
 
@@ -267,14 +287,12 @@ for (const team of ["red", "blue"]) {
 }
 
 console.log("\n--- glow lights ---");
-const EXPECTED_GLOWS = [
-  [101.18, 1.44, 5.0],
-  [-75.42, 1.48, -20.38],
-];
-for (const want of EXPECTED_GLOWS) {
+for (const team of ["red", "blue"]) {
+  const want = [FLAG_HOMES[team].x, FLAG_HOMES[team].y + GLOW_HEIGHT, FLAG_HOMES[team].z];
+  const got = gotFlags[team];
   check(
-    built.glows.some((g) => nearArr(g.world, want, 0.001)),
-    `a glow at ${JSON.stringify(want)} — got ${JSON.stringify(built.glows.map((g) => g.world))}`
+    got && (got.state !== "home" || built.glows.some((g) => nearArr(g.world, want, 0.001))),
+    `${team} glow ${got && got.state === "home" ? "at" : "rides the flag; home would be"} ${JSON.stringify(want)} — got ${JSON.stringify(built.glows.map((g) => g.world))}`
   );
 }
 
@@ -293,5 +311,6 @@ check(events.asks.some((a) => a.startsWith("flag:")), `request-flag-touch emitte
 console.log("\nrenderer:", JSON.stringify(info));
 for (const pose of POSES) console.log(shotPath(pose.name));
 console.log(errors.length ? `\nconsole:\n${errors.join("\n")}` : "\nno console errors");
+check(!errors.some((e) => e.startsWith("pageerror:")), "no page errors");
 console.log(fail.length ? `\n${fail.length} FAILED` : "\nall checks passed");
 process.exit(fail.length ? 1 : 0);

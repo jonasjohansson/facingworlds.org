@@ -9,7 +9,8 @@ import * as THREE from "three";
 //
 // The returned { scale, offset } is not decoration - it is the contract the live
 // spectator table is built on. Player poses arrive in game world coordinates, the game
-// places the same glTF at the identity transform (see #world in index.html), so
+// places the same glTF at the identity transform (see `world` in src/game/scene/world.js),
+// so
 // applying exactly this scale and offset to a pose puts a player on the map they are
 // actually standing on. Anything else and they float.
 

@@ -34,7 +34,7 @@ const DEFAULTS = {
   //
   // The old attributes were `width: 1.4` with A-Frame's default `wrapCount: 40`, which is
   // not 1.4 m of text: A-Frame scales the MSDF mesh so that FORTY characters span 1.4 m,
-  // so three digits span a fortieth of that each. MEASURED 2026-09-06 on index.html
+  // so three digits span a fortieth of that each. MEASURED 2026-09-06 on the A-Frame page
   // against the 8081 server with seven live bots, over `[health]`'s label child ->
   // `getObject3D("text")`:
   //

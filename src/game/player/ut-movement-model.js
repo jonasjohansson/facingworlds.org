@@ -1,9 +1,9 @@
 // ut-movement-model.js — UT99 ground acceleration, as pure arithmetic.
 //
-// This is the A-Frame `ut-controls` component's step()/approach() (ut-movement.js,
-// lines 117-154) with everything that was not arithmetic removed: no A-Frame component,
-// no keyboard/touch reading, no camera quaternion, no Vector3. The caller resolves the
-// heading to world xz — the controller does it with the rig's yaw — and hands it in.
+// This is the A-Frame `ut-controls` component's step()/approach() with everything that
+// was not arithmetic removed: no A-Frame component, no keyboard/touch reading, no camera
+// quaternion, no Vector3. The caller resolves the heading to world xz — the controller
+// does it with the rig's yaw — and hands it in.
 //
 // SCALE, and why these numbers are what they are: a UT99 pawn is 78 UU tall and the
 // soldier model measures 1.83 m, so 1 UU ~ 0.0235 m and the Pawn defaults convert as

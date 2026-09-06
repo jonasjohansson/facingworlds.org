@@ -1241,8 +1241,8 @@ html[data-team="blue"] {
 
 /* index.html carries a desktop line and a touch line; exactly one of them is the
    truth on any given device, so show only that one. The touch line describes the
-   touch path in src/game/engine/input.js, which is the same query that lifts the
-   ammo bay clear of the FIRE button further down. */
+   touch path in src/game/engine/input.js; the media query that picks it is the same
+   one that lifts the ammo bay clear of the FIRE button further down. */
 .credit-instructions--touch {
   display: none;
 }

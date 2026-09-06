@@ -1,4 +1,4 @@
-// parity.mjs — the four in-browser checks that say the game is the game, in one run and
+// parity.mjs — the four in-browser checks that say the game still holds, in one run and
 // one table.
 //
 // Task 8 (walk), Task 10 (effects), Task 12 (avatars) and Task 13 (multiplayer) of the

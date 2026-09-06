@@ -13,9 +13,9 @@ import { createEvents } from "../../src/game/engine/events.js";
 import { WeaponPickups, PICKUP_MODELS, pickupModelUrl } from "../../src/game/systems/weapon-pickup.js";
 import { GAME_CONFIG } from "../../src/game/config/game-config.js";
 
-// PICKUP_TYPE in server/server.js, written out rather than imported: importing
-// server.js starts a WebSocket server. If a row is added there, this fails until the
-// model table below gains it too, which is exactly the point.
+// PICKUP_TYPE in server/server.js, written out by hand rather than imported: importing
+// server.js starts a WebSocket server. A row added there has to be added HERE too before
+// the test can hold the client's model table to it.
 const SERVER_PICKUP_TYPES = [
   "health", // the eight MedBoxes; drawn from primitives, not a model
   "armor",

@@ -21,7 +21,7 @@
 // exactly as two slots with identical sway settings did: the same delta on the same clock.
 import { GAME_CONFIG } from "../config/game-config.js";
 
-// The A-Frame schema's defaults, verbatim. index.html's #player-weapon overrode most of
+// The A-Frame schema's defaults, verbatim. The A-Frame markup's #player-weapon overrode most of
 // them; those values live at the registration site (core/main.js), the way every
 // other markup value does.
 const DEFAULTS = {

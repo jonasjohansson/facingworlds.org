@@ -1,10 +1,10 @@
 // lights.js — the lighting rig, as data.
 //
-// Every row below was an `<a-entity light="…">` in index.html, in markup order, with the
+// Every row below was an `<a-entity light="…">` in the A-Frame markup, in markup order, with the
 // markup's reasoning kept verbatim above it. Fourteen were live; five more sat inside
 // HTML comments (three dead ambients, two dead directionals) and are not carried over.
 //
-// `intensity` values are unchanged from the markup. index.html ran the renderer with
+// `intensity` values are unchanged from the markup. The A-Frame page ran the renderer with
 // `physicallyCorrectLights: true`, i.e. A-Frame's `useLegacyLights = false`, which is the
 // only mode r180 has — so these numbers mean the same thing here as they did there.
 import * as THREE from "three";

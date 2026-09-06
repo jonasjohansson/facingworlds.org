@@ -333,7 +333,7 @@ export class FlagItem {
 
 // ---------------------------------------------------------------------------
 // Stand: the lit disc each flag lives on. It was two <a-entity ctf-flag-stand>
-// nodes in index.html; the system builds both now, and they are always visible —
+// nodes in the A-Frame markup; the system builds both now, and they are always visible —
 // in UT99 the base stays lit whether or not the flag is on it, and it is how you
 // find the thing from across the bridge.
 //
