@@ -7,11 +7,14 @@
 // so looks exactly like a bug), and the defensive readers that keep a missing or renamed
 // field in the generated src/shared/effects.js from turning a lifespan into NaN.
 //
-// The module is written so this file can import it: nothing in it touches AFRAME at module
-// scope, and the two modules it pulls in that DO (impact-effects.js, hitscan.js) only need
-// a handful of three.js constructors to exist. Hence the stub below — it is not a fake of
-// the renderer, it is just enough for `new AFRAME.THREE.Vector3()` at module scope not to
-// throw while the file is being evaluated.
+// THE FILE UNDER TEST IS src/game/systems/ut-effects.js — the three r180 port, the one the
+// client actually runs. It used to be the A-Frame component, which needed a hand-built
+// `globalThis.AFRAME.THREE` stub to survive being evaluated in Node; the port removed the
+// need for it. `import * as THREE from "three"` resolves to the devDependency here exactly
+// as the import map resolves it in the browser, so this test loads the real r180 module,
+// and neither ut-effects.js nor the modules it pulls in (impact-effects.js, hitscan.js,
+// engine/assets.js) touch `window`, `document` or a GL context at module scope. Nothing is
+// faked: the helpers below are the shipped ones.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -22,42 +25,8 @@ import { EFFECTS, FORWARD_AXIS } from "../../src/shared/effects.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-class StubVector3 {
-  constructor(x = 0, y = 0, z = 0) {
-    this.x = x;
-    this.y = y;
-    this.z = z;
-  }
-}
-class Stub {}
-globalThis.AFRAME = {
-  THREE: {
-    Vector3: StubVector3,
-    Matrix3: Stub,
-    Raycaster: Stub,
-    Quaternion: Stub,
-    Box3: Stub,
-    Group: Stub,
-    PointLight: Stub,
-    PlaneGeometry: Stub,
-    CylinderGeometry: Stub,
-    Mesh: Stub,
-    MeshBasicMaterial: Stub,
-    CanvasTexture: Stub,
-    TextureLoader: Stub,
-    AnimationMixer: Stub,
-    SRGBColorSpace: "srgb",
-    AdditiveBlending: 2,
-    DoubleSide: 2,
-    ClampToEdgeWrapping: 1001,
-    LoopOnce: 2200,
-  },
-  registerSystem() {},
-  registerComponent() {},
-};
-
 const { pickNum, pickStr, pickObj, pickArr, beamChain, attenuate, wallHitSound } = await import(
-  "../../src/game/components/ut-effects.js"
+  "../../src/game/systems/ut-effects.js"
 );
 
 // ---------------------------------------------------------------------------

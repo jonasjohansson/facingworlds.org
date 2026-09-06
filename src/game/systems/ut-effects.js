@@ -90,7 +90,10 @@
 // AudioListener belongs to systems/background-music.js and hangs off game.camera; adding a
 // second would double every WebAudio-routed sound in the scene.
 //
-// The pure helpers at the top are exported for server/test/ut-effects.test.mjs.
+// The pure helpers at the top are exported for server/test/ut-effects.test.mjs, which
+// imports THIS file — the ported one, not the retired component — and needs no renderer
+// stub to do it: `three` resolves to the devDependency under Node, and nothing here or in
+// what it imports touches `window`, `document` or a GL context at module scope.
 import * as THREE from "three";
 import { GAME_CONFIG } from "../config/game-config.js";
 import { loadGltf } from "../engine/assets.js";
@@ -372,6 +375,12 @@ function quadGeometry() {
  * The load itself goes through engine/assets.js, which is the client's one GLTFLoader and
  * one cache; the parsed scene it hands back is shared, and every pool slot takes its own
  * clone with its own material (cloneForPool).
+ *
+ * NOTHING IS WRITTEN TO THAT SHARED SCENE HERE. It is the cache's object, not this file's:
+ * anything else that loads the same url — another system, another page's preload — gets the
+ * very same Object3D back, so a `castShadow = false` set here would be set for them too.
+ * The per-mesh flags this file wants (no frustum culling, no shadows) are applied to the
+ * CLONES in cloneForPool instead; all this function does is measure the source and keep it.
  */
 function loadModel(key, url, expectLongForward) {
   if (!url) return null;
@@ -381,12 +390,6 @@ function loadModel(key, url, expectLongForward) {
   loadGltf(url)
     .then((gltf) => {
       const obj = gltf.scene;
-      obj.traverse((n) => {
-        if (!n.isMesh) return;
-        n.frustumCulled = false;
-        n.castShadow = false;
-        n.receiveShadow = false;
-      });
       const box = new THREE.Box3().setFromObject(obj);
       const size = box.getSize(new THREE.Vector3());
       const long = longestAxis(size);
@@ -463,6 +466,11 @@ function isModulate(blending) {
  *
  * A normal-blended clone is an ordinary opaque object and keeps its depth write; a
  * translucent or modulated one does not, or it would punch a hole in everything behind it.
+ *
+ * The per-mesh flags are set HERE rather than on the loaded source, which belongs to the
+ * shared cache (see loadModel): frustumCulled off because these are pooled objects that are
+ * teleported to a hit point without their bounding spheres ever being recomputed, and both
+ * shadow flags off because a 67 ms flash has no business in the shadow map.
  */
 function cloneForPool(model, blending) {
   const opaque = blending === THREE.NormalBlending;
@@ -485,6 +493,8 @@ function cloneForPool(model, blending) {
     });
     n.material = mat;
     n.frustumCulled = false;
+    n.castShadow = false;
+    n.receiveShadow = false;
     mats.push(mat);
   });
   obj.visible = false;
@@ -563,6 +573,10 @@ function buildPools() {
         opacity: 0,
         depthWrite: false,
         blending,
+        // Additive in every contract shipped so far, but blendOf() reads the contract and a
+        // flip to "modulate" would otherwise hand r180 a MultiplyBlending material with no
+        // premultipliedAlpha — the exact silent breakage isModulate() exists to prevent.
+        premultipliedAlpha: isModulate(blending),
         toneMapped: false,
         fog: false,
       });
@@ -1086,12 +1100,15 @@ function spawnSparks(point, normal, count) {
  * UT99's `Pock` decal — the real one, three 32-px textures out of the package, at
  * DrawScale 0.19, alive for 18 to 23 seconds.
  *
- * IT DOES NOT FADE. UE1 projects a decal MODULATED, so the texture darkens the wall it is
- * stuck to, and three.js's MultiplyBlending draws the same way — but multiply blending has
- * no meaningful opacity to lerp, so there is no way to fade one out that is not a second
- * pass. UE1 does not fade them either: a decal has a lifespan and is destroyed. So this one
- * pops, exactly as Epic's does, and the procedural bullet hole in impact-effects.js (which
- * DOES fade) stays as the fallback for a build with no pock textures.
+ * IT DOES NOT FADE — Epic's behaviour, not a limitation of the blend. UE1 projects a decal
+ * MODULATED, so the texture darkens the wall it is stuck to, and three.js's MultiplyBlending
+ * draws the same way. Under r180's premultiplied path (see isModulate) the result is
+ * `dst * (src * a + 1 - a)`, in which alpha IS a working fade knob: a -> 0 leaves `dst`
+ * untouched, so lerping opacity down would dissolve a hole cleanly to nothing in one pass.
+ * It is not done because UE1 does not do it: a decal has a lifespan and is destroyed. So
+ * this one pops, exactly as Epic's does, and the procedural bullet hole in
+ * impact-effects.js (which DOES fade) stays as the fallback for a build with no pock
+ * textures.
  */
 function spawnPock(point, normal) {
   const cfg = pickObj(FX, ["pock"]);
@@ -1418,8 +1435,9 @@ function stepPocks(dt) {
     const s = pool[i];
     if (s.life <= 0) continue;
     s.life -= dt;
-    // No fade: a MultiplyBlending surface has no opacity worth lerping, and UE1's decals
-    // are destroyed at their lifespan rather than faded. See spawnPock.
+    // No fade, and not because the blend cannot: r180's premultiplied multiply would take
+    // opacity to zero as a clean no-op. UE1's decals are destroyed at their lifespan rather
+    // than faded, so this one pops when its time is up. See spawnPock.
     if (s.life <= 0) {
       s.life = 0;
       s.mesh.visible = false;

@@ -79,6 +79,8 @@ function camera() {
 // models
 // ---------------------------------------------------------------------------
 
+// The scene loadGltf resolves to belongs to the shared asset cache, so nothing is written
+// to it here: the per-mesh flags this file wants go on the clone in spawnProjectile().
 function loadModel(kind) {
   if (state.models.has(kind) || state.loading.has(kind)) return;
   const w = BY_KIND.get(kind);
@@ -86,13 +88,6 @@ function loadModel(kind) {
   const p = loadGltf(w.projectile.model)
     .then((gltf) => {
       const obj = gltf.scene;
-      obj.traverse((n) => {
-        if (n.isMesh) {
-          n.frustumCulled = false;
-          n.castShadow = false;
-          n.receiveShadow = false;
-        }
-      });
       state.models.set(kind, obj);
       state.loading.delete(kind);
       return obj;
@@ -239,6 +234,15 @@ export function spawnProjectile(game, m) {
   loadModel(m.kind);
   const model = state.models.get(m.kind);
   const obj = model ? model.clone(true) : new THREE.Object3D();
+  // On the CLONE, not on the cached source: a projectile is moved every frame without its
+  // bounding sphere being recomputed, and a rocket casts no shadow in UT99.
+  obj.traverse((n) => {
+    if (n.isMesh) {
+      n.frustumCulled = false;
+      n.castShadow = false;
+      n.receiveShadow = false;
+    }
+  });
   obj.position.set(m.x, m.y, m.z);
   state.root.add(obj);
 

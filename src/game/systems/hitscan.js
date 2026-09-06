@@ -40,10 +40,17 @@ import { GAME_CONFIG } from "../config/game-config.js";
 // version listened for `model-loaded` ON THE #world ELEMENT — the map's own reload, and
 // nothing else. `game.events` carries ONE `model-loaded` for the whole scene (weapon-pickup
 // emits it for every pickup that lands), so subscribing to it here would rebuild the map's
-// mesh list every time a pickup model arrived, which the old code never did. The map is
-// loaded once by buildWorld and never replaced; the identity check below catches the only
-// case that matters — a different root than the one that was cached — and
-// invalidateWorldColliders() is there for a test or a map reload that wants it.
+// mesh list every time a pickup model arrived, which the old code never did.
+//
+// The identity the cache is keyed on is THE MODEL ROOT, `game.map.userData.mesh` — not
+// `game.map`. game.map is the Group scene/world.js parks the map under, and that Group is
+// created once and never replaced, so keying on it would make the check unfalsifiable:
+// assets.attachModel() swaps `userData.mesh` for a fresh model UNDER THE SAME GROUP, and a
+// re-attach would go on being served the previous model's meshes. The model root changes
+// with every attach, so it is the thing worth comparing (with the Group itself as the
+// fallback for a stub or a map built by hand, which has no userData.mesh). The map is
+// loaded once by buildWorld today; invalidateWorldColliders() is there for a test or a map
+// reload that wants to force the rebuild anyway.
 const EMPTY = [];
 let worldMeshes = null;
 let worldSource = null;
@@ -58,11 +65,12 @@ export function invalidateWorldColliders() {
  * Raycaster.intersectObjects(list, false) — non-recursive, which is why the list has to be
  * flat: every mesh in the model, not the root that contains them.
  *
- * @param {object} game the engine handle; reads `game.map` (the node named "world")
+ * @param {object} game the engine handle; reads the model attached to `game.map` (the node
+ *   named "world"), falling back to that node itself when nothing was attached to it
  * @returns {THREE.Mesh[]}
  */
 export function getWorldColliders(game) {
-  const root = game && game.map ? game.map : null;
+  const root = game?.map ? game.map.userData?.mesh || game.map : null;
   if (!root) return EMPTY;
   if (worldMeshes && worldSource === root) return worldMeshes;
 
