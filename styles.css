@@ -2903,3 +2903,14 @@ html[data-team="red"] .ut-flags {
   -webkit-mask-image: var(--ut-idown);
   mask-image: var(--ut-idown);
 }
+
+/* The game canvas (play.html). A-Frame used to size and place its own canvas; this is
+   that rule. Fixed and full-viewport so the DOM HUD can overlay it at any size. */
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
