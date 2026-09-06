@@ -129,7 +129,8 @@ const ADDONS = new URL("../../../assets/three-addons/", import.meta.url).href;
  * no quality-tier registered at all (a test harness, mainly).
  */
 const DEFAULTS = {
-  enabled: true,
+  // No `enabled` here on purpose: the constructor always computes it from quality-tier's
+  // gate, so a default would be dead the moment it was read.
   // Luminance above which a pixel starts to bloom. The composer works on linear
   // HDR values *before* tone mapping, so 1.0 means "brighter than white".
   threshold: 0.85,
@@ -321,43 +322,58 @@ export class Bloom {
     this.renderPass = null;
     this.bloomPass = null;
     this.outputPass = null;
+    // The four addon classes, once resolved; buildComposer() needs them again on resize.
+    this._passes = null;
     this.hooked = false;
+    // Set by dispose(). _load() is async, so it can come back to a Bloom that is already
+    // gone and must not build a composer or install a hook for it.
+    this.disposed = false;
 
     /**
-     * Resolves true once the composer is built and the render hook is installed, false
-     * if this tier gets no bloom or the addons failed to resolve. The page renders
-     * un-bloomed in both of those cases; nothing else changes.
+     * Resolves true once the composer is built and the render hook is installed, and
+     * false - never rejects - if this tier gets no bloom, the addons fail to resolve, or
+     * the chain fails to build. The page renders un-bloomed in all of those cases;
+     * nothing else changes.
      */
     this.ready = this._load();
   }
 
+  /**
+   * The try covers the WHOLE path, not just the import. buildComposer() allocates GPU
+   * targets and rewrites shader text, and main-three.js registers this system without
+   * awaiting `ready`, so anything thrown out here would surface as an unhandled rejection
+   * rather than the "resolves false" the field above promises. Whatever fails, the page
+   * ends up where it would have been without bloom: no render hook, no half-built chain.
+   */
   async _load() {
     if (!this.settings.enabled) return false;
 
-    let EffectComposer;
-    let RenderPass;
-    let UnrealBloomPass;
-    let OutputPass;
     try {
-      [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
+      const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
         import(`${ADDONS}postprocessing/EffectComposer.js`),
         import(`${ADDONS}postprocessing/RenderPass.js`),
         import(`${ADDONS}postprocessing/UnrealBloomPass.js`),
         import(`${ADDONS}postprocessing/OutputPass.js`),
       ]);
+
+      // dispose() can win the race against a slow module fetch.
+      if (this.disposed) return false;
+
+      this._passes = { EffectComposer, RenderPass, UnrealBloomPass, OutputPass };
+      this.buildComposer();
+      this.game.setRenderHook((dt) => this.composer.render(dt));
+      this.hooked = true;
+      return true;
     } catch (error) {
-      console.warn("[bloom] post-processing addons unavailable, bloom disabled:", error);
+      console.warn("[bloom] disabled:", error);
+      if (this.hooked) {
+        this.game.setRenderHook(null);
+        this.hooked = false;
+      }
+      this.disposeComposer();
+      this._passes = null;
       return false;
     }
-
-    // dispose() can win the race against a slow module fetch.
-    if (!this.settings.enabled) return false;
-
-    this._passes = { EffectComposer, RenderPass, UnrealBloomPass, OutputPass };
-    this.buildComposer();
-    this.game.setRenderHook((dt) => this.composer.render(dt));
-    this.hooked = true;
-    return true;
   }
 
   buildComposer() {
@@ -459,8 +475,10 @@ export class Bloom {
   }
 
   dispose() {
-    // Hand the frame back to renderer.render(scene, camera) before the buffers go away.
-    this.settings.enabled = false;
+    // Tells an in-flight _load() not to build anything for a system that is already gone.
+    this.disposed = true;
+    // Hand the frame back to renderer.render(scene, camera) before the buffers go away,
+    // and only if the hook in place is ours to clear.
     if (this.hooked) {
       this.game.setRenderHook(null);
       this.hooked = false;
