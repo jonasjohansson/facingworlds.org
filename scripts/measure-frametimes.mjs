@@ -8,6 +8,21 @@
 //   npm i -D playwright && npx playwright install chromium     (one-off; ~100 MB of browser)
 //   node server/server.js (TLS on 8081) and the static server on 8080 must be running.
 //
+// Since the three.js port (Task 15) the DEFAULT TARGET IS play.html, read through the
+// `window.__fw` debug handle. `--legacy` runs the same phases on the A-Frame index.html
+// through the DOM selectors this probe was written against, so the two can be compared on
+// the same machine in the same session — which is the only way these numbers mean
+// anything. Task 16 deletes the flag along with index.html.
+//
+//   node scripts/measure-frametimes.mjs             play.html   (three r180)
+//   node scripts/measure-frametimes.mjs --legacy    index.html  (A-Frame)
+//
+// THE BOT COUNT IS PART OF THE MEASUREMENT. The 8.3 ms baseline was taken with a full
+// roster, and the server fills one bot per side per 3 s sweep, so the probe waits for the
+// roster before it starts recording and prints what it got. Run the two pages BACK TO
+// BACK, never at once: two connected humans is two fewer bots each (server/bots.js —
+// BOTS_MIN_PER_TEAM 5, BOTS_MAX 10, so one human is served nine bots).
+//
 // HEADED on purpose: the headless shell renders through SwiftShader and its frame times say
 // nothing about the GPU a player has. A Chromium window opens for about a minute. Shots are
 // driven through the component's own trigger path (`isFiring`), never by calling
@@ -15,21 +30,81 @@
 import { launchQuiet } from "./pw/launch.mjs";
 import fs from "node:fs";
 import os from "node:os"; import path from "node:path";
-const OUT = path.join(os.tmpdir(), "facingworlds-measure") + path.sep;
+
+const legacy = process.argv.includes("--legacy");
+const BASE = (process.env.FW_BASE || "http://localhost:8080").replace(/\/$/, "");
+// Nine is what one human is served by a default server (BOTS_MIN_PER_TEAM 5 per side, one
+// of the ten slots taken by us). Waiting for it is what makes the two runs comparable.
+const WANT_BOTS = Number(process.env.FW_BOTS || 9);
+const BOT_WAIT_MS = 90000; // ~15 s of sweeps at full speed; long enough for a slow join
+
+/* ------------------------------------------------------------------ page adapters --
+   The same phases, driven through whichever handle the page has. Each entry is a set of
+   SELF-CONTAINED functions: they are stringified into the page, so they may not close
+   over anything out here. */
+const ADAPTERS = {
+  "play.html": {
+    url: `${BASE}/play.html`,
+    // The gun in hand. `primarySlot` is the permanent Object3D the weapon dresses;
+    // userData.mesh is what attachModel hung on it.
+    ready: () => {
+      const c = window.__fw && window.__fw.systems.get("first-person-weapon");
+      return !!(c && c.primarySlot && c.primarySlot.userData.mesh);
+    },
+    install: () => {
+      window.__comp = () => window.__fw.systems.get("first-person-weapon");
+      window.__slotLoaded = () => {
+        const c = window.__comp();
+        return !!(c.primarySlot.userData.mesh && c.primarySlot.userData.anim);
+      };
+      window.__bots = () => {
+        const r = window.__fw.systems.get("remote-avatars");
+        return r ? r.avatars.size : 0;
+      };
+      window.__renderer = () => window.__fw.renderer;
+    },
+  },
+
+  "index.html": {
+    url: `${BASE}/index.html`,
+    ready: () => {
+      const el = document.querySelector("[first-person-weapon]");
+      const c = el && el.components && el.components["first-person-weapon"];
+      return !!(c && c.primaryEl && c.primaryEl.getObject3D("mesh"));
+    },
+    install: () => {
+      window.__comp = () => document.querySelector("[first-person-weapon]").components["first-person-weapon"];
+      window.__slotLoaded = () => {
+        const c = window.__comp();
+        return !!(c.primaryEl.getObject3D("mesh") && c.primaryEl.__slotAnim);
+      };
+      window.__bots = () => document.querySelectorAll("[remote-avatar]").length;
+      window.__renderer = () => document.querySelector("a-scene").renderer;
+    },
+  },
+};
+
+const name = legacy ? "index.html" : "play.html";
+const adapter = ADAPTERS[name];
+const OUT = path.join(os.tmpdir(), legacy ? "facingworlds-measure-legacy" : "facingworlds-measure") + path.sep;
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await launchQuiet({args: ["--autoplay-policy=no-user-gesture-required", "--enable-gpu-rasterization"]});
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true });
 const consoleLines = [];
 page.on("console", (m) => { const t = m.text(); if (m.type() === "error" || m.type() === "warning" || /first-person|view|shake|muzzle|Failed|palette/i.test(t)) consoleLines.push(`[${m.type()}] ${t}`); });
 page.on("pageerror", (e) => consoleLines.push(`[pageerror] ${e.message}`));
-await page.goto("http://localhost:8080/", { waitUntil: "load" });
+await page.goto(adapter.url, { waitUntil: "load" });
 
-// wait for the component and a loaded primary mesh
-await page.waitForFunction(() => {
-  const el = document.querySelector("[first-person-weapon]");
-  const c = el && el.components && el.components["first-person-weapon"];
-  return c && c.primaryEl && c.primaryEl.getObject3D("mesh");
-}, null, { timeout: 60000 });
+await page.waitForFunction(adapter.ready, null, { timeout: 60000 });
+await page.evaluate(adapter.install);
+
+// The roster. Both pages join the same 8081 server and both draw the same bodies, so this
+// has to be the same number on both runs or the frame times are measuring the roster.
+const bots = await page
+  .waitForFunction((want) => window.__bots() >= want, WANT_BOTS, { timeout: BOT_WAIT_MS, polling: 500 })
+  .then(() => page.evaluate(() => window.__bots()))
+  .catch(() => page.evaluate(() => window.__bots()));
+console.log(`${name}: ${bots} remote bodies on the map (wanted ${WANT_BOTS})`);
 await page.waitForTimeout(2000);
 
 await page.evaluate(() => {
@@ -38,7 +113,6 @@ await page.evaluate(() => {
   const loop = (t) => { window.__frames.push([t, t - last]); last = t; requestAnimationFrame(loop); };
   requestAnimationFrame(loop);
   window.__mark = (l) => window.__marks.push([performance.now(), l]);
-  window.__comp = () => document.querySelector("[first-person-weapon]").components["first-person-weapon"];
 });
 
 const shot = (path) => page.screenshot({ path: OUT + path });
@@ -57,7 +131,7 @@ await mark("after enforcer"); await wait(1500);
 for (const [id, interval] of [["sniper", 1500], ["shock", 700], ["rocket", 900], ["ripper", 300], ["redeemer", 2000]]) {
   await mark(`switch ${id}`);
   await page.evaluate((id) => window.__comp().setWeapon(id), id);
-  await page.waitForFunction(() => { const c = window.__comp(); const m = c.primaryEl.getObject3D("mesh"); return m && c.primaryEl.__slotAnim; }, null, { timeout: 20000 });
+  await page.waitForFunction(() => window.__slotLoaded(), null, { timeout: 20000 });
   await mark(`loaded ${id}`); await wait(1200); await shot(`10-${id}-idle.png`);
   await mark(`fire ${id}`);
   await page.evaluate((iv) => { const c = window.__comp(); c.fireBullet(); window.__fireTimer = setInterval(() => c.fireBullet(), iv); }, interval);
@@ -72,6 +146,27 @@ await wait(300); await shot("21-dual-firing.png"); await wait(2000);
 await page.evaluate(() => clearInterval(window.__fireTimer));
 await wait(500);
 
+// What the renderer is actually asked to do PER FRAME — the first place to look when one
+// page is slower than the other. renderer.info resets itself on every render() call, and
+// with the bloom composer there are several of those a frame, so the counters are frozen
+// (autoReset = false) and accumulated over a second, then divided by the frames counted.
+const rinfo = await page.evaluate(
+  () =>
+    new Promise((resolve) => {
+      const r = window.__renderer();
+      r.info.autoReset = false;
+      r.info.reset();
+      let n = 0;
+      const tick = () => {
+        n++;
+        if (n < 60) return requestAnimationFrame(tick);
+        const i = r.info;
+        r.info.autoReset = true;
+        resolve({ frames: n, calls: i.render.calls / n, triangles: i.render.triangles / n, programs: i.programs.length, geometries: i.memory.geometries, textures: i.memory.textures });
+      };
+      requestAnimationFrame(tick);
+    })
+);
 const data = await page.evaluate(() => ({ frames: window.__frames, marks: window.__marks }));
 fs.writeFileSync(OUT + "frames.json", JSON.stringify(data));
 fs.writeFileSync(OUT + "console.txt", consoleLines.join("\n"));
@@ -79,13 +174,19 @@ fs.writeFileSync(OUT + "console.txt", consoleLines.join("\n"));
 // per-phase stats
 const { frames, marks } = data;
 const q = (a, p) => a.slice().sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(p * a.length))];
+console.log("");
+console.log(`${name} — ${bots} bots`);
 console.log("phase".padEnd(18), "frames", "mean".padStart(6), "p95".padStart(6), "max".padStart(7), ">33ms", ">100ms", " worst frames (ms @ +s into phase)");
+const all = [];
 for (let i = 0; i < marks.length; i++) {
   const [t0, label] = marks[i]; const t1 = marks[i + 1] ? marks[i + 1][0] : Infinity;
   const fs_ = frames.filter(([t]) => t >= t0 && t < t1); const d = fs_.map((f) => f[1]);
   if (!d.length) continue;
+  all.push(...d);
   const worst = fs_.slice().sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, dt]) => `${dt.toFixed(0)}@${((t - t0) / 1000).toFixed(2)}`).join(" ");
   console.log(label.padEnd(18), String(d.length).padStart(6), (d.reduce((a, b) => a + b, 0) / d.length).toFixed(1).padStart(6), q(d, 0.95).toFixed(1).padStart(6), Math.max(...d).toFixed(1).padStart(7), String(d.filter((x) => x > 33).length).padStart(5), String(d.filter((x) => x > 100).length).padStart(6), " ", worst);
 }
-console.log("\nconsole lines:", consoleLines.length);
+console.log("ALL".padEnd(18), String(all.length).padStart(6), (all.reduce((a, b) => a + b, 0) / all.length).toFixed(1).padStart(6), q(all, 0.95).toFixed(1).padStart(6), Math.max(...all).toFixed(1).padStart(7), String(all.filter((x) => x > 33).length).padStart(5), String(all.filter((x) => x > 100).length).padStart(6));
+console.log(`\nper frame: ${rinfo.calls.toFixed(0)} draw calls, ${Math.round(rinfo.triangles).toLocaleString("en-US")} triangles | ${rinfo.programs} programs, ${rinfo.geometries} geometries, ${rinfo.textures} textures`);
+console.log("console lines:", consoleLines.length);
 await browser.close();

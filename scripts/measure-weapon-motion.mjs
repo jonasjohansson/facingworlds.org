@@ -16,28 +16,103 @@
 //   npm i -D playwright && npx playwright install chromium     (one-off; ~100 MB of browser)
 //   node server/server.js (TLS on 8081) and the static server on 8080 must be running.
 //
+// Since the three.js port (Task 15) the DEFAULT TARGET IS play.html; `--legacy` runs the
+// same plan on the A-Frame index.html. The numbers are only meaningful against each other,
+// on the same machine, in the same session, so run the two back to back. Task 16 deletes
+// the flag along with index.html. Everything that differs between the two pages is the
+// handle, and it is all in ADAPTERS below:
+//
+//     document.querySelector("[first-person-weapon]").components[...]  ->  __fw.systems.get("first-person-weapon")
+//     c.primaryEl.getObject3D("mesh") / c.primaryEl.__slotAnim         ->  c.primarySlot.userData.{mesh,anim}
+//     c.el.getObject3D("camera")                                       ->  __fw.camera
+//     AFRAME.THREE                                                     ->  __fw.THREE
+//     c.isFiring = true/false                                          ->  __fw.input.pressFire(true/false)
+//
+// The last one matters: the trigger is a LEVEL on engine/input.js in the three build and
+// the weapon re-reads it every frame, so writing isFiring there would be overwritten
+// before the next shot. Driving pressFire exercises the same rising edge, cadence,
+// FinishAnim gate and loop window a player's finger does — which is what `isFiring` was on
+// the A-Frame page, where the key handler wrote exactly that field.
+//
 // HEADED on purpose: the headless shell renders through SwiftShader and its frame times say
-// nothing about the GPU a player has. A Chromium window opens for about a minute. Shots are
-// driven through the component's own trigger path (`isFiring`), never by calling
-// fireBullet() directly, so cadence, FinishAnim and the loop window are all exercised.
+// nothing about the GPU a player has. A Chromium window opens for about a minute.
 import { launchQuiet } from "./pw/launch.mjs";
 import fs from "node:fs";
 import os from "node:os"; import path from "node:path";
-const OUT = path.join(os.tmpdir(), "facingworlds-measure") + path.sep;
+
+const legacy = process.argv.includes("--legacy");
+const BASE = (process.env.FW_BASE || "http://localhost:8080").replace(/\/$/, "");
+
+/* ------------------------------------------------------------------ page adapters --
+   Each installs the same five shims on `window`, and the sampler below is written once
+   against those. They are stringified into the page, so they may close over nothing. */
+const ADAPTERS = {
+  "play.html": {
+    url: `${BASE}/play.html`,
+    ready: () => {
+      const c = window.__fw && window.__fw.systems.get("first-person-weapon");
+      return !!(c && c.primarySlot && c.primarySlot.userData.mesh);
+    },
+    install: () => {
+      window.__comp = () => window.__fw.systems.get("first-person-weapon");
+      window.__three = () => window.__fw.THREE;
+      window.__cam = () => window.__fw.camera;
+      window.__mesh = () => window.__comp().primarySlot.userData.mesh;
+      window.__slotLoaded = () => {
+        const c = window.__comp();
+        return !!(c.primarySlot.userData.mesh && c.primarySlot.userData.anim);
+      };
+      window.__press = (down) => window.__fw.input.pressFire(down);
+    },
+  },
+
+  "index.html": {
+    url: `${BASE}/index.html`,
+    ready: () => {
+      const el = document.querySelector("[first-person-weapon]");
+      const c = el && el.components && el.components["first-person-weapon"];
+      return !!(c && c.primaryEl && c.primaryEl.getObject3D("mesh"));
+    },
+    install: () => {
+      window.__comp = () => document.querySelector("[first-person-weapon]").components["first-person-weapon"];
+      window.__three = () => AFRAME.THREE;
+      window.__cam = () => window.__comp().el.getObject3D("camera");
+      window.__mesh = () => window.__comp().primaryEl.getObject3D("mesh");
+      window.__slotLoaded = () => {
+        const c = window.__comp();
+        return !!(c.primaryEl.getObject3D("mesh") && c.primaryEl.__slotAnim);
+      };
+      // On the A-Frame page the key handler writes this field directly, so this IS the
+      // trigger path a finger takes. `_burstShots` is reset so each press is a fresh
+      // burst, exactly as the rising edge does in the three build's input layer.
+      window.__press = (down) => {
+        const c = window.__comp();
+        if (down) c._burstShots = 0;
+        c.isFiring = down;
+      };
+    },
+  },
+};
+
+const name = legacy ? "index.html" : "play.html";
+const adapter = ADAPTERS[name];
+const OUT = path.join(os.tmpdir(), legacy ? "facingworlds-measure-legacy" : "facingworlds-measure") + path.sep;
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await launchQuiet({args: ["--autoplay-policy=no-user-gesture-required"]});
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true });
-await page.goto("http://localhost:8080/", { waitUntil: "load" });
-await page.waitForFunction(() => { const el = document.querySelector("[first-person-weapon]"); const c = el && el.components && el.components["first-person-weapon"]; return c && c.primaryEl && c.primaryEl.getObject3D("mesh"); }, null, { timeout: 60000 });
+const errors = [];
+page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+await page.goto(adapter.url, { waitUntil: "load" });
+await page.waitForFunction(adapter.ready, null, { timeout: 60000 });
+await page.evaluate(adapter.install);
 await page.waitForTimeout(1500);
 await page.addScriptTag({ content: `
-  window.__comp = () => document.querySelector("[first-person-weapon]").components["first-person-weapon"];
   window.__rec = null;
   // Per mesh: centroid of the base geometry and, per morph target, the centroid of its
   // deltas, so the morphed centroid is base + sum(w_i * d_i) without touching every vertex.
   function prep(mesh) {
     if (mesh.__probe) return mesh.__probe;
-    const THREE = AFRAME.THREE; const out = [];
+    const THREE = window.__three(); const out = [];
     mesh.traverse(o => {
       if (!o.isMesh || !o.geometry) return;
       const pos = o.geometry.attributes.position; const n = pos.count;
@@ -52,9 +127,8 @@ await page.addScriptTag({ content: `
   }
   (function loop(t){
     if (window.__rec) {
-      const c = window.__comp(); const THREE = AFRAME.THREE;
-      const cam = c.el.getObject3D("camera"); cam.updateMatrixWorld(true); cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
-      const mesh = c.primaryEl.getObject3D("mesh"); const parts = prep(mesh);
+      const cam = window.__cam(); cam.updateMatrixWorld(true); cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
+      const mesh = window.__mesh(); const parts = prep(mesh);
       let cx = 0, cy = 0, fx = 0, fy = 0, N = 0, frame = -1, wmax = 0;
       for (const p of parts) {
         const w = p.o.morphTargetInfluences || [];
@@ -73,18 +147,18 @@ const results = {};
 const PLAN = [["enforcer", 2500, 3, 700], ["sniper", 3200, 2, 1800], ["shock", 2400, 3, 1000], ["rocket", 2400, 2, 1300], ["ripper", 2000, 3, 800], ["redeemer", 2600, 1, 2600]];
 for (const [id, hold, clicks, gap] of PLAN) {
   await page.evaluate((id) => window.__comp().setWeapon(id), id);
-  await page.waitForFunction(() => { const c = window.__comp(); return c.primaryEl.getObject3D("mesh") && c.primaryEl.__slotAnim; }, null, { timeout: 20000 });
+  await page.waitForFunction(() => window.__slotLoaded(), null, { timeout: 20000 });
   await page.waitForTimeout(2500);
   await page.evaluate(() => { window.__rec = []; window.__shots = 0; const c = window.__comp(); if (!c.__origFire) { c.__origFire = c.fireBullet.bind(c); c.fireBullet = function () { window.__shots++; window.__rec && window.__rec.push({ shot: true, t: performance.now() }); return c.__origFire(); }; } });
   await page.waitForTimeout(600);
-  await page.evaluate(() => { const c = window.__comp(); c._burstShots = 0; c.isFiring = true; });
+  await page.evaluate(() => window.__press(true));
   await page.waitForTimeout(hold);
-  await page.evaluate(() => { window.__comp().isFiring = false; });
+  await page.evaluate(() => window.__press(false));
   await page.waitForTimeout(900);
   for (let k = 0; k < clicks; k++) {
-    await page.evaluate(() => { const c = window.__comp(); c._burstShots = 0; c.isFiring = true; });
+    await page.evaluate(() => window.__press(true));
     await page.waitForTimeout(60);
-    await page.evaluate(() => { window.__comp().isFiring = false; });
+    await page.evaluate(() => window.__press(false));
     await page.waitForTimeout(gap);
   }
   await page.waitForTimeout(800);
@@ -94,6 +168,7 @@ for (const [id, hold, clicks, gap] of PLAN) {
 await browser.close();
 fs.writeFileSync(OUT + "motion.json", JSON.stringify(results));
 
+console.log(`\n${name}`);
 for (const [id, { rec: r, shots, hold }] of Object.entries(results)) {
   const idle = r.filter((s) => s.t < r[0].t + 550);
   const mean = (a, k) => a.reduce((s, x) => s + x[k], 0) / a.length;
@@ -109,3 +184,4 @@ for (const [id, { rec: r, shots, hold }] of Object.entries(results)) {
   let eyeStep = 0, eyeMax = 0; for (let i = 1; i < r.length; i++) { eyeStep = Math.max(eyeStep, Math.abs(r[i].camy - r[i-1].camy)); eyeMax = Math.max(eyeMax, Math.abs(r[i].camy - r[0].camy)); }
   console.log(`${id.padEnd(9)} ${heldShots} shots ${cadence}s apart | gun: excursion ${excF.toFixed(0)}px, max/frame ${maxJump.toFixed(0)}px, frames>20px ${big} | eye: deepest ${(eyeMax*100).toFixed(1)}cm, max/frame ${(eyeStep*100).toFixed(1)}cm | roll max ${Math.max(...r.map(s=>Math.abs(s.roll))).toFixed(1)}deg`);
 }
+if (errors.length) console.log(errors.join("\n"));

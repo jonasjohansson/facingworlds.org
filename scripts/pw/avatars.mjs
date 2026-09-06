@@ -22,17 +22,13 @@
 //   node scripts/pw/avatars.mjs --legacy        screenshot a BOT on the A-Frame index.html
 //                                               (needs the game server on 8081) for the
 //                                               side-by-side comparison
+//
+// Also exported as runAvatars({ browser, base, out, legacy }) so scripts/pw/parity.mjs can
+// run it beside the other three probes in one browser and fold its verdict into one table.
 import { launchQuiet } from "./launch.mjs";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-
-const SCRATCH = process.env.SCRATCHPAD || "/tmp";
-mkdirSync(SCRATCH, { recursive: true });
-
-const legacy = process.argv.includes("--legacy");
-const url =
-  process.argv.find((a) => a.startsWith("http")) ||
-  (legacy ? "http://localhost:8080/index.html" : "http://localhost:8080/play.html");
+import { baseUrl, createChecks, isMain, printChecks, watchErrors, HIDE_OVERLAYS } from "./lib.mjs";
 
 // The red flag base: floor at a known height, with room to walk. src/shared/map-actors.js.
 const START = { x: 101.18, y: -0.36, z: 5 };
@@ -42,29 +38,72 @@ const POSE_HZ = 20;
 // soldier/malcom — one of the two bodies that carry the *FR firing twins and the anchor
 // node, and the one index.html's bots draw most often.
 const CHARACTER = 18;
+// How close is close enough, and every one of these was set from a measured run:
+const FLOOR_TOLERANCE = 0.05; // m of daylight under the feet (the old page held ~5 cm)
+const FACING_TOLERANCE = 0.98; // dot of the body's forward axis against the travel direction
+const HAND_TOLERANCE = 0.02; // m between a weapon slot and the animated weaponAnchor
+const RUN_WEIGHT = 0.9; // effective weight of Run when the wire says run: 1
+// The floor correction's acceptance window (remote-avatar.js _groundToFloor): a wire
+// height wrong by less than it is pulled back down, one wrong by more is a jump and stands.
+const LIFT_CORRECTED = 0.25;
+const LIFT_KEPT = 0.8;
 
-const browser = await launchQuiet();
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-const errors = [];
-page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-page.on("console", (m) => {
-  if (m.type() === "error") errors.push(`console: ${m.text()}`);
-});
+export async function runAvatars({ browser, base = baseUrl(), out = process.env.SCRATCHPAD || "/tmp", legacy = false } = {}) {
+  const SCRATCH = out;
+  mkdirSync(SCRATCH, { recursive: true });
+  const url = `${base}/${legacy ? "index.html" : "play.html"}`;
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errors = watchErrors(page);
 
-await page.goto(url);
+  await page.goto(url);
+  const result = legacy ? await runLegacy(page, SCRATCH) : await runProbe(page, SCRATCH);
 
-if (legacy) {
-  await runLegacy();
-} else {
-  await runProbe();
+  if (errors.length) console.log("\n--- console ---\n" + errors.join("\n"));
+  await page.close();
+
+  // The legacy run is a screenshot for the eye, not a set of assertions — the checks
+  // below are all about the ported avatar, which is the thing that could be wrong.
+  const checks = createChecks();
+  if (legacy) {
+    checks.row("index.html drew a bot", `${result.bots} remote avatars`, result.bots > 0);
+    return { rows: checks.rows, ...result, errors };
+  }
+
+  const { report, floorFix, after } = result;
+  const worst = (f) => Math.max(...report.map(f));
+  checks.row("three bodies spawned and loaded", `${report.length} avatars: ${report.map((r) => r.id).join(", ")}`, report.length === 3);
+  checks.row("the wire's run reaches the mixer", `Run weight ${report.map((r) => r.weights.Run).join(" / ")} (${report[0].runClip})`, report.every((r) => r.weights && r.weights.Run >= RUN_WEIGHT));
+  checks.row("feet on the drawn floor (m)", `worst ${worst((r) => Math.abs(r.aboveFloor)).toFixed(4)}`, report.every((r) => r.aboveFloor !== null && Math.abs(r.aboveFloor) <= FLOOR_TOLERANCE));
+  checks.row("body faces the way it walks", `worst dot ${Math.min(...report.map((r) => r.facingDot)).toFixed(4)}`, report.every((r) => r.facingDot >= FACING_TOLERANCE));
+  checks.row("gun sits on the animated hand (m)", `worst ${worst((r) => Math.max(...r.slots.map((s) => s.dist))).toFixed(4)} over ${report.reduce((n, r) => n + r.slots.length, 0)} slots`, report.every((r) => r.anchor && r.slots.length && r.slots.every((s) => s.dist <= HAND_TOLERANCE)));
+  checks.row("a wrong wire height is corrected", `lift ${LIFT_CORRECTED} m -> ${floorFix[0].aboveFloor} m off the floor`, Math.abs(floorFix[0].aboveFloor) <= FLOOR_TOLERANCE);
+  checks.row("a real jump is left alone", `lift ${LIFT_KEPT} m -> ${floorFix[1].aboveFloor} m off the floor`, floorFix[1].aboveFloor > LIFT_KEPT / 2);
+  checks.row("setHp redraws the overhead label", `100 -> ${after.hurt.text} ${after.hurt.color} -> ${after.critical.text} ${after.critical.color}`, after.hurt.text === "50" && after.critical.text === "15" && after.critical.color !== after.hurt.color);
+  // fireMix, not the twin's weight: this body is STANDING by the time it is asked to
+  // shoot (the floor-correction hold above parks it), so Run has no weight for a Run twin
+  // to take a share of. fireMix is the blend towards the *FR variants itself, and the held
+  // mesh's own sequence is the other half of what fire() has to start.
+  checks.row("fire blends to the FR twins", `fireMix ${after.fireMix}, held clips ${JSON.stringify(after.heldClipsRunning)}, recoil ${after.recoilActive}`, after.fireMix > 0.5 && after.heldClipsRunning && after.heldClipsRunning.length > 0);
+  checks.row("no page errors", `${errors.length}`, errors.length === 0);
+
+  return { rows: checks.rows, ...result, errors };
 }
 
-if (errors.length) console.log("\n--- console ---\n" + errors.join("\n"));
-await browser.close();
+if (isMain(import.meta.url)) {
+  const browser = await launchQuiet();
+  const { rows } = await runAvatars({
+    browser,
+    base: baseUrl(),
+    legacy: process.argv.includes("--legacy"),
+  });
+  await browser.close();
+  printChecks(rows, { title: "avatars" });
+  process.exit(rows.filter((r) => !r.ok).length ? 1 : 0);
+}
 
 // ---------------------------------------------------------------------------
 
-async function runProbe() {
+async function runProbe(page, SCRATCH) {
   // Boot registers bloom last: once it is there, every system main-three.js builds is in.
   await page.waitForFunction(() => window.__fw && window.__fw.systems.has("bloom"), null, { timeout: 40000 });
   await page.waitForFunction(() => window.__fw && window.__fw.map && window.__fw.map.userData.mesh, null, {
@@ -143,8 +182,14 @@ async function runProbe() {
       avatars.spawn(mk(902, 2.5, { team: "blue", dual: true }));
       avatars.spawn(mk(903, 5, { team: "red", weapon: "shock" }));
 
-      await Promise.all([...avatars.avatars.values()].map((a) => a.ready));
-      return [...avatars.avatars.keys()];
+      // ONLY THESE THREE. The network layer landed in Task 13, so play.html joins the
+      // 8081 server and the same registry is also holding nine bots the server is
+      // steering. Walking those would fight their pose stream and reading them would
+      // report on the server's plans rather than on this probe's.
+      window.__probeIds = [901, 902, 903];
+      window.__probeBodies = () => window.__probeIds.map((id) => window.__avatars.get(id));
+      await Promise.all(window.__probeBodies().map((a) => a.ready));
+      return [...window.__probeIds];
     },
     { START, CHARACTER, GROUND_SPEED }
   );
@@ -162,7 +207,7 @@ async function runProbe() {
           const el = (t - t0) / 1000;
           const d = Math.min(el, WALK_MS / 1000) * GROUND_SPEED;
           let i = 0;
-          for (const a of avatars.avatars.values()) {
+          for (const a of window.__probeBodies()) {
             // The three walk parallel lines, 2.5 m apart, as they were spawned.
             const off = i++ * 2.5;
             const x = w.start.x + w.dir.dx * d + off;
@@ -200,7 +245,7 @@ async function runProbe() {
     const down = new THREE.Vector3(0, -1, 0);
     const wp = new THREE.Vector3();
     const out = [];
-    for (const a of avatars.avatars.values()) {
+    for (const a of window.__probeBodies()) {
       const body = a.body;
       body.updateWorldMatrix(true, true);
       body.getWorldPosition(wp);
@@ -362,21 +407,19 @@ async function runProbe() {
       },
     });
   });
-  // The pointer-lock prompt is a DOM overlay across the middle of the page.
-  await page.evaluate(() => {
-    for (const el of document.querySelectorAll(".ut-lock-prompt, #credits-container, #ut-hud")) {
-      el.style.setProperty("visibility", "hidden", "important");
-    }
-  });
+  // The pointer-lock prompt, the credits panel and the HUD are DOM overlays across the
+  // middle of the page.
+  await page.evaluate(HIDE_OVERLAYS);
   await page.waitForTimeout(600);
   await page.screenshot({ path: shot });
   console.log(`\nscreenshot: ${shot}`);
+  return { spawned, report, floorFix, after, shot };
 }
 
 // ---------------------------------------------------------------------------
 // The A-Frame page, for the side-by-side: join the live server, wait for a bot, put the
 // local rig in front of it and look at it.
-async function runLegacy() {
+async function runLegacy(page, SCRATCH) {
   await page.waitForFunction(() => document.querySelectorAll("[remote-avatar]").length > 0, null, { timeout: 40000 });
   await page.waitForTimeout(5000); // models, skins and the first poses in
 
@@ -444,15 +487,11 @@ async function runLegacy() {
   });
   console.log(JSON.stringify(info, null, 2));
 
-  await page.evaluate(() => {
-    // The lock prompt and the HUD are DOM overlays across the shot; the three.js page has
-    // no HUD yet, so hiding both is what makes the two comparable.
-    for (const el of document.querySelectorAll(".ut-lock-prompt, #credits-container, #ut-hud")) {
-      el.style.setProperty("visibility", "hidden", "important");
-    }
-  });
+  // The same overlays the three.js shot hides, so the two are comparable.
+  await page.evaluate(HIDE_OVERLAYS);
   await page.waitForTimeout(2000);
   const shot = path.join(SCRATCH, "avatars-aframe.png");
   await page.screenshot({ path: shot });
   console.log(`screenshot: ${shot}`);
+  return { ...info, shot };
 }

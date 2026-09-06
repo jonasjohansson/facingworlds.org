@@ -38,9 +38,12 @@
 // and neither its frame times nor its rasterisation are the GPU's.
 //
 // Usage: node scripts/pw/walk.mjs [baseUrl]      default http://localhost:8080
+// Also exported as runWalk({ browser, base }) so scripts/pw/parity.mjs can run it beside
+// the other three probes in one browser and fold its verdict into one table.
 import { launchQuiet } from "./launch.mjs";
+import { baseUrl, createChecks, isMain, printChecks } from "./lib.mjs";
+import { SPAWNS } from "../../src/shared/map-actors.js";
 
-const base = (process.argv[2] || "http://localhost:8080").replace(/\/$/, "");
 const GROUND_SPEED = 9.4; // GAME_CONFIG.MOVEMENT.GROUND_SPEED
 const SPEED_TOLERANCE = 0.05; // 5% on the best window
 const MAX_Y_STEP = 0.35; // metres between two consecutive frames
@@ -48,12 +51,15 @@ const WALK_MS = 3000;
 const WINDOW_MS = 500; // the "best window" width
 const RAMP_MS = 500; // the config claims 0.183 s to 95% of top speed; leave margin
 // WHERE BOTH PAGES ARE MEASURED FROM. player/spawn.js's offline placement — the downward
-// raycast from above the navmesh bounding box's centre — which is deterministic, is the
-// same point in both builds, and is checked below against play.html's own spawn to a
-// centimetre. It has to be forced rather than merely waited for, because index.html also
-// talks to the game server (port 8081), and when one is running `hello.spawn` seats it on
-// a team base 109 m away while play.html, which has no network layer yet, stays here.
+// raycast from above the navmesh bounding box's centre — which is deterministic and is the
+// same point in both builds. It has to be FORCED rather than merely waited for: both pages
+// talk to the game server now, and `hello.spawn` seats each of them on one of its own
+// team's PlayerStarts about a hundred metres from here, on whichever side the server had
+// room for. Neither page can be measured where it lands, so both are teleported here.
 const START = { x: 11.18, y: 14.41, z: -5.39 };
+// How far off a server spawn point a rig may land and still be said to be ON it:
+// server.js jitters each spawn by up to SPAWN_JITTER (1 m) in x and z.
+const SPAWN_TOLERANCE = 1.5;
 // Which way to walk. Swept over the eight compass headings from START: this is the one
 // with a long clear run. 0 and 135-225 walk into geometry within a second — CTF-Face's
 // middle is ramps and rock, which is also why the MEAN speed is below GROUND_SPEED.
@@ -61,6 +67,10 @@ const WALK_YAW_DEG = 45;
 // Headings for the direction test, each walked from START. One with no room (a wall in
 // front) is reported as "blocked" and skipped rather than failed.
 const YAW_TEST_DEG = [45, 90, 315];
+// How far a heading sample may travel before it is read as a respawn rather than a walk:
+// 800 ms of GROUND_SPEED is 7.5 m, and the furthest any of these headings gets is 4.5.
+const MAX_YAW_TRAVEL = 10;
+const YAW_ATTEMPTS = 3;
 
 /* ------------------------------------------------------------------ page adapters --
    Each page exposes the same four probes as SELF-CONTAINED functions (they are stringified
@@ -70,7 +80,6 @@ const YAW_TEST_DEG = [45, 90, 315];
    injected into either page beyond one requestAnimationFrame sampler. */
 const ADAPTERS = {
   "play.html": {
-    url: `${base}/play.html`,
     ready: () => {
       const g = window.__fw;
       return !!(g && g.player && g.map && g.map.userData.mesh && g.rig.position.lengthSq() > 0);
@@ -99,7 +108,6 @@ const ADAPTERS = {
   },
 
   "index.html": {
-    url: `${base}/index.html`,
     ready: () => {
       const rig = document.querySelector("#rig");
       const world = document.querySelector("#world");
@@ -170,11 +178,11 @@ async function sampleWhile(page, probe, body) {
   return page.evaluate(STOP_SAMPLER);
 }
 
-async function measure(browser, name, adapter) {
+async function measure(browser, base, name, adapter) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(adapter.url);
+  await page.goto(`${base}/${name}`);
 
   await page.waitForFunction(adapter.ready, null, { timeout: 45000 });
   // One more beat so the offline navmesh placement and the first clamp have settled.
@@ -255,25 +263,36 @@ async function measure(browser, name, adapter) {
   const floor = await page.evaluate(adapter.floor);
 
   // --- 5. YAW -----------------------------------------------------------------------
+  // BOTH PAGES ARE ON THE LIVE SERVER, and standing still in the middle of CTF-Face for
+  // half a second with nine bots on the map is a way to get shot. A respawn is a teleport
+  // to a team base a hundred metres away, which arrives in this sample as a "walk" of 95 m
+  // in 500 ms and reads as a heading the controller ignored. So a sample that travelled
+  // further than a player possibly could is thrown away and the heading walked again.
   const yawTest = [];
   for (const deg of YAW_TEST_DEG) {
     const radians = (deg * Math.PI) / 180;
-    await page.evaluate(adapter.teleport, { ...START, yawDeg: deg });
-    await page.waitForTimeout(400);
-    const before = await page.evaluate(adapter.pose);
-    await page.keyboard.down("KeyW");
-    await page.waitForTimeout(500);
-    await page.keyboard.up("KeyW");
-    await page.waitForTimeout(300);
-    const after = await page.evaluate(adapter.pose);
-    const dx = after.x - before.x;
-    const dz = after.z - before.z;
-    const moved = Math.hypot(dx, dz);
-    // Forward is world -Z rotated about +Y by the yaw.
-    const wantX = -Math.sin(radians);
-    const wantZ = -Math.cos(radians);
-    const alignment = moved > 2 ? (dx * wantX + dz * wantZ) / moved : null;
-    yawTest.push({ deg, moved, alignment });
+    let attempt = null;
+    for (let tries = 0; tries < YAW_ATTEMPTS && !attempt; tries++) {
+      await page.evaluate(adapter.teleport, { ...START, yawDeg: deg });
+      await page.waitForTimeout(400);
+      const before = await page.evaluate(adapter.pose);
+      await page.keyboard.down("KeyW");
+      await page.waitForTimeout(500);
+      await page.keyboard.up("KeyW");
+      await page.waitForTimeout(300);
+      const after = await page.evaluate(adapter.pose);
+      const dx = after.x - before.x;
+      const dz = after.z - before.z;
+      const moved = Math.hypot(dx, dz);
+      if (moved > MAX_YAW_TRAVEL) continue; // respawned mid-sample; walk it again
+      // Forward is world -Z rotated about +Y by the yaw.
+      const wantX = -Math.sin(radians);
+      const wantZ = -Math.cos(radians);
+      attempt = { deg, moved, alignment: moved > 2 ? (dx * wantX + dz * wantZ) / moved : null };
+    }
+    // Three respawns in a row: report it as a heading with no usable sample rather than
+    // as a heading that was walked wrong.
+    yawTest.push(attempt || { deg, moved: null, alignment: null, interrupted: true });
   }
 
   await page.close();
@@ -281,96 +300,142 @@ async function measure(browser, name, adapter) {
 }
 
 /* -------------------------------------------------------------------------- run -- */
-const browser = await launchQuiet();
-const results = [];
-for (const [name, adapter] of Object.entries(ADAPTERS)) {
-  try {
-    results.push(await measure(browser, name, adapter));
-  } catch (e) {
-    results.push({ name, failed: e.message });
+/**
+ * Measure both pages and print the side-by-side table. Returns the raw measurements plus
+ * the check rows (parity.mjs prints those; run directly, they are printed here).
+ */
+export async function runWalk({ browser, base = baseUrl() } = {}) {
+  const results = [];
+  for (const [name, adapter] of Object.entries(ADAPTERS)) {
+    try {
+      results.push(await measure(browser, base, name, adapter));
+    } catch (e) {
+      results.push({ name, failed: e.message });
+    }
   }
-}
-await browser.close();
 
-const pad = (s, n) => String(s).padEnd(n);
-const col = (s, n) => String(s).padStart(n);
-console.log("");
-console.log(pad(`walk yaw ${WALK_YAW_DEG} deg, ${WALK_MS} ms`, 36) + results.map((r) => col(r.name, 13)).join(""));
-console.log("-".repeat(36 + 13 * results.length));
-const row = (label, f) => console.log(pad(label, 36) + results.map((r) => col(r.failed ? "FAILED" : f(r), 13)).join(""));
-row("spawn x", (r) => round(r.spawn.x, 2));
-row("spawn y", (r) => round(r.spawn.y, 2));
-row("spawn z", (r) => round(r.spawn.z, 2));
-row("mean ground speed (m/s)", (r) => round(r.meanSpeed, 2));
-row(`best ${WINDOW_MS} ms window (m/s)`, (r) => round(r.bestWindow, 2));
-row("max y step per frame (m)", (r) => round(r.maxYStep, 3));
-row("standing hop baseline (m)", (r) => round(r.baseline, 3));
-row("jump peak over baseline (m)", (r) => round(r.peak, 3));
-row("time to peak (ms)", (r) => round(r.peakAt, 0));
-row("back to standing (ms)", (r) => (r.landedAt === null ? "never" : round(r.landedAt, 0)));
-row("camera above drawn floor (m)", (r) => round(r.floor, 3));
-for (const deg of YAW_TEST_DEG) {
-  row(`yaw ${deg} deg: walked (m)`, (r) => round(r.yawTest.find((y) => y.deg === deg).moved, 2));
-  row(`yaw ${deg} deg: heading alignment`, (r) => {
-    const a = r.yawTest.find((y) => y.deg === deg).alignment;
-    return a === null ? "blocked" : round(a, 3);
-  });
-}
-console.log("");
-
-/* ------------------------------------------------------------------------ assert -- */
-const problems = [];
-for (const r of results) {
-  if (r.failed) {
-    problems.push(`${r.name}: ${r.failed}`);
-    continue;
-  }
-  if (r.errors.length) problems.push(`${r.name}: page errors: ${r.errors.join("; ")}`);
-  const off = Math.abs(r.bestWindow - GROUND_SPEED) / GROUND_SPEED;
-  if (off > SPEED_TOLERANCE)
-    problems.push(`${r.name}: best-window speed ${r.bestWindow.toFixed(2)} is ${(off * 100).toFixed(1)}% off ${GROUND_SPEED}`);
-  if (r.maxYStep > MAX_Y_STEP) problems.push(`${r.name}: y jumped ${r.maxYStep.toFixed(3)} m in one frame (limit ${MAX_Y_STEP})`);
-  if (!(r.peak > 0.3)) problems.push(`${r.name}: jump only reached ${r.peak.toFixed(3)} m over the standing baseline`);
-  if (r.landedAt === null || r.landedAt > 1000) problems.push(`${r.name}: the jump did not return to the standing height within 1 s`);
-  // A heading can be deflected by the map itself — CTF-Face's middle is rock, and the
-  // clamp slides you along it — so what is asserted is that at least two of the three
-  // headings are travelled DEAD ON, and (below) that both pages are deflected by the same
-  // amount on the rest. A yaw the controller ignored entirely would fail every heading.
-  const aligned = r.yawTest.filter((y) => y.alignment !== null);
-  if (aligned.length < 2) problems.push(`${r.name}: fewer than two headings had room to walk`);
-  if (aligned.filter((y) => y.alignment > 0.98).length < 2)
-    problems.push(`${r.name}: fewer than two headings were walked dead on (${aligned.map((y) => `${y.deg}:${y.alignment.toFixed(3)}`).join(" ")})`);
-}
-
-const [play, index] = results;
-if (!play.failed && !index.failed) {
-  const compare = (label, a, b, limit, unit = "m") => {
-    const d = Math.abs(a - b);
-    console.log(`${pad(label, 36)}${col(round(d, 3) + " " + unit, 13)}${d > limit ? "  OVER LIMIT " + limit : ""}`);
-    if (d > limit) problems.push(`${label}: the two pages differ by ${d.toFixed(3)} ${unit} (limit ${limit})`);
-  };
-  console.log("play.html vs index.html");
-  console.log("-".repeat(49));
-  // play.html has no network layer yet, so its spawn IS the offline placement and can be
-  // checked against START. index.html's cannot: with the game server up it is seated on a
-  // team base instead, which is why both pages are teleported to START to be measured.
-  compare("play.html spawn vs START", 0, Math.hypot(play.spawn.x - START.x, play.spawn.y - START.y, play.spawn.z - START.z), 0.01);
-  compare("camera above drawn floor", play.floor, index.floor, 0.02);
-  compare("best-window speed", play.bestWindow, index.bestWindow, 0.5, "m/s");
-  compare("jump peak", play.peak, index.peak, 0.05);
-  compare("time to peak", play.peakAt, index.peakAt, 40, "ms");
-  compare("back to standing", play.landedAt, index.landedAt, 40, "ms");
-  compare("standing hop baseline", play.baseline, index.baseline, 0.02);
-  compare("mean ground speed", play.meanSpeed, index.meanSpeed, 0.5, "m/s");
+  const pad = (s, n) => String(s).padEnd(n);
+  const col = (s, n) => String(s).padStart(n);
+  console.log("");
+  console.log(pad(`walk yaw ${WALK_YAW_DEG} deg, ${WALK_MS} ms`, 36) + results.map((r) => col(r.name, 13)).join(""));
+  console.log("-".repeat(36 + 13 * results.length));
+  const row = (label, f) => console.log(pad(label, 36) + results.map((r) => col(r.failed ? "FAILED" : f(r), 13)).join(""));
+  row("spawn x", (r) => round(r.spawn.x, 2));
+  row("spawn y", (r) => round(r.spawn.y, 2));
+  row("spawn z", (r) => round(r.spawn.z, 2));
+  row("mean ground speed (m/s)", (r) => round(r.meanSpeed, 2));
+  row(`best ${WINDOW_MS} ms window (m/s)`, (r) => round(r.bestWindow, 2));
+  row("max y step per frame (m)", (r) => round(r.maxYStep, 3));
+  row("standing hop baseline (m)", (r) => round(r.baseline, 3));
+  row("jump peak over baseline (m)", (r) => round(r.peak, 3));
+  row("time to peak (ms)", (r) => round(r.peakAt, 0));
+  row("back to standing (ms)", (r) => (r.landedAt === null ? "never" : round(r.landedAt, 0)));
+  row("camera above drawn floor (m)", (r) => round(r.floor, 3));
   for (const deg of YAW_TEST_DEG) {
-    const a = play.yawTest.find((y) => y.deg === deg).alignment;
-    const b = index.yawTest.find((y) => y.deg === deg).alignment;
-    if (a !== null && b !== null) compare(`yaw ${deg} deg heading alignment`, a, b, 0.02, "");
+    row(`yaw ${deg} deg: walked (m)`, (r) => {
+      const y = r.yawTest.find((t) => t.deg === deg);
+      return y.interrupted ? "respawned" : round(y.moved, 2);
+    });
+    row(`yaw ${deg} deg: heading alignment`, (r) => {
+      const a = r.yawTest.find((y) => y.deg === deg).alignment;
+      return a === null ? "blocked" : round(a, 3);
+    });
   }
+  console.log("");
+
+  /* ------------------------------------------------------------------------ assert -- */
+  const problems = [];
+  for (const r of results) {
+    if (r.failed) {
+      problems.push(`${r.name}: ${r.failed}`);
+      continue;
+    }
+    if (r.errors.length) problems.push(`${r.name}: page errors: ${r.errors.join("; ")}`);
+    const off = Math.abs(r.bestWindow - GROUND_SPEED) / GROUND_SPEED;
+    if (off > SPEED_TOLERANCE)
+      problems.push(`${r.name}: best-window speed ${r.bestWindow.toFixed(2)} is ${(off * 100).toFixed(1)}% off ${GROUND_SPEED}`);
+    if (r.maxYStep > MAX_Y_STEP) problems.push(`${r.name}: y jumped ${r.maxYStep.toFixed(3)} m in one frame (limit ${MAX_Y_STEP})`);
+    if (!(r.peak > 0.3)) problems.push(`${r.name}: jump only reached ${r.peak.toFixed(3)} m over the standing baseline`);
+    if (r.landedAt === null || r.landedAt > 1000) problems.push(`${r.name}: the jump did not return to the standing height within 1 s`);
+    // A heading can be deflected by the map itself — CTF-Face's middle is rock, and the
+    // clamp slides you along it — so what is asserted is that at least two of the three
+    // headings are travelled DEAD ON, and (below) that both pages are deflected by the same
+    // amount on the rest. A yaw the controller ignored entirely would fail every heading.
+    const aligned = r.yawTest.filter((y) => y.alignment !== null);
+    if (aligned.length < 2)
+      problems.push(
+        `${r.name}: fewer than two headings had room to walk (${r.yawTest.map((y) => `${y.deg}:${y.interrupted ? "respawned" : y.alignment === null ? "blocked" : "ok"}`).join(" ")})`
+      );
+    if (aligned.filter((y) => y.alignment > 0.98).length < 2)
+      problems.push(`${r.name}: fewer than two headings were walked dead on (${aligned.map((y) => `${y.deg}:${y.alignment.toFixed(3)}`).join(" ")})`);
+  }
+
+  const [play, index] = results;
+  const gaps = {};
+  if (!play.failed && !index.failed) {
+    const compare = (label, a, b, limit, unit = "m") => {
+      const d = Math.abs(a - b);
+      gaps[label] = d;
+      console.log(`${pad(label, 36)}${col(round(d, 3) + " " + unit, 13)}${d > limit ? "  OVER LIMIT " + limit : ""}`);
+      if (d > limit) problems.push(`${label}: the two pages differ by ${d.toFixed(3)} ${unit} (limit ${limit})`);
+    };
+    console.log("play.html vs index.html");
+    console.log("-".repeat(49));
+    compare("camera above drawn floor", play.floor, index.floor, 0.02);
+    compare("best-window speed", play.bestWindow, index.bestWindow, 0.5, "m/s");
+    compare("jump peak", play.peak, index.peak, 0.05);
+    compare("time to peak", play.peakAt, index.peakAt, 40, "ms");
+    compare("back to standing", play.landedAt, index.landedAt, 40, "ms");
+    compare("standing hop baseline", play.baseline, index.baseline, 0.02);
+    compare("mean ground speed", play.meanSpeed, index.meanSpeed, 0.5, "m/s");
+    for (const deg of YAW_TEST_DEG) {
+      const a = play.yawTest.find((y) => y.deg === deg).alignment;
+      const b = index.yawTest.find((y) => y.deg === deg).alignment;
+      if (a !== null && b !== null) compare(`yaw ${deg} deg heading alignment`, a, b, 0.02, "");
+    }
+  }
+
+  /* --------------------------------------------------------------------- the rows --
+     The detail above is what you read when something is wrong. These are the eight lines
+     that say whether the ported player moves like the A-Frame one — the same eight the
+     parity table carries. A row is failed by any `problem` that names its subject. */
+  const checks = createChecks();
+  const clean = (...keys) => !problems.some((p) => keys.some((k) => p.includes(k)));
+  const both = (f) => results.map((r) => (r.failed ? "FAILED" : f(r))).join(" / ");
+  const gap = (label, unit = "m") => (gaps[label] === undefined ? "" : ` (gap ${round(gaps[label], 3)} ${unit})`);
+  checks.row("page loads with no errors", both((r) => (r.errors.length ? `${r.errors.length} errors` : "clean")), clean("page errors", "FAILED"));
+  // Both pages are seated by the server, so what can be asserted about a spawn is that
+  // applyLocalSpawn put the rig ON the PlayerStart hello named — not near it, and not at
+  // the origin, which is where a rig that was never spawned sits.
+  const onStart = (r) =>
+    r.failed
+      ? null
+      : Math.min(
+          ...[...SPAWNS.red, ...SPAWNS.blue].map((s) => Math.hypot(r.spawn.x - s.x, r.spawn.y - s.y, r.spawn.z - s.z))
+        );
+  checks.row(
+    "spawned on a server PlayerStart (m off)",
+    both((r) => round(onStart(r), 2)),
+    results.every((r) => onStart(r) !== null && onStart(r) < SPAWN_TOLERANCE)
+  );
+  checks.row(`ground speed, best ${WINDOW_MS} ms (m/s)`, both((r) => round(r.bestWindow, 2)) + gap("best-window speed", "m/s"), clean("best-window speed"));
+  checks.row("no navmesh slingshot (max y step, m)", both((r) => round(r.maxYStep, 3)), clean("y jumped"));
+  checks.row("jump peak over baseline (m)", both((r) => round(r.peak, 3)) + gap("jump peak"), clean("jump only reached", "jump peak"));
+  checks.row("jump timing up/down (ms)", both((r) => `${round(r.peakAt, 0)}+${r.landedAt === null ? "never" : round(r.landedAt, 0)}`), clean("did not return", "time to peak", "back to standing"));
+  checks.row("camera above drawn floor (m)", both((r) => round(r.floor, 3)) + gap("camera above drawn floor"), clean("camera above drawn floor"));
+  checks.row("heading follows the yaw", both((r) => `${r.yawTest.filter((y) => y.alignment > 0.98).length}/${YAW_TEST_DEG.length} dead on`), clean("dead on", "room to walk", "heading alignment"));
+
+  return { results, problems, rows: checks.rows };
 }
 
-if (problems.length) {
-  console.log("\nFAIL\n" + problems.map((p) => `  - ${p}`).join("\n"));
-  process.exit(1);
+if (isMain(import.meta.url)) {
+  const browser = await launchQuiet();
+  const { problems, rows } = await runWalk({ browser, base: baseUrl() });
+  await browser.close();
+  printChecks(rows, { title: "walk" });
+  if (problems.length) {
+    console.log("\nFAIL\n" + problems.map((p) => `  - ${p}`).join("\n"));
+    process.exit(1);
+  }
+  console.log("\nOK");
 }
-console.log("\nOK");
