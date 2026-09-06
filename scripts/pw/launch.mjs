@@ -8,7 +8,9 @@
 // so they are unaffected.
 import { chromium } from "playwright";
 
-export const QUIET_ARGS = ["--window-position=4000,3000", "--window-size=1280,720"];
+// --mute-audio silences the tab's output only: the AudioContext still runs, so anything a
+// probe measures about sound (play counts, timing) is unaffected — nobody hears it.
+export const QUIET_ARGS = ["--window-position=4000,3000", "--window-size=1280,720", "--mute-audio"];
 
 /** chromium.launch with the quiet window flags; pass any other launch options through. */
 export function launchQuiet(options = {}) {
