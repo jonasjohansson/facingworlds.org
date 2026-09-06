@@ -9,6 +9,8 @@ import { createInput } from "../engine/input.js";
 import { buildWorld } from "../scene/world.js";
 import { PlayerController } from "../player/controller.js";
 import { placePlayerOnNavmesh } from "../player/spawn.js";
+import { WeaponPickups } from "../systems/weapon-pickup.js";
+import { CtfFlags } from "../systems/ctf-flag.js";
 import { SpaceEnvironment, BaseCoronas } from "../systems/space-environment.js";
 import { EarthSphere } from "../systems/earth-sphere.js";
 import { BackgroundMusic } from "../systems/background-music.js";
@@ -63,6 +65,13 @@ async function boot() {
     leaves the rig where it is rather than being ordered around it.
   */
   placePlayerOnNavmesh(game).catch((e) => handleError(e, "spawn placement"));
+
+  // Pickups and CTF read game.rig's position THIS frame to decide whether to ask the
+  // server for a pickup or a flag touch, so they go after the player controller. They
+  // go before the remote avatars because a carried flag reads its carrier's node, and a
+  // remote rig moved after this would drag the flag a frame behind it.
+  game.register("weapon-pickup", new WeaponPickups(game));
+  game.register("ctf-flag", new CtfFlags(game));
 
   /*
     Sky: the CTF-Face skybox, the planet in it, and the coronas on the towers.
