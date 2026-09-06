@@ -76,26 +76,33 @@ test("point lights keep A-Frame's decay default of 1, not three's 2", () => {
   assert.equal(glow.distance, 18.68);
 });
 
-test("A-Frame's translateY(-1) offset is reproduced for hemisphere/spot/directional", () => {
-  // A-Frame's light component does `el.getObject3D('light').translateY(-1)` for these
-  // three types (its HACK for issue #1624), so the light never sat where the markup's
-  // `position` said. The hemisphere light has no rotation, so it is a plain -1 in y.
+test("A-Frame's translateY(-1) CANCELS three's default up, leaving no offset at all", () => {
+  // A-Frame's light component does `el.getObject3D('light').translateY(-1)` for spot,
+  // directional and hemisphere lights (its HACK for issue #1624). three constructs those
+  // three classes at Object3D.DEFAULT_UP — local (0,1,0) — so the translate puts them
+  // back on the entity origin rather than a unit below the markup's `position`.
+  assert.deepEqual(new THREE.HemisphereLight().position.toArray(), [0, 1, 0]);
+  assert.deepEqual(new THREE.DirectionalLight().position.toArray(), [0, 1, 0]);
+  assert.deepEqual(new THREE.SpotLight().position.toArray(), [0, 1, 0]);
+  // PointLight starts at the origin, which is why A-Frame never translated it.
+  assert.deepEqual(new THREE.PointLight().position.toArray(), [0, 0, 0]);
+
   const hemi = makeLight(LIGHTS[0]);
-  assert.equal(hemi.position.y, 14.08152 - 1);
-  // The point lights are NOT offset.
+  assert.deepEqual(hemi.position.toArray(), [9.14829, 14.08152, 0]);
   const bridge = makeLight(LIGHTS[2]);
   assert.equal(bridge.position.y, 18.68);
 });
 
-test("the interior spots aim where rotation + the -1 offset actually put them", () => {
-  // rotation="-90 0 0" turns the entity-local (0,-1,0) light offset into world +z, and
-  // the entity-local (0,0,-1) target into world -y. The cone therefore leans 45 degrees
-  // toward -z rather than pointing straight down — a quirk of the markup, reproduced.
+test("the interior spots sit at the markup position and point straight down", () => {
+  // The light is at the entity position (above), and the target is parented at the
+  // entity-local (0,0,-1), which rotation="-90 0 0" turns into world (0,-1,0) from the
+  // light. So the cone aims straight down — no 45-degree lean.
   const spot = makeLight(LIGHTS[4]);
+  assert.deepEqual(spot.position.toArray(), [-91.14251, 13.44927, 1.07968]);
   const dir = new THREE.Vector3().subVectors(spot.target.position, spot.position).normalize();
   assert.ok(Math.abs(dir.x) < 1e-6);
-  assert.ok(Math.abs(dir.y - -Math.SQRT1_2) < 1e-6);
-  assert.ok(Math.abs(dir.z - -Math.SQRT1_2) < 1e-6);
+  assert.ok(Math.abs(dir.y - -1) < 1e-6);
+  assert.ok(Math.abs(dir.z) < 1e-6);
   assert.ok(Math.abs(spot.angle - THREE.MathUtils.degToRad(70)) < 1e-9);
   assert.equal(spot.penumbra, 0.6);
 });
@@ -103,5 +110,15 @@ test("the interior spots aim where rotation + the -1 offset actually put them", 
 test("the key light aims at the world origin, as three's untouched target does", () => {
   const key = makeLight(LIGHTS[3]);
   assert.deepEqual(key.target.position.toArray(), [0, 0, 0]);
-  assert.deepEqual(key.position.toArray(), [163.49, 221.87 - 1, -233.55]);
+  assert.deepEqual(key.position.toArray(), [163.49, 221.87, -233.55]);
+});
+
+test("a perspective shadow caster gets A-Frame's shadowCameraFov default of 90", () => {
+  // A-Frame's updateShadow() wrote shadowCameraFov (schema default 90) on every caster;
+  // only the perspective shadow cameras — spot and point — have somewhere to put it.
+  // Nothing in LIGHTS casts from a point light today, so this pins the branch directly.
+  const point = makeLight({ type: "point", color: "#ffffff", intensity: 1, castShadow: true });
+  assert.equal(point.castShadow, true);
+  assert.equal(point.shadow.camera.isOrthographicCamera, undefined);
+  assert.equal(point.shadow.camera.fov, 90);
 });

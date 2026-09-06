@@ -43,6 +43,10 @@ export class EnvironmentMap {
     // handle and dispose the target itself - disposing just its .texture would leak the
     // framebuffer.
     this.envRenderTarget = null;
+    // TextureLoader.load is async and nothing cancels it, so its callback can land after
+    // dispose() has already cleared scene.environment. Without this flag it would then
+    // re-assign the environment (and build a PMREM target nothing will ever free).
+    this.disposed = false;
 
     // `model-loaded` used to bubble to the scene, so one listener caught the world, the
     // navmesh, the soldier and every remote avatar as they streamed in. Models are
@@ -73,7 +77,7 @@ export class EnvironmentMap {
     new THREE.TextureLoader().load(
       this.opts.src,
       (texture) => {
-        if (!this.opts.enabled) {
+        if (this.disposed || !this.opts.enabled) {
           texture.dispose();
           return;
         }
@@ -160,6 +164,7 @@ export class EnvironmentMap {
   }
 
   dispose() {
+    this.disposed = true;
     if (this.offModelLoaded) this.offModelLoaded();
     this.disposeEnvMap();
   }

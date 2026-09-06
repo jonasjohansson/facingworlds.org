@@ -30,9 +30,15 @@ const DEFAULTS = {
 
 /**
  * What AFRAME.utils.device.isMobile() answered. A-Frame ran the detectmobilebrowsers.com
- * pair of regexes; this keeps the first (the substantive one) verbatim and drops the
- * second, a table of four-character device-code prefixes for pre-2010 feature phones that
- * cannot run WebGL2 at all. iPadOS is added because it reports a desktop Safari UA.
+ * pair of regexes and then OR-ed in `isIOS() || isTablet() || isR7()`. This keeps the
+ * first regex (the substantive one) verbatim and drops the second, a table of
+ * four-character device-code prefixes for pre-2010 feature phones that cannot run WebGL2
+ * at all. The third regex below stands in for that `isIOS() || isTablet()` branch —
+ * A-Frame's isTablet is `/Nexus (7|9)|xoom|sch-i800|playbook|tablet|kindle/i` plus its
+ * iPad check — because the first regex only matches Android with a literal "mobile"
+ * token in the UA and knows nothing about iPads, the PlayBook or Kindle Fire's Silk.
+ * (isR7, one 2014 Android handset, is not worth a fourth test.) iPadOS gets its own
+ * check because it reports a desktop Safari UA with no "iPad" in it at all.
  */
 function isMobileBrowser() {
   const ua = window.navigator.userAgent || window.navigator.vendor || "";
@@ -55,12 +61,42 @@ function isHeadsetBrowser() {
   return /OculusBrowser|Quest|Pico|Vive|SamsungBrowser.+VR|Wolvic/i.test(ua);
 }
 
+/**
+ * "high" = desktop, "low" = mobile/tablet/headset browsers.
+ *
+ * A free function, not just a method, because the answer is needed BEFORE the class can
+ * exist: QualityTier is registered last in buildWorld (it reads the key light and the env
+ * map by then), while the map's textures are parsed several awaits earlier. scene/world.js
+ * calls this to filter those textures at the right tier — see ANISOTROPY below.
+ */
+export function detectTier() {
+  const override = new URLSearchParams(window.location.search).get("quality");
+  if (override === "low" || override === "high") return override;
+
+  if (isMobileBrowser() || isHeadsetBrowser()) return "low";
+  // Very small logical viewports are almost always phones that lie in the UA string.
+  if (Math.min(window.screen.width, window.screen.height) < 600) return "low";
+  return "high";
+}
+
+/**
+ * Anisotropic filtering per tier. It costs almost nothing on desktop and does a lot for
+ * the grazing-angle floor and ramp textures.
+ *
+ * ORDERING CONSTRAINT: THREE.Texture.DEFAULT_ANISOTROPY is read in the Texture
+ * CONSTRUCTOR, so it only reaches textures created after the constructor below runs.
+ * Anything loading a texture before `game.register("quality-tier", …)` — today that is
+ * the map itself — has to set `texture.anisotropy` from this table explicitly. See
+ * scene/world.js.
+ */
+export const ANISOTROPY = { high: 8, low: 1 };
+
 export class QualityTier {
   constructor(game, opts = {}) {
     this.game = game;
     this.opts = { ...DEFAULTS, ...opts };
 
-    this.tier = this.detectTier();
+    this.tier = detectTier();
     // What `el.setAttribute("data-quality-tier", …)` on <a-scene> did; styles.css has no
     // selector on it today, but the console and any future CSS can still read it.
     document.body.dataset.qualityTier = this.tier;
@@ -76,9 +112,10 @@ export class QualityTier {
       this.setupShadows(renderer, isHigh);
     }
 
-    // Anisotropic filtering costs almost nothing on desktop and does a lot for the
-    // grazing-angle floor and ramp textures.
-    THREE.Texture.DEFAULT_ANISOTROPY = isHigh ? 8 : 1;
+    // Everything loaded from here on (soldier, weapons, remote avatars, pickups) picks
+    // this up in its Texture constructor. Textures that already exist do NOT — see the
+    // ordering constraint on ANISOTROPY above.
+    THREE.Texture.DEFAULT_ANISOTROPY = ANISOTROPY[this.tier];
 
     this.setupLights(isHigh);
     this.setupEnvironment(isHigh);
@@ -88,19 +125,6 @@ export class QualityTier {
     // pulled rather than pushed.
 
     console.info(`[quality-tier] ${this.tier} (dpr cap ${renderer ? renderer.getPixelRatio() : "n/a"})`);
-  }
-
-  /**
-   * "high" = desktop, "low" = mobile/tablet/headset browsers.
-   */
-  detectTier() {
-    const override = new URLSearchParams(window.location.search).get("quality");
-    if (override === "low" || override === "high") return override;
-
-    if (isMobileBrowser() || isHeadsetBrowser()) return "low";
-    // Very small logical viewports are almost always phones that lie in the UA string.
-    if (Math.min(window.screen.width, window.screen.height) < 600) return "low";
-    return "high";
   }
 
   /**

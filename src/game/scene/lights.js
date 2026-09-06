@@ -27,6 +27,9 @@ const DEFAULTS = {
   shadowMapHeight: 512,
   shadowCameraNear: 0.5,
   shadowCameraFar: 500,
+  // Only the perspective shadow cameras (spot, point) read this; A-Frame's schema
+  // default was 90 and its updateShadow() wrote it on every caster.
+  shadowCameraFov: 90,
   shadowCameraLeft: -5,
   shadowCameraRight: 5,
   shadowCameraTop: 5,
@@ -243,7 +246,6 @@ export const LIGHTS = [
 // Scratch entity used to turn a markup `position`/`rotation` pair into the world-space
 // transform A-Frame's <a-entity> gave the light. Reused; never added to a scene.
 const entity = new THREE.Object3D();
-const localOffset = new THREE.Vector3();
 
 /**
  * One `<a-entity light="…" position="…" rotation="…">`, as a three light.
@@ -252,13 +254,19 @@ const localOffset = new THREE.Vector3();
  * A-Frame's light component (assets/libraries/aframe, src/components/light.js):
  *
  *  1. "HACK solution for issue #1624": for spot, directional and hemisphere lights the
- *     light object3D is `translateY(-1)`-ed inside the entity. So the light never sat at
- *     the markup's `position`; it sat one unit below it, IN ENTITY SPACE — which for the
- *     two interior spots (rotation -90 0 0) means one unit along world +z, not -y.
- *  2. A spot light's target is parented to the entity at local (0, 0, -1). Combined with
- *     (1), the interior spots point 45 degrees down-and-back rather than straight down.
- *     A directional light's target is left untouched at the world origin, which is what
- *     the key light's comment above relies on.
+ *     light object3D is `translateY(-1)`-ed inside the entity. That does NOT push the
+ *     light a unit below the markup's `position` — it CANCELS a three default. three
+ *     constructs DirectionalLight, HemisphereLight and SpotLight sitting at
+ *     `Object3D.DEFAULT_UP`, i.e. local (0, 1, 0) (PointLight and AmbientLight are the
+ *     exceptions: they start at the origin, which is why A-Frame leaves them alone).
+ *     translateY(-1) puts those three back at local (0, 0, 0). Net effect: EVERY light
+ *     in the rig sits exactly at its entity position, with no offset and no tilt — which
+ *     is why nothing below rotates the light's own placement.
+ *  2. A spot light's target is parented to the entity at local (0, 0, -1), so the cone
+ *     aims down the entity's -z. For the two interior spots (rotation -90 0 0) that is
+ *     world (0, -1, 0) from the light: straight down. A directional light's target is
+ *     left untouched at the world origin, which is what the key light's comment above
+ *     relies on.
  *
  * The returned light carries `.target` where it has one; the caller must add that target
  * to the same parent, or three reads an identity matrix for it.
@@ -288,19 +296,18 @@ export function makeLight(spec) {
   }
   if (d.name) light.name = d.name;
 
-  // The entity transform the markup gave this light. A-Frame's rotation component sets
-  // the Euler in three's default XYZ order; the only rotated lights in the rig turn
-  // about x alone, where the order cannot matter.
-  entity.position.set(...(d.position || [0, 0, 0]));
-  const [rx, ry, rz] = d.rotation || [0, 0, 0];
-  entity.rotation.set(THREE.MathUtils.degToRad(rx), THREE.MathUtils.degToRad(ry), THREE.MathUtils.degToRad(rz));
-  entity.updateMatrix();
-
-  const offsetsY = d.type === "spot" || d.type === "directional" || d.type === "hemisphere";
-  localOffset.set(0, offsetsY ? -1 : 0, 0).applyMatrix4(entity.matrix);
-  light.position.copy(localOffset);
+  // Point (1) above: the translateY(-1) cancels the DEFAULT_UP three ships these lights
+  // at, so the light lands on the entity origin whatever its type.
+  light.position.set(...(d.position || [0, 0, 0]));
 
   if (d.type === "spot") {
+    // The entity transform the markup gave this light, used only to place the target:
+    // A-Frame's rotation component sets the Euler in three's default XYZ order, and the
+    // only rotated lights in the rig turn about x alone, where the order cannot matter.
+    entity.position.set(...(d.position || [0, 0, 0]));
+    const [rx, ry, rz] = d.rotation || [0, 0, 0];
+    entity.rotation.set(THREE.MathUtils.degToRad(rx), THREE.MathUtils.degToRad(ry), THREE.MathUtils.degToRad(rz));
+    entity.updateMatrix();
     light.target.position.set(0, 0, -1).applyMatrix4(entity.matrix);
   }
 
@@ -317,6 +324,15 @@ export function makeLight(spec) {
       light.shadow.camera.right = d.shadowCameraRight;
       light.shadow.camera.top = d.shadowCameraTop;
       light.shadow.camera.bottom = d.shadowCameraBottom;
+    } else {
+      // Spot and point casters get a perspective shadow camera, and A-Frame's
+      // updateShadow() set its fov from the schema (default 90) as well. Nothing in the
+      // rig casts from a spot or point today — the key light is the only caster — so
+      // this branch is dormant, but leaving it out is how the next runtime-built caster
+      // (ctf-flag's glow, say) would silently get a different frustum than it did on
+      // A-Frame. Note three overwrites a SpotLightShadow's fov from the cone angle every
+      // frame; the value below survives only on a PointLightShadow.
+      light.shadow.camera.fov = d.shadowCameraFov;
     }
     light.shadow.camera.updateProjectionMatrix();
   }

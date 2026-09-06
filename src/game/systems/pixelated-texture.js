@@ -21,8 +21,20 @@ function makeTexturePixelated(texture) {
   texture.needsUpdate = true;
 }
 
-/** Apply nearest-neighbour magnification to every baseColor map under `root`. */
-export function pixelate(root) {
+/**
+ * Apply nearest-neighbour magnification to every baseColor map under `root`, and — when
+ * `anisotropy` is given — the tier's anisotropic filtering to every texture under it.
+ *
+ * WHY ANISOTROPY IS PASSED IN RATHER THAN LEFT TO THE RENDERER. A texture reads
+ * THREE.Texture.DEFAULT_ANISOTROPY once, in its CONSTRUCTOR. systems/quality-tier.js sets
+ * that global, but it is registered at the END of buildWorld (it needs the key light and
+ * the env map to exist), by which point GLTFLoader has long since constructed the map's
+ * textures — they would keep anisotropy 1 forever while everything loaded afterwards got
+ * 8. So scene/world.js reads the tier with `detectTier()` before its first attachModel and
+ * hands the value here. Anything else that loads textures before quality-tier is
+ * registered has to do the same.
+ */
+export function pixelate(root, { anisotropy } = {}) {
   if (!root) return;
   root.traverse((child) => {
     if (!child.isMesh || !child.material) return;
@@ -31,7 +43,17 @@ export function pixelate(root) {
     // then set filter properties on. Normalising first does what it meant to do.
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     for (const material of materials) {
-      if (material && material.map) makeTexturePixelated(material.map);
+      if (!material) continue;
+      if (material.map) makeTexturePixelated(material.map);
+      if (typeof anisotropy !== "number") continue;
+      // Every slot, not just baseColor: the normal and occlusionRoughnessMetallic maps
+      // are sampled at the same grazing angles as the albedo and shimmer the same way.
+      for (const value of Object.values(material)) {
+        if (value && value.isTexture && value.anisotropy !== anisotropy) {
+          value.anisotropy = anisotropy;
+          value.needsUpdate = true;
+        }
+      }
     }
   });
 }

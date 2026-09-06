@@ -4,7 +4,7 @@ import { ASSETS, attachModel } from "../engine/assets.js";
 import { LIGHTS, makeLight } from "./lights.js";
 import { EnvironmentMap } from "../systems/environment-map.js";
 import { GltfAnimationPointer } from "../systems/gltf-animation-pointer.js";
-import { QualityTier } from "../systems/quality-tier.js";
+import { ANISOTROPY, detectTier, QualityTier } from "../systems/quality-tier.js";
 import { pixelate } from "../systems/pixelated-texture.js";
 import { createNavClamp, mergeNavmesh } from "../player/navclamp.js";
 
@@ -31,6 +31,19 @@ export async function buildWorld(game) {
   scene.add(lights);
 
   /*
+    TEXTURE FILTERING HAS TO BE DECIDED BEFORE THE FIRST attachModel. The QualityTier
+    system is registered at the bottom of this function because it reads the key light by
+    name and the env map by registration — but the global it sets,
+    THREE.Texture.DEFAULT_ANISOTROPY, is only read by the Texture CONSTRUCTOR, so it
+    reaches nothing GLTFLoader has already built. Detecting the tier here (the same pure
+    function QualityTier itself calls, so the two can never disagree) and handing the
+    value to pixelate() is what keeps the map's textures at the tier's anisotropy instead
+    of a stale 1. Any future loader that runs before the register() call below needs the
+    same treatment.
+  */
+  const anisotropy = ANISOTROPY[detectTier()];
+
+  /*
     World + NavMesh.
 
     BOTH STAY AT THE IDENTITY TRANSFORM. The x2.33552 world scale that brings CTF-Face
@@ -55,7 +68,7 @@ export async function buildWorld(game) {
       o.receiveShadow = true;
     }
   });
-  pixelate(mapRoot);
+  pixelate(mapRoot, { anisotropy });
   game.world.add(mapNode);
   game.map = mapNode;
   game.register(

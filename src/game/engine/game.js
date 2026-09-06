@@ -73,6 +73,7 @@ export function createGame({ canvas, pixelRatioCap = 2 } = {}) {
     rig: null,
     player: null,
     world: null,
+    map: null,
     navmesh: null,
     navClamp: null,
 
