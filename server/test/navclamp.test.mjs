@@ -31,6 +31,17 @@ function flatGrid(size, segments) {
   return g;
 }
 
+// Two flat islands with a 1 m hole between them: CTF-Face's blue base and the main mesh
+// in miniature. mergeVertices cannot bridge the hole, so createZone reports two groups.
+function twoIslands() {
+  const root = new THREE.Group();
+  const a = new THREE.Mesh(flatGrid(10, 4));
+  const b = new THREE.Mesh(flatGrid(10, 4));
+  b.position.x = 11;
+  root.add(a, b);
+  return mergeNavmesh(root);
+}
+
 const v3 = () => new THREE.Vector3();
 
 test("a step off the edge is clamped to the mesh and lands on the polygon's y", () => {
@@ -64,9 +75,11 @@ test("a start off the mesh is snapped to the closest node, not dropped", () => {
   }
 });
 
-test("heightAt reads the polygon's plane, and gives up rather than guess", () => {
+test("heightAt reads the polygon's plane, and reports how far away it was", () => {
   const flat = createNavClamp(flatGrid(10, 4));
-  assert.ok(Math.abs(flat.heightAt({ x: 5, z: 5 })) < 1e-6);
+  const under = flat.heightAt({ x: 5, z: 5 });
+  assert.ok(Math.abs(under.y) < 1e-6);
+  assert.ok(under.dist < 1e-6, `standing on it, got dist=${under.dist}`);
 
   // A floor tipped 10 degrees about x: a point at world z lies at y = -z * tan(10deg).
   const sloped = flatGrid(10, 4);
@@ -74,7 +87,7 @@ test("heightAt reads the polygon's plane, and gives up rather than guess", () =>
   const clamp = createNavClamp(sloped);
   for (const z of [2.5, 5, 7.5]) {
     const expected = -z * Math.tan(THREE.MathUtils.degToRad(10));
-    const got = clamp.heightAt({ x: 5, z });
+    const got = clamp.heightAt({ x: 5, z }).y;
     // Not 1e-3: zone vertices are rounded to two decimals (see the note on flatGrid),
     // and a plane fitted through three of them is out by up to ~4 mm here. The rig's y
     // has always been quantised to the centimetre by this; nothing regressed.
@@ -83,6 +96,13 @@ test("heightAt reads the polygon's plane, and gives up rather than guess", () =>
 
   // Off the end of the world: three-pathfinding's getGroup gives up past 50 units.
   assert.equal(clamp.heightAt({ x: 1000, z: 1000 }), null);
+
+  // Inside the 50 m radius it always answers, which is why `dist` exists and why the
+  // caller gets a `maxDist` to say what it considers floor. 20 m off the east edge is
+  // still an answer; it is just not one you should stand on.
+  const far = flat.heightAt({ x: 30, z: 5 });
+  assert.ok(far && far.dist > 19 && far.dist < 21, `got ${JSON.stringify(far)}`);
+  assert.equal(flat.heightAt({ x: 30, z: 5 }, 1.0), null, "maxDist turns it into a null");
 });
 
 test("reset() forgets the cached polygon, so a respawn does not walk from the old one", () => {
@@ -101,6 +121,73 @@ test("reset() forgets the cached polygon, so a respawn does not walk from the ol
   clamp.reset();
   clamp.step(far, { x: far.x, y: 0, z: far.z + 0.15 }, out);
   assert.ok(Math.hypot(out.x - far.x, out.z - far.z) < 1, `re-acquired at the new spot, got (${out.x}, ${out.z})`);
+});
+
+test("a blocked step re-acquires at its destination, so an island spawn is not a prison", () => {
+  // Six of the ten blue PlayerStarts are on navmesh islands that clampStep can never
+  // leave, because it only ever returns polygons from the group it was handed. When a
+  // step asks to move and gets nothing, we look the group up again at the DESTINATION.
+  const geo = twoIslands();
+  const out = v3();
+
+  // ESCAPE. The destination is real floor on the far island, so we take it.
+  const clamp = createNavClamp(geo);
+  clamp.step({ x: 5, y: 0, z: 5 }, { x: 5.15, y: 0, z: 5 }, out, 0); // caches island A
+  const pos = { x: out.x, y: out.y, z: out.z };
+  for (let i = 1; i <= 4; i++) {
+    // The first of these is clamped to A's edge and still MOVES, so it is not blocked;
+    // the next asks for 6 m, gets nothing, and re-acquires.
+    clamp.step(pos, { x: 16, y: 0, z: 5 }, out, i * 300);
+    pos.x = out.x;
+    pos.y = out.y;
+    pos.z = out.z;
+  }
+  assert.ok(pos.x >= 11 - 1e-6, `reached island B, got x=${pos.x}`);
+  assert.ok(Math.abs(pos.y) < 1e-6, `still on the floor, got y=${pos.y}`);
+
+  // CONTROL, and the whole safety argument: walking at empty space must not move us.
+  // getGroup WOULD name island B here — it falls back to the nearest centroid, 29 m away
+  // — so adopting on getGroup alone would fling a player who walks into a wall across
+  // the map. getClosestNode(..., checkPolygon: true) is what refuses.
+  const stuck = createNavClamp(geo);
+  const p2 = { x: 5, y: 0, z: 5 };
+  for (let i = 0; i <= 4; i++) {
+    stuck.step(p2, { x: 50, y: 0, z: 5 }, out, i * 300);
+    p2.x = out.x;
+    p2.y = out.y;
+    p2.z = out.z;
+  }
+  assert.ok(p2.x <= 10 + 1e-6, `stayed on island A, got x=${p2.x}`);
+
+  // WALKING PACE. The step the controller actually takes is ~0.15 m, so its destination
+  // lands in the hole, not on the far side — which is why the probe reaches past `to`.
+  // This is the live case: on the real map the blue base island is 1.24 m from the main
+  // mesh and a 0.15 m step never touches it.
+  const paced = (gap) => {
+    const c = createNavClamp(geo, gap === undefined ? undefined : { bridgeGap: gap });
+    const p = { x: 5, y: 0, z: 5 };
+    for (let i = 0; i < 80; i++) {
+      c.step(p, { x: p.x + 0.15, y: p.y, z: p.z }, out, i * 300);
+      p.x = out.x;
+      p.y = out.y;
+      p.z = out.z;
+    }
+    return p.x;
+  };
+  assert.ok(paced() >= 11 - 1e-6, `0.15 m steps bridge the 1 m hole, got x=${paced()}`);
+  // ...and bridgeGap: 0 is the destination-only behaviour, which cannot.
+  assert.ok(paced(0) <= 10 + 1e-6, `bridgeGap 0 stays imprisoned, got x=${paced(0)}`);
+
+  // RATE LIMIT. The re-acquisition is a full scan of the zone; four a second is plenty.
+  const slow = createNavClamp(geo);
+  const p3 = { x: 9.5, y: 0, z: 5 };
+  slow.step(p3, { x: 50, y: 0, z: 5 }, out, 0); // to the edge, still moving: not blocked
+  p3.x = out.x;
+  slow.step(p3, { x: 50, y: 0, z: 5 }, out, 1); // blocked: spends the retry, finds nothing
+  slow.step(p3, { x: 16, y: 0, z: 5 }, out, 100); // blocked and legal, but too soon
+  assert.ok(out.x <= 10 + 1e-6, `retry rate-limited, got x=${out.x}`);
+  slow.step(p3, { x: 16, y: 0, z: 5 }, out, 400); // 250 ms on from the last one
+  assert.ok(out.x >= 11 - 1e-6, `retry allowed again, got x=${out.x}`);
 });
 
 test("mergeNavmesh bakes world transforms into one geometry", () => {
@@ -124,5 +211,5 @@ test("mergeNavmesh bakes world transforms into one geometry", () => {
 
   // And the result is something createZone will actually take.
   const clamp = createNavClamp(merged);
-  assert.ok(Math.abs(clamp.heightAt({ x: 105, z: 5 })) < 1e-6);
+  assert.ok(Math.abs(clamp.heightAt({ x: 105, z: 5 }).y) < 1e-6);
 });
