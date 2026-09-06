@@ -21,10 +21,11 @@ const CFG = GAME_CONFIG.PICKUP;
 // PICKUP_TYPE in server/server.js; `dir` is the Unreal class name, which is how
 // assets/3d/pickups is laid out.
 //
-// These are the ONLY models still loaded out of assets/3d/ rather than
-// assets-optimized/: scripts/optimize-assets.mjs does not cover the pickup set (see
-// assets-optimized/3d/, which holds the map, the navmesh, the soldier and the
-// Enforcer). The URLs are exactly the ones the A-Frame `gltf-model` attribute built.
+// These load out of assets/3d/ rather than assets-optimized/, as the characters and the
+// third-person weapons do: scripts/optimize-assets.mjs covers only what is in
+// assets-optimized/3d/ — the map, the navmesh, the soldier and the Enforcer — and the
+// pickup set is not in it. The URLs are exactly the ones the A-Frame `gltf-model`
+// attribute built.
 export const PICKUP_MODELS = {
   armor: { dir: "armor2" },
   udamage: { dir: "UDamage" },
@@ -92,7 +93,7 @@ export class PickupItem {
     const model = new THREE.Group();
     if (spec.tilt) model.rotation.set(deg(spec.tilt[0]), deg(spec.tilt[1]), deg(spec.tilt[2]));
     this.node.add(model);
-    this.model = model;
+    this.setModel(model);
     await this.attach(model, pickupModelUrl(this.type));
     // NO point light, for the same reason the MedBoxes have none (see below): three.js
     // recompiles and re-runs the lighting loop in every material in the scene for each
@@ -102,10 +103,27 @@ export class PickupItem {
   }
 
   /**
+   * The visual root, recorded where the recipe says a ported component's mesh lives:
+   * `node.userData.mesh` is what `el.getObject3D("mesh")` was, and it is what
+   * FlagItem and FlagStand set for the same reason. `this.model` stays as the name
+   * the rest of this file reads.
+   */
+  setModel(model) {
+    this.model = model;
+    this.node.userData.mesh = model;
+  }
+
+  /**
    * attachModel + the one thing `model-loaded` used to do for free. In A-Frame that
    * event bubbled to the scene, so environment-map caught every model as it streamed
    * in and rebuilt its materials for the newly present IBL. Models are awaited now, so
    * anything spawned mid-match has to say so on the bus itself.
+   *
+   * Only PickupItem emits it, because only PickupItem FETCHES anything. environment-map
+   * only cares about materials that appear after it has built its IBL, and a pickup's
+   * glTF can land at any point — mid-match, or mid-fetch while the envmap is still
+   * being generated. The flags and their stands are primitives built synchronously in
+   * their constructors, so there is never a material of theirs the envmap pass missed.
    */
   async attach(node, url) {
     const { root } = await attachModel(node, url);
@@ -151,7 +169,7 @@ export class PickupItem {
     model.scale.setScalar(0.029);
     model.rotation.set(deg(-24), 0, deg(12));
     this.node.add(model);
-    this.model = model;
+    this.setModel(model);
 
     // A light rather than a glowing shell: the scene is bloom-composited, so a
     // real light bleeds into the bloom pass and reads as a glow for free.
@@ -199,7 +217,7 @@ export class PickupItem {
     }
 
     this.node.add(group);
-    this.model = group;
+    this.setModel(group);
     this._disposables.push(boxGeo, boxMat, barGeo, crossMat);
   }
 

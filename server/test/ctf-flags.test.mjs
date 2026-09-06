@@ -14,22 +14,24 @@ import { FLAG_HOMES } from "../../src/shared/map-actors.js";
 import { GAME_CONFIG } from "../../src/game/config/game-config.js";
 
 test("the touch predicate filters out everything the server could only refuse", () => {
-  const m = (o) => flagTouchIsMeaningful({ myTeam: "red", carrying: null, ...o });
+  // (myTeam, carrying, team, state) — positional, because the sweep calls this for
+  // every flag on every frame and an options object there is an allocation per call.
+  const m = (team, state, carrying = null) => flagTouchIsMeaningful("red", carrying, team, state);
 
   // No team means no match.
-  assert.equal(flagTouchIsMeaningful({ myTeam: null, carrying: null, team: "blue", state: "home" }), false);
+  assert.equal(flagTouchIsMeaningful(null, null, "blue", "home"), false);
   // A flag someone is already carrying is not touchable at all.
-  assert.equal(m({ team: "blue", state: "carried" }), false);
+  assert.equal(m("blue", "carried"), false);
   // The enemy flag is worth taking — unless we already have one.
-  assert.equal(m({ team: "blue", state: "home" }), true);
-  assert.equal(m({ team: "blue", state: "dropped" }), true);
-  assert.equal(m({ team: "blue", state: "home", carrying: "blue" }), false);
+  assert.equal(m("blue", "home"), true);
+  assert.equal(m("blue", "dropped"), true);
+  assert.equal(m("blue", "home", "blue"), false);
   // Our own flag: dropped means return it, whatever we are holding.
-  assert.equal(m({ team: "red", state: "dropped" }), true);
-  assert.equal(m({ team: "red", state: "dropped", carrying: "blue" }), true);
+  assert.equal(m("red", "dropped"), true);
+  assert.equal(m("red", "dropped", "blue"), true);
   // Standing on our own flag at home is a capture only if we are holding theirs.
-  assert.equal(m({ team: "red", state: "home" }), false);
-  assert.equal(m({ team: "red", state: "home", carrying: "blue" }), true);
+  assert.equal(m("red", "home"), false);
+  assert.equal(m("red", "home", "blue"), true);
 });
 
 /** The parts of `game` these systems touch. No renderer, no DOM. */

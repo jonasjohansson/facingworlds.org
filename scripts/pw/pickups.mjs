@@ -180,14 +180,19 @@ await page.evaluate(() => {
   }
 });
 
-// Register the two systems the way main-three.js will (Task 3's order: after the
-// player, before remote avatars).
+// main-three.js registers both systems itself now (after the player, before remote
+// avatars), so this only fills them in for a build that predates that — registering a
+// name twice throws.
 await page.evaluate(async () => {
-  const { WeaponPickups } = await import("/src/game/systems/weapon-pickup.js");
-  const { CtfFlags } = await import("/src/game/systems/ctf-flag.js");
   const game = window.__fw;
-  game.register("weapon-pickup", new WeaponPickups(game));
-  game.register("ctf-flag", new CtfFlags(game));
+  if (!game.systems.has("weapon-pickup")) {
+    const { WeaponPickups } = await import("/src/game/systems/weapon-pickup.js");
+    game.register("weapon-pickup", new WeaponPickups(game));
+  }
+  if (!game.systems.has("ctf-flag")) {
+    const { CtfFlags } = await import("/src/game/systems/ctf-flag.js");
+    game.register("ctf-flag", new CtfFlags(game));
+  }
 });
 
 const built = await page.evaluate(async (payload) => {

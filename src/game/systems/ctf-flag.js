@@ -59,7 +59,7 @@ const teamGlow = (team) => (team === "red" ? CFG.RED_GLOW : CFG.BLUE_GLOW);
  * nothing to capture). The server re-checks all of it, plus distance, plus whether we
  * are even alive.
  */
-export function flagTouchIsMeaningful({ myTeam, carrying, team, state }) {
+export function flagTouchIsMeaningful(myTeam, carrying, team, state) {
   if (!myTeam) return false;
   if (state === "carried") return false;
   if (team !== myTeam) {
@@ -476,13 +476,14 @@ export class CtfFlags {
    * The scene node a remote player's flag rides on. Task 12 owns the avatars and Task
    * 13 hands them to network.js, so this asks the registry rather than reaching into
    * either — the flag only ever needs an Object3D to read a world pose off.
+   *
+   * `.rig` and not `.body`: the rig is the node the wire pose is written onto — what
+   * `#remote-rig-<id>` was — while the body is its ground-corrected child, which
+   * would slide the flag down by the avatar's floor offset.
    */
   remoteNode(id) {
-    const sys = this.game.systems.get("remote-avatars");
-    if (!sys) return null;
-    const avatar = (sys.get && sys.get(id)) || (sys.avatars && sys.avatars.get(id)) || null;
-    if (!avatar) return null;
-    return avatar.node || (avatar.isObject3D ? avatar : null);
+    const avatar = this.game.systems.get("remote-avatars")?.get(id);
+    return avatar ? avatar.rig : null;
   }
 
   /** Take both flags out of the scene. Shared by `ctf-init` and by losing our team. */
@@ -560,9 +561,9 @@ export class CtfFlags {
 
     this.game.rig.getWorldPosition(this._rigPos);
     for (const [team, item] of this.flags) {
-      if (!flagTouchIsMeaningful({ myTeam: this.myTeam, carrying: this.carrying, team, state: item.state })) {
-        continue;
-      }
+      // Positional, not an options object: this runs for every flag on every frame
+      // that passes the CLAIM_INTERVAL gate, and a literal there is an allocation.
+      if (!flagTouchIsMeaningful(this.myTeam, this.carrying, team, item.state)) continue;
       if (this._rigPos.distanceTo(item.pos) > CFG.RADIUS) continue;
 
       this.lastClaim = now;
