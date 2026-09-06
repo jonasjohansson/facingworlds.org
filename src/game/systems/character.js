@@ -39,6 +39,12 @@ const RUN_THRESHOLD = RUN_SPEED * 0.53;
 // the walk blend used to flicker on while standing still.
 const MOVE_THRESHOLD = 0.2;
 
+// The three locomotion channels, in the one place both blend paths read them from.
+// `weights`, `target`, `actions` and remote-avatars.js's FIRE_VARIANT table are all keyed
+// by exactly these three, and blend() and _writeWeights() used to walk them with an
+// Object.keys() each — two allocations per body per frame for a list that never changes.
+export const CHANNELS = ["Idle", "Walk", "Run"];
+
 export const BLEND = {
   WALK_SPEED,
   RUN_SPEED,
@@ -239,22 +245,25 @@ export class Character {
   blend(dt) {
     if (!this.ready) return;
     const damp = 1 - Math.exp(-this.opts.fadeLerp * dt);
-    const keys = Object.keys(this.weights);
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
+    for (let i = 0; i < CHANNELS.length; i++) {
+      const key = CHANNELS[i];
       if (!this.actions[key] || this.target[key] === undefined) continue;
       this.weights[key] += (this.target[key] - this.weights[key]) * damp;
     }
     if (this.opts.normalize) {
       let sum = 0;
-      for (let i = 0; i < keys.length; i++) sum += this.weights[keys[i]];
+      for (let i = 0; i < CHANNELS.length; i++) sum += this.weights[CHANNELS[i]];
       if (sum > 1e-6) {
         const inv = 1 / sum;
-        for (let i = 0; i < keys.length; i++) this.weights[keys[i]] *= inv;
+        for (let i = 0; i < CHANNELS.length; i++) this.weights[CHANNELS[i]] *= inv;
       }
     }
     if (this._write) this._write(this.actions, this.weights);
-    else for (let i = 0; i < keys.length; i++) this.actions[keys[i]].setEffectiveWeight(this.weights[keys[i]]);
+    else {
+      for (let i = 0; i < CHANNELS.length; i++) {
+        this.actions[CHANNELS[i]].setEffectiveWeight(this.weights[CHANNELS[i]]);
+      }
+    }
   }
 
   /** Advance the clips. `dt` in seconds. */

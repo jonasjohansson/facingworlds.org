@@ -61,6 +61,11 @@ export function makeLabelSprite(text, opts = {}) {
   texture.minFilter = THREE.LinearFilter;
   texture.generateMipmaps = false;
 
+  // SpriteMaterial.sizeAttenuation is LEFT AT ITS DEFAULT (true) on purpose: it is what
+  // makes `scale` mean metres in the world rather than a fraction of the screen, so the
+  // label shrinks with distance exactly as the world-space text mesh it replaces did.
+  // Turning it off would peg every name and every HP number at one on-screen size, which
+  // is a HUD, not a label over a body 60 m across the map.
   const material = new THREE.SpriteMaterial({
     map: texture,
     transparent: true,

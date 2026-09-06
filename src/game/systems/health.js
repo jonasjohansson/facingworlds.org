@@ -30,19 +30,38 @@ const DEFAULTS = {
   // Height of the readout above the body's origin, in metres. What the A-Frame text
   // entity's position was.
   y: 2.2,
-  // World width of the sprite, sized to draw the number at the size it is drawn TODAY.
+  // World width of the sprite, sized to draw the number at the size the old one is drawn.
   //
   // The old attributes were `width: 1.4` with A-Frame's default `wrapCount: 40`, which is
   // not 1.4 m of text: A-Frame scales the MSDF mesh so that FORTY characters span 1.4 m,
-  // so three digits span a fortieth of that each. Measured in the running page against a
-  // live bot (Box3 over the label's text mesh): "100" is 0.056 x 0.060 m. This canvas
-  // draws its glyphs at half the sprite's height, and the sprite's height is a quarter of
-  // its width, so widthM/8 is the cap height: 0.48 puts it at 0.060 m, the same number the
-  // same size it has always been.
+  // so three digits span a fortieth of that each. MEASURED 2026-09-06 on index.html
+  // against the 8081 server with seven live bots, over `[health]`'s label child ->
+  // `getObject3D("text")`:
+  //
+  //   as drawn      world Box3 of the text mesh: 0.015 x 0.060 x 0.113 m. It is a flat
+  //                 quad, so a 15 mm width and a 113 mm DEPTH means it is turned nearly
+  //                 EDGE-ON — the look-at leak (it aimed off the camera ENTITY's
+  //                 rotation). Every one of the seven bots read that way; the number is
+  //                 there and you cannot read it.
+  //   its real size geometry bbox x the mesh's world scale, which no rotation can move:
+  //                 "100" is 0.1146 x 0.0601 m.
+  //
+  // 0.0601 m is the MSDF GLYPH QUAD, not the ink: the Roboto atlas is size 42 and its "0"
+  // rect is 31 x 41 px, ~5.5 px of distance-field spill each side around a ~30 px cap, so
+  // the ink is nearer 0.044 m tall. Nothing carries that padding across, and no font makes
+  // "100" 1.9 times as wide as it is tall — so ONE dimension can be matched, and it is the
+  // width, the one you read the number by.
+  //
+  // This canvas is 256 px wide and "100" in the font below inks 75.9 px of it (0.2963), so
+  // widthM = 0.114 / 0.2963 = 0.385 draws it 0.1141 m wide and 0.0482 m tall: the old
+  // label's own width, and a height between its padded quad (0.060) and its ink (0.044).
+  // Scanning the drawn canvas rather than the metrics — the dark outline counts, it is
+  // what the eye reads the edge of — gives 0.126 x 0.059 m against the old quad's
+  // 0.115 x 0.060. The same number at the same size, and now turned to face you.
   //
   // It is a speck beyond a few metres, and always was. Raising this is a one-constant
   // change if the readout should carry further than the old one did.
-  widthM: 0.48,
+  widthM: 0.385,
 };
 
 // The same three bands the HUD plate uses — white while healthy, amber when hurt, red

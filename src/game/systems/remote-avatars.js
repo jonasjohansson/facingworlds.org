@@ -25,7 +25,7 @@ import { fireState, pickFireClip } from "./remote-fire-state.js";
 import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
 import { modelUrl, skinUrls, modelYaw, weaponOffset } from "../../shared/characters.js";
 import { ASSETS, attachModel } from "../engine/assets.js";
-import { blendTargets, Character } from "./character.js";
+import { blendTargets, CHANNELS, Character } from "./character.js";
 import { Health } from "./health.js";
 import { makeLabelSprite, updateLabelSprite, disposeLabelSprite } from "./label.js";
 
@@ -115,9 +115,10 @@ const FIRE_HOLD_MS = typeof FIRE_CFG.HOLD_MS === "number" ? FIRE_CFG.HOLD_MS : 5
 const FIRE_CROSSFADE = typeof FIRE_CFG.CROSSFADE === "number" ? FIRE_CFG.CROSSFADE : 0.05;
 const STANDING_IDLE_WEIGHT = typeof FIRE_CFG.STANDING_IDLE_WEIGHT === "number" ? FIRE_CFG.STANDING_IDLE_WEIGHT : 0.5;
 
-// The three locomotion channels, and the clip each one swaps to while the trigger is
-// down. Idle -> Fire is UT99's PlayRecoil over the standing pose; the other two are the
-// *FR twins. A name missing from the glTF simply leaves that channel unswapped.
+// The clip each locomotion channel swaps to while the trigger is down. Idle -> Fire is
+// UT99's PlayRecoil over the standing pose; the other two are the *FR twins. A name
+// missing from the glTF simply leaves that channel unswapped. Keyed by CHANNELS, which is
+// what everything below iterates — the table is looked up, never walked.
 const FIRE_VARIANT = { Idle: "Fire", Walk: "WalkFire", Run: "RunFire" };
 
 const DEFAULTS = {
@@ -266,7 +267,7 @@ export class RemoteAvatar {
       local: false,
     });
     this.nameLabel = null;
-    if (this.opts.showNames && this.name) this._ensureNameLabel();
+    if (this._namesVisible() && this.name) this._ensureNameLabel();
 
     // ---- the model ----
     // WHERE THE MODEL-LOADED GUARD WENT. The A-Frame component listened for
@@ -327,7 +328,18 @@ export class RemoteAvatar {
   setName(name) {
     this.name = name || "";
     if (this.nameLabel) updateLabelSprite(this.nameLabel, this.name, this._nameColor());
-    else if (this.opts.showNames && this.name) this._ensureNameLabel();
+    else if (this._namesVisible() && this.name) this._ensureNameLabel();
+  }
+
+  /**
+   * Are name plates on? THE REGISTRY OWNS THAT FLAG, and it is read live rather than off
+   * `this.opts`: every avatar snapshots `{...DEFAULTS, ...owner.opts}` when it is built,
+   * so setNamesVisible() — which flips the registry's own copy — would leave every body
+   * that already existed believing names were still off, and the rename that arrives next
+   * would silently draw nothing.
+   */
+  _namesVisible() {
+    return !!(this.owner && this.owner.opts ? this.owner.opts.showNames : this.opts.showNames);
   }
 
   /**
@@ -521,7 +533,7 @@ export class RemoteAvatar {
     const mixer = this.char.mixer;
     if (!mixer) return;
     this.fireActions = { Idle: null, Walk: null, Run: null };
-    for (const channel of Object.keys(FIRE_VARIANT)) {
+    for (const channel of CHANNELS) {
       const clip = this.char.clipByName(FIRE_VARIANT[channel]);
       if (!clip) continue;
       const a = mixer.clipAction(clip);
@@ -565,9 +577,8 @@ export class RemoteAvatar {
     const acc = this._actionWeights;
     acc.clear();
 
-    const keys = Object.keys(weights);
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
+    for (let i = 0; i < CHANNELS.length; i++) {
+      const key = CHANNELS[i];
       const plain = actions[key];
       if (!plain) continue;
       const w = weights[key];
@@ -591,9 +602,8 @@ export class RemoteAvatar {
 
     // A twin nothing addressed this frame has to be told it is at zero, or the arms stay
     // up for ever after the shot that raised them.
-    const variants = Object.keys(FIRE_VARIANT);
-    for (let i = 0; i < variants.length; i++) {
-      const twin = this.fireActions[variants[i]];
+    for (let i = 0; i < CHANNELS.length; i++) {
+      const twin = this.fireActions[CHANNELS[i]];
       if (twin && !acc.has(twin)) acc.set(twin, 0);
     }
 
@@ -751,6 +761,13 @@ export class RemoteAvatar {
       // The material is SHARED with slot 0 (assets.js clones the graph, not the
       // materials), so this is one clone per mirrored slot rather than a write that would
       // also make the right-hand gun double-sided.
+      //
+      // FIRST, the set from the gun this slot was wearing a moment ago. attachModel has
+      // already taken that mesh off the slot, so nothing is drawing them: freed HERE
+      // rather than in dispose(), or every weapon swap would leave a set of clones behind
+      // for the life of the body. (Not at the top of _dressWeapon: the old mesh is still
+      // on screen until this load resolves.)
+      this._freeMirroredMaterials();
       mesh.traverse((o) => {
         if (!o.isMesh || !o.material) return;
         if (Array.isArray(o.material)) {
@@ -853,6 +870,12 @@ export class RemoteAvatar {
       const ud = this._weaponSlots[i] && this._weaponSlots[i].userData;
       if (ud && ud.thirdMixer) ud.thirdMixer.stopAllAction();
     }
+  }
+
+  /** Free the material clones made for the mirrored (left-hand) gun. */
+  _freeMirroredMaterials() {
+    for (let i = 0; i < this._mirroredMaterials.length; i++) this._mirroredMaterials[i].dispose();
+    this._mirroredMaterials.length = 0;
   }
 
   _disposeWeaponAnim(slot) {
@@ -1013,8 +1036,7 @@ export class RemoteAvatar {
       this._skinTextures[i].mat.dispose();
     }
     this._skinTextures.length = 0;
-    for (let i = 0; i < this._mirroredMaterials.length; i++) this._mirroredMaterials[i].dispose();
-    this._mirroredMaterials.length = 0;
+    this._freeMirroredMaterials();
     for (let i = 0; i < this._weaponSlots.length; i++) this._disposeWeaponAnim(this._weaponSlots[i]);
     this._weaponSlots.length = 0;
     this.clearTeamTint();
