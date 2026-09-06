@@ -5,6 +5,9 @@
 // interpret the input: the player controller turns move() into velocity and the weapon
 // turns fireHeld into shots, so touch, keyboard and mouse share one path each.
 
+/** A-Frame look-controls' mouse rate; the controller applies it to the look accumulator. */
+export const MOUSE_RAD_PER_PX = 0.002;
+
 /** Pure: keys map + active touch count -> {x, z} in rig space, length <= 1. */
 export function moveVectorFrom(keys, touchCount) {
   let x = 0;
@@ -96,10 +99,18 @@ export function createInput(canvas) {
       drag.active = false;
     }
   };
+  // A-Frame's look-controls turned a touch drag by PI radians per canvas WIDTH (yaw only,
+  // and with the opposite sign to its own mouse path). The controller applies one rate
+  // to whatever lands in the accumulator — the mouse's 0.002 rad/px — so a touch delta
+  // is pre-scaled here to A-Frame's per-width rate: on a 400 px phone that is 0.45°/px,
+  // a half-screen swipe turns 90°, where the raw mouse rate would give 23°. Pitch gets
+  // the same factor (touch pitch is new; A-Frame had none) and the mouse's sign.
+  const touchScale = () => Math.PI / Math.max(1, canvas.clientWidth) / MOUSE_RAD_PER_PX;
   const onTouchMove = (e) => {
     if (!drag.active || e.touches.length !== 1) return;
-    lookDx += e.touches[0].clientX - drag.x;
-    lookDy += e.touches[0].clientY - drag.y;
+    const k = touchScale();
+    lookDx += (e.touches[0].clientX - drag.x) * k;
+    lookDy += (e.touches[0].clientY - drag.y) * k;
     drag.x = e.touches[0].clientX;
     drag.y = e.touches[0].clientY;
   };

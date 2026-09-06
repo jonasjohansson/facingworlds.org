@@ -1,6 +1,7 @@
 // assets.js — glTF loading: one loader, one cache. What <a-assets> + gltf-model were.
 import { GLTFLoader } from "../../ar/vendor/loaders/GLTFLoader.js";
 import { DRACOLoader } from "../../ar/vendor/loaders/DRACOLoader.js";
+import { clone as cloneSkinned } from "../../ar/vendor/utils/SkeletonUtils.js";
 
 // The URLs <a-assets> used to hold, keyed by their old ids. Models come from
 // assets-optimized/, the committed output of `npm run optimize:assets`
@@ -50,17 +51,28 @@ export function loadGltf(url) {
  * it as node.userData.mesh (what getObject3D("mesh") returned), and resolves to
  * { root, animations }. Replacing a previous model removes it first, as gltf-model did.
  *
- * Morph-target models (all the UT99 meshes) clone correctly with Object3D.clone; a
- * SKINNED model would need src/ar/vendor/utils/SkeletonUtils.js — none is used today.
+ * Morph-target models (the UT99 pawn and weapon meshes) clone correctly with
+ * Object3D.clone — morph influences are copied per mesh. A SKINNED model (Soldier.glb,
+ * the local body) does not: SkinnedMesh.copy shares the skeleton, so a plain clone is a
+ * bind pose bound to bones nothing updates. Those go through SkeletonUtils.clone, which
+ * rebuilds the skeleton against the cloned bone hierarchy.
  */
 export async function attachModel(node, url) {
   const gltf = await loadGltf(url);
-  const root = gltf.scene.clone(true);
+  const root = hasSkinnedMesh(gltf.scene) ? cloneSkinned(gltf.scene) : gltf.scene.clone(true);
   const previous = node.userData.mesh;
   if (previous) node.remove(previous);
   node.add(root);
   node.userData.mesh = root;
   return { root, animations: gltf.animations };
+}
+
+function hasSkinnedMesh(root) {
+  let found = false;
+  root.traverse((o) => {
+    if (o.isSkinnedMesh) found = true;
+  });
+  return found;
 }
 
 export function disposeAssets() {
