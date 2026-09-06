@@ -1,6 +1,6 @@
 // remote-fire-state.test.mjs — the two decisions a remote avatar makes when somebody shoots.
 //
-// The state machine is pure and lives in the client tree (src/game/components/), but it is
+// The state machine is pure and lives in the client tree (src/game/systems/), but it is
 // the one piece of the remote fire animation that can be checked without a browser: given
 // a clock, the last shot and whether the body is moving, does the pawn get UT99's standing
 // PlayRecoil or its *FR locomotion swap, and for how long?
@@ -17,7 +17,7 @@ import {
   FIRE_REPEAT_MS,
   fireState,
   pickFireClip,
-} from "../../src/game/components/remote-fire-state.js";
+} from "../../src/game/systems/remote-fire-state.js";
 
 test("a standing pawn gets the recoil, a moving one gets the locomotion swap", () => {
   const standing = fireState(1000, 1000, false);
