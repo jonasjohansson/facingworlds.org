@@ -375,10 +375,13 @@ let refCount = 0;
 
 /**
  * Build (or return) the HUD singleton. Call release() for each getHud().
+ *
+ * @param {object} [game] the three.js build's engine handle (core/main-three.js). Omitted
+ *   on index.html, where the scene is A-Frame's — see the adapter in createHud().
  * @returns {object} the HUD facade
  */
-export function getHud() {
-  if (!instance) instance = createHud();
+export function getHud(game) {
+  if (!instance) instance = createHud(game);
   refCount++;
   return instance;
 }
@@ -621,8 +624,30 @@ function makeWeaponSlot(w) {
   return { el, icon, ammo };
 }
 
-function createHud() {
+export function createHud(game) {
   ensureFont();
+
+  // ---- the two things this DOM module needs from the scene ----
+  //
+  // The HUD is DOM and stays DOM; these are its only two touch points, and each has a
+  // three.js form and an A-Frame form because index.html still runs on A-Frame until the
+  // swap. `game` present means the ported build (core/main-three.js): the bus is
+  // game.events and the weapon is a registered system. `game` absent means <a-scene> and
+  // #cam's component, exactly as before.
+  const sceneEl = game ? null : document.querySelector("a-scene");
+  const busOn = (name, handler) => {
+    if (game) game.events.on(name, handler);
+    else if (sceneEl) sceneEl.addEventListener(name, handler);
+  };
+  const busOff = (name, handler) => {
+    if (game) game.events.off(name, handler);
+    else if (sceneEl) sceneEl.removeEventListener(name, handler);
+  };
+  const findWeapon = () => {
+    if (game) return game.systems.get("first-person-weapon") || null;
+    const cam = document.querySelector("#cam");
+    return (cam && cam.components && cam.components["first-person-weapon"]) || null;
+  };
 
   const root = div("ut-hud");
   root.id = "ut-hud";
@@ -937,17 +962,15 @@ function createHud() {
     paintBanner();
   };
 
-  // getHud() is only ever called from a component init(), so <a-scene> is in the
-  // document by now; the guard is for the module being imported standalone.
-  const scene = document.querySelector("a-scene");
-  if (scene) {
-    scene.addEventListener("ctf-init", onCtfInit);
-    scene.addEventListener("local-team", onLocalTeam);
-    scene.addEventListener("flag-update", onFlagUpdate);
-    scene.addEventListener("ctf-score", onCtfScore);
-    scene.addEventListener("match-end", onMatchEnd);
-    scene.addEventListener("match-reset", onMatchReset);
-  }
+  // The CTF feed. On the ported build these are game.events; on index.html they are
+  // <a-scene>'s, which is in the document by the time any component's init() runs (the
+  // busOn adapter's null check is for the module being imported standalone).
+  busOn("ctf-init", onCtfInit);
+  busOn("local-team", onLocalTeam);
+  busOn("flag-update", onFlagUpdate);
+  busOn("ctf-score", onCtfScore);
+  busOn("match-end", onMatchEnd);
+  busOn("match-reset", onMatchReset);
 
   // ---- damage vignette ----
   const vignette = div("ut-vignette", root);
@@ -980,7 +1003,8 @@ function createHud() {
   // inside it would composite against the HUD's own transparent background instead of
   // against the rendered game, and the muzzle texture's black field — the part that is
   // supposed to disappear — would stay black. So both live beside the HUD in the root
-  // stacking context, where their backdrop is the A-Frame canvas.
+  // stacking context, where their backdrop is the game canvas (A-Frame's on index.html,
+  // the <canvas id="game"> on play.html).
   //
   // At z-index 899 they sit UNDER the whole HUD, which is also the order UE1 draws them
   // in: PlayerPawn.PostRender runs Weapon.RenderOverlays first and the HUD paints on top.
@@ -1121,8 +1145,7 @@ function createHud() {
   function watchLocalShots() {
     rafId = requestAnimationFrame(watchLocalShots);
     if (!fpw) {
-      const cam = document.querySelector("#cam");
-      fpw = (cam && cam.components && cam.components["first-person-weapon"]) || null;
+      fpw = findWeapon();
       if (!fpw) return;
       lastSeenFire = fpw.lastFireTime || 0;
     }
@@ -1314,14 +1337,12 @@ function createHud() {
       if (refCount > 0) return;
       cancelAnimationFrame(rafId);
       document.removeEventListener("visibilitychange", onVisibility);
-      if (scene) {
-        scene.removeEventListener("ctf-init", onCtfInit);
-        scene.removeEventListener("local-team", onLocalTeam);
-        scene.removeEventListener("flag-update", onFlagUpdate);
-        scene.removeEventListener("ctf-score", onCtfScore);
-        scene.removeEventListener("match-end", onMatchEnd);
-        scene.removeEventListener("match-reset", onMatchReset);
-      }
+      busOff("ctf-init", onCtfInit);
+      busOff("local-team", onLocalTeam);
+      busOff("flag-update", onFlagUpdate);
+      busOff("ctf-score", onCtfScore);
+      busOff("match-end", onMatchEnd);
+      busOff("match-reset", onMatchReset);
       clearTimeout(centerTimer);
       while (msgTimers.length) clearTimeout(msgTimers.pop());
       clearTimeout(reloadTimer);

@@ -14,7 +14,10 @@
  * the exact union of what the postprocessing chain we use imports:
  *   postprocessing/{EffectComposer,RenderPass,UnrealBloomPass,OutputPass,Pass,ShaderPass,MaskPass}
  *   shaders/{CopyShader,LuminosityHighPassShader,OutputShader}
- * Add a name here if you vendor another pass that needs it.
+ * plus what src/game/systems/view-weapon-anim.js needs — it moved out of components/ in
+ * the three.js port and imports "three" like any other module, but index.html still loads
+ * it (through the re-export left at the old path).
+ * Add a name here if you vendor another pass, or move another module, that needs one.
  */
 
 const T = window.THREE;
@@ -26,6 +29,8 @@ if (!T) {
 export const ACESFilmicToneMapping = T.ACESFilmicToneMapping;
 export const AdditiveBlending = T.AdditiveBlending;
 export const AgXToneMapping = T.AgXToneMapping;
+export const AnimationClip = T.AnimationClip;
+export const AnimationMixer = T.AnimationMixer;
 export const BufferGeometry = T.BufferGeometry;
 export const CineonToneMapping = T.CineonToneMapping;
 export const Clock = T.Clock;
@@ -35,6 +40,8 @@ export const CustomToneMapping = T.CustomToneMapping;
 export const Float32BufferAttribute = T.Float32BufferAttribute;
 export const HalfFloatType = T.HalfFloatType;
 export const LinearToneMapping = T.LinearToneMapping;
+export const LoopOnce = T.LoopOnce;
+export const LoopRepeat = T.LoopRepeat;
 export const Mesh = T.Mesh;
 export const MeshBasicMaterial = T.MeshBasicMaterial;
 export const NeutralToneMapping = T.NeutralToneMapping;

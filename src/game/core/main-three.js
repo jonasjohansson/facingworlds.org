@@ -9,12 +9,15 @@ import { createInput } from "../engine/input.js";
 import { buildWorld } from "../scene/world.js";
 import { PlayerController } from "../player/controller.js";
 import { placePlayerOnNavmesh } from "../player/spawn.js";
+import { FirstPersonWeapon } from "../systems/first-person-weapon.js";
+import { RemoteAvatars } from "../systems/remote-avatars.js";
 import { WeaponPickups } from "../systems/weapon-pickup.js";
 import { CtfFlags } from "../systems/ctf-flag.js";
 import { SpaceEnvironment, BaseCoronas } from "../systems/space-environment.js";
 import { EarthSphere } from "../systems/earth-sphere.js";
 import { BackgroundMusic } from "../systems/background-music.js";
 import { Bloom } from "../systems/bloom.js";
+import { getHud } from "../components/hud/hud-root.js";
 import { handleError } from "../utils/error-handler.js";
 import { performanceMonitor } from "../utils/performance.js";
 
@@ -28,12 +31,19 @@ async function boot() {
   // module-scoped, exactly as window.__arTable is for the AR page.
   window.__fw = game;
 
+  // The HUD. Still DOM, still the same module index.html uses (components/hud/hud-root.js);
+  // it is only handed `game` so its CTF feed reads game.events and its shot counter finds
+  // the weapon system instead of <a-scene> and #cam. Built BEFORE the systems that take a
+  // reference to it (the weapon, and health when the network layer lands), because it is a
+  // ref-counted singleton and the first caller is what decides which scene it is wired to.
+  game.hud = getHud(game);
+
   // 1. World: map, navmesh, lights, env map. Awaited — everything below stands on it.
   await buildWorld(game);
 
   // 2..N are registered here as they are ported, in THIS order:
   //   player (movement, jump/ground, look, shake) -> first-person weapon (sway, view
-  //   anim, muzzle) -> hitscan/projectiles -> effects -> pickups/CTF -> remote avatars
+  //   anim, muzzle) -> hitscan/projectiles -> effects -> remote avatars -> pickups/CTF
   //   -> sky/earth camera pin -> bloom (render hook).
   // A system that needs another's result THIS frame goes after it; say why in a comment.
 
@@ -66,10 +76,45 @@ async function boot() {
   */
   placePlayerOnNavmesh(game).catch((e) => handleError(e, "spawn placement"));
 
+  /*
+    The gun in your hands. AFTER the player: the sway reads this frame's rig velocity
+    (game.player.isMoving / speedMps) and every slot hangs off game.player.gunRoot, which
+    the controller has already written this frame's shake roll and eye lift to. Task 10's
+    hitscan, effects and projectiles go after this — they consume this frame's shots.
+
+    The sway settings are index.html's, off #player-weapon: a very small, fast sway and no
+    bob at all. They live here rather than in the component because they are markup values,
+    like every other number on this page.
+  */
+  game.register(
+    "first-person-weapon",
+    new FirstPersonWeapon(game, {
+      enabled: true,
+      muzzleOffset: { x: 0.8, y: 0.1, z: 0 },
+      sway: {
+        enabled: true,
+        swayIntensity: 0.001,
+        swaySpeed: 6.0,
+        bobIntensity: 0.0,
+        bobSpeed: 0.0,
+        walkMultiplier: 1.0,
+        runMultiplier: 1.5,
+        smoothing: 0.2,
+      },
+    })
+  );
+
+  // Other players' bodies. The hard constraint is the one below them: pickups and CTF
+  // read a remote carrier's rig, so those must run after this. Whether they sit above or
+  // below the weapon only decides which frame's avatar pose a shot traces against, and
+  // below is where the A-Frame build had it — remote entities were attached to the scene
+  // long after the camera's own components.
+  game.register("remote-avatars", new RemoteAvatars(game));
+
   // Pickups and CTF read game.rig's position THIS frame to decide whether to ask the
-  // server for a pickup or a flag touch, so they go after the player controller. They
-  // go before the remote avatars because a carried flag reads its carrier's node, and a
-  // remote rig moved after this would drag the flag a frame behind it.
+  // server for a pickup or a flag touch, so they go after the player controller — and
+  // after the remote avatars, because a flag carried by a remote player reads its
+  // carrier's rig, which would otherwise be a frame behind.
   game.register("weapon-pickup", new WeaponPickups(game));
   game.register("ctf-flag", new CtfFlags(game));
 
