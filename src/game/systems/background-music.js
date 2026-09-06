@@ -14,13 +14,9 @@ const DEFAULTS = {
   loop: true,
   autoplay: false,
   startOnFirstBullet: true,
-  // ASSETS.backgroundMusic is the file <a-assets> declared as <audio id="background-music">
-  // (…-i-gameplay-audio.mp3, 12.7 MB). NOTE for whoever reads this next: the A-Frame
-  // component's own schema default pointed somewhere else — …-foregone_destruction-i.mp3,
-  // 6 MB — and the markup never overrode it, so the asset that was *declared* and the file
-  // that was actually *fetched and decoded* were two different mixes. This port follows the
-  // declared asset. AudioLoader downloads and decodes the whole file, so if the longer mix
-  // is not wanted, switching ASSETS.backgroundMusic back halves the download.
+  // The 6 MB mix the old component actually played (see the note in engine/assets.js:
+  // <a-assets> declared a different, 12.7 MB file that nothing fetched). AudioLoader
+  // downloads and decodes the whole file, so the URL choice is the download size.
   musicUrl: ASSETS.backgroundMusic,
 };
 

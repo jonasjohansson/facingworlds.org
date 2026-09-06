@@ -14,7 +14,10 @@ export const ASSETS = {
   navmeshGltf: "assets-optimized/3d/navmesh.glb",
   soldierModel: "assets-optimized/3d/Soldier.glb",
   enforcerWeapon: "assets-optimized/3d/enforcer.glb",
-  backgroundMusic: "assets/audio/110-van_den_bos--foregone_destruction-i-gameplay-audio.mp3",
+  // The file the old background-music component actually fetched (its schema default; the
+  // markup never overrode it). <a-assets> also DECLARED the 12.7 MB "-gameplay-audio" mix
+  // under the same id, but nothing ever played that one, so it is not listed here.
+  backgroundMusic: "assets/audio/110-van_den_bos--foregone_destruction-i.mp3",
   fireSound: "assets/audio/fire.wav",
 };
 

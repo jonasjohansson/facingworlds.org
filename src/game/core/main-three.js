@@ -10,6 +10,7 @@ import { buildWorld } from "../scene/world.js";
 import { SpaceEnvironment, BaseCoronas } from "../systems/space-environment.js";
 import { EarthSphere } from "../systems/earth-sphere.js";
 import { BackgroundMusic } from "../systems/background-music.js";
+import { Bloom } from "../systems/bloom.js";
 import { handleError } from "../utils/error-handler.js";
 import { performanceMonitor } from "../utils/performance.js";
 
@@ -117,6 +118,14 @@ async function boot() {
     "background-music",
     new BackgroundMusic(game, { enabled: true, volume: 0.8, loop: true, autoplay: false, startOnFirstBullet: true })
   );
+
+  // Bloom LAST: it owns the render hook (game.setRenderHook replaces the loop's
+  // renderer.render with composer.render), and it pulls its settings from quality-tier's
+  // bloomSettings getter — null on the low tier, which leaves the hook unset and the page
+  // rendering un-bloomed. The three postprocessing addons are imported dynamically inside
+  // the constructor so a failed resolution degrades to "no bloom" instead of taking this
+  // module graph down; `bloom.ready` is the promise that says which way it went.
+  game.register("bloom", new Bloom(game));
 
   game.start();
 }
