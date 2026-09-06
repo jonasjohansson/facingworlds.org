@@ -10,6 +10,9 @@ import { buildWorld } from "../scene/world.js";
 import { PlayerController } from "../player/controller.js";
 import { placePlayerOnNavmesh } from "../player/spawn.js";
 import { FirstPersonWeapon } from "../systems/first-person-weapon.js";
+import { UtEffects } from "../systems/ut-effects.js";
+import { UtProjectiles } from "../systems/ut-projectiles.js";
+import { ImpactEffects } from "../systems/impact-effects.js";
 import { RemoteAvatars } from "../systems/remote-avatars.js";
 import { WeaponPickups } from "../systems/weapon-pickup.js";
 import { CtfFlags } from "../systems/ctf-flag.js";
@@ -43,8 +46,8 @@ async function boot() {
 
   // 2..N are registered here as they are ported, in THIS order:
   //   player (movement, jump/ground, look, shake) -> first-person weapon (sway, view
-  //   anim, muzzle) -> hitscan/projectiles -> effects -> remote avatars -> pickups/CTF
-  //   -> sky/earth camera pin -> bloom (render hook).
+  //   anim, muzzle) -> effects (ut-effects, ut-projectiles, impact-effects) -> remote
+  //   avatars -> pickups/CTF -> sky/earth camera pin -> bloom (render hook).
   // A system that needs another's result THIS frame goes after it; say why in a comment.
 
   /*
@@ -79,8 +82,8 @@ async function boot() {
   /*
     The gun in your hands. AFTER the player: the sway reads this frame's rig velocity
     (game.player.isMoving / speedMps) and every slot hangs off game.player.gunRoot, which
-    the controller has already written this frame's shake roll and eye lift to. Task 10's
-    hitscan, effects and projectiles go after this — they consume this frame's shots.
+    the controller has already written this frame's shake roll and eye lift to. The three
+    effect systems below go after this — they consume this frame's shots.
 
     The sway settings are index.html's, off #player-weapon: a very small, fast sway and no
     bob at all. They live here rather than in the component because they are markup values,
@@ -103,6 +106,30 @@ async function boot() {
       },
     })
   );
+
+  /*
+    What a shot LOOKS like. All three AFTER first-person-weapon, because they draw the
+    shot it resolved THIS frame: fireBullet() traces, then calls
+    game.systems.get("ut-effects").drawHitscanShot(...) and .ejectShell(...) inline, so an
+    effect system registered above the weapon would run its decay pass for the frame
+    before the effect it is decaying was spawned — one frame of a beam segment or a
+    smoke puff drawn at full glow and then immediately stepped.
+
+    Within the three the order is: ut-effects (Epic's own wall hit, beam, ring, shells) →
+    ut-projectiles (the server-simulated rockets and blades) → impact-effects LAST, because
+    it owns the shared teardown. game.dispose() walks the systems in REVERSE registration
+    order, so ImpactEffects.dispose() runs first and pulls ut-effects' pools down with it
+    through the disposer ut-effects registered — which is why UtEffects has no dispose() of
+    its own. impact-effects also owns the procedural tracer/spark/decal that ut-effects
+    falls back to while the extracted glTFs are still loading, and its pools must exist
+    before the first shot; the constructor warms them.
+
+    hitscan itself is NOT a system: systems/hitscan.js is a library (getWorldColliders,
+    traceShot) with no update(), called by the weapon, by these effects and by network.js.
+  */
+  game.register("ut-effects", new UtEffects(game));
+  game.register("ut-projectiles", new UtProjectiles(game));
+  game.register("impact-effects", new ImpactEffects(game));
 
   // Other players' bodies. The hard constraint is the one below them: pickups and CTF
   // read a remote carrier's rig, so those must run after this. Whether they sit above or

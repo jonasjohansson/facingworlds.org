@@ -20,9 +20,9 @@ import * as THREE from "three";
 import { GAME_CONFIG } from "../config/game-config.js";
 import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
 import { ASSETS, attachModel } from "../engine/assets.js";
-// Until Task 10 ports hitscan.js this is the world's collider list — the same flat mesh
-// list getWorldColliders() cached off #world. See traceShot().
-import { worldColliders } from "../player/colliders.js";
+// The shared instant trace — the world's cached mesh list and every remote player's
+// capsule, nearest wins. See traceShot().
+import { traceShot } from "./hitscan.js";
 import { createViewAnim } from "./view-weapon-anim.js";
 import { WeaponSway } from "./weapon-sway.js";
 import { UU_TO_M } from "../../shared/map-transform.js";
@@ -727,71 +727,20 @@ export class FirstPersonWeapon {
   }
 
   /**
-   * The instant trace, until Task 10 ports hitscan.js.
+   * The instant trace: nearest of world geometry and other players wins.
    *
-   * hitscan.js tests the world's meshes and every player's analytic CAPSULE, nearest
-   * wins, and reports a surface normal for the decal. This does the world half against
-   * the same flat mesh list (player/colliders.js) and the player half against the remote
-   * avatars' DRAWN TRIANGLES rather than a capsule — enough for the shot to stop at a
-   * wall, to claim a hit and to carry a normal, and not a second implementation of the
-   * capsule maths that Task 10 owns. Same result shape, so the call site does not change.
+   * One line, now that systems/hitscan.js is the port of the A-Frame hitscan.js. It tests
+   * the world's flat mesh list and every remote player's analytic CAPSULE with UT99's
+   * headshot sphere on top of it, and reports a surface normal for the decal. The stand-in
+   * that lived here traced the avatars' DRAWN TRIANGLES instead — enough to stop a shot at
+   * a body, but it had no head and no radial normal — and the world half read
+   * player/colliders.js, which hitscan's getWorldColliders() now owns.
+   *
+   * No `excludeId`: bodies() carries no local body, so there is nothing to exclude the way
+   * the A-Frame call site's `excludeEl: #soldier` had to. Same result shape as before.
    */
   traceShot(origin, dir) {
-    const maxDistance = this.data.maxRange;
-    let bestT = maxDistance;
-    let type = "none";
-    let playerId = null;
-    let hit = null;
-
-    this._ray.set(origin, dir);
-    this._ray.near = 0;
-
-    const world = worldColliders(this.game);
-    if (world.length) {
-      this._ray.far = bestT;
-      const hits = this._ray.intersectObjects(world, false);
-      if (hits.length && hits[0].distance < bestT) {
-        bestT = hits[0].distance;
-        type = "world";
-        hit = hits[0];
-      }
-    }
-
-    // Other players. Optional-chained because a harness may register no avatars at all;
-    // the local body is never in this list, so there is nothing to exclude the way the old
-    // `excludeEl: #soldier` did.
-    const bodies = this.game.systems.get("remote-avatars")?.bodies?.() || [];
-    for (let i = 0; i < bodies.length; i++) {
-      const meshes = bodies[i].meshes;
-      if (!meshes || !meshes.length) continue;
-      this._ray.far = bestT;
-      const hits = this._ray.intersectObjects(meshes, false);
-      if (hits.length && hits[0].distance < bestT) {
-        bestT = hits[0].distance;
-        type = "player";
-        playerId = bodies[i].id;
-        hit = hits[0];
-      }
-    }
-
-    const point = new THREE.Vector3();
-    const normal = new THREE.Vector3();
-    if (hit) {
-      point.copy(hit.point);
-      if (hit.face) {
-        this._normalMatrix.getNormalMatrix(hit.object.matrixWorld);
-        normal.copy(hit.face.normal).applyMatrix3(this._normalMatrix).normalize();
-        // Faces pointing away from the shooter (back faces) would bury the decal
-        if (normal.dot(dir) > 0) normal.negate();
-      } else {
-        normal.copy(dir).negate();
-      }
-    } else {
-      point.copy(dir).multiplyScalar(maxDistance).add(origin);
-      normal.copy(dir).negate();
-    }
-
-    return { hit: type !== "none", type, playerId, el: null, distance: bestT, point, normal, headshot: false };
+    return traceShot(this.game, origin, dir, { maxDist: this.data.maxRange });
   }
 
   fireBullet() {
