@@ -20,12 +20,12 @@
 // nothing about the GPU a player has. A Chromium window opens for about a minute. Shots are
 // driven through the component's own trigger path (`isFiring`), never by calling
 // fireBullet() directly, so cadence, FinishAnim and the loop window are all exercised.
-import { chromium } from "playwright";
+import { launchQuiet } from "./pw/launch.mjs";
 import fs from "node:fs";
 import os from "node:os"; import path from "node:path";
 const OUT = path.join(os.tmpdir(), "facingworlds-measure") + path.sep;
 fs.mkdirSync(OUT, { recursive: true });
-const browser = await chromium.launch({ headless: false, args: ["--autoplay-policy=no-user-gesture-required"] });
+const browser = await launchQuiet({args: ["--autoplay-policy=no-user-gesture-required"]});
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true });
 await page.goto("http://localhost:8080/", { waitUntil: "load" });
 await page.waitForFunction(() => { const el = document.querySelector("[first-person-weapon]"); const c = el && el.components && el.components["first-person-weapon"]; return c && c.primaryEl && c.primaryEl.getObject3D("mesh"); }, null, { timeout: 60000 });

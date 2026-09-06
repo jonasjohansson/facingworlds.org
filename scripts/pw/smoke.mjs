@@ -1,8 +1,8 @@
 // Smoke test for play.html: loads it headed, collects console errors, checks that the
 // renderer is producing frames. Usage: node scripts/pw/smoke.mjs [url]
-import { chromium } from "playwright";
+import { launchQuiet } from "./launch.mjs";
 const url = process.argv[2] || "http://localhost:8080/play.html";
-const browser = await chromium.launch({ headless: false });
+const browser = await launchQuiet();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`); });

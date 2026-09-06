@@ -9,7 +9,7 @@
 // #cam's world pose out of the A-Frame page first and plant play.html's camera on it.
 //
 // Usage: node scripts/pw/screenshot-both.mjs [outDir]
-import { chromium } from "playwright";
+import { launchQuiet } from "./launch.mjs";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
@@ -22,7 +22,7 @@ mkdirSync(OUT, { recursive: true });
 const shotIndex = path.join(OUT, "shot-index.png");
 const shotPlay = path.join(OUT, "shot-play.png");
 
-const browser = await chromium.launch({ headless: false });
+const browser = await launchQuiet();
 
 // --- index.html: the reference ---------------------------------------------------
 const refPage = await browser.newPage({ viewport: VIEWPORT });
