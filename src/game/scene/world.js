@@ -6,6 +6,7 @@ import { EnvironmentMap } from "../systems/environment-map.js";
 import { GltfAnimationPointer } from "../systems/gltf-animation-pointer.js";
 import { QualityTier } from "../systems/quality-tier.js";
 import { pixelate } from "../systems/pixelated-texture.js";
+import { createNavClamp, mergeNavmesh } from "../player/navclamp.js";
 
 // space-environment's backgroundColor; the sky itself is registered later (Task 5).
 const BACKGROUND = 0x000006;
@@ -71,6 +72,9 @@ export async function buildWorld(game) {
   navNode.visible = false;
   game.world.add(navNode);
   game.navmesh = navRoot;
+  // One world-space triangle soup for three-pathfinding, built once. The clamp caches
+  // which polygon the rig is on, so player/controller.js must reset() it on every spawn.
+  game.navClamp = createNavClamp(mergeNavmesh(navRoot));
 
   // Image-based lighting. Registered before quality-tier, which turns its intensity down
   // on the low tier the moment it comes up.
