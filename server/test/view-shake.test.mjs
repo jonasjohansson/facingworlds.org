@@ -11,7 +11,7 @@ import {
   DEFAULT_SHAKE,
   ROLL_DECAY_UU_PER_SEC,
   ROTATION_UNITS,
-} from "../../src/game/components/view-shake.js";
+} from "../../src/game/player/view-shake.js";
 import { UU_TO_M } from "../../src/shared/map-transform.js";
 
 /** FRand() that always returns the same thing, so every branch below is decidable. */

@@ -7,6 +7,8 @@
 import { createGame } from "../engine/game.js";
 import { createInput } from "../engine/input.js";
 import { buildWorld } from "../scene/world.js";
+import { PlayerController } from "../player/controller.js";
+import { placePlayerOnNavmesh } from "../player/spawn.js";
 import { SpaceEnvironment, BaseCoronas } from "../systems/space-environment.js";
 import { EarthSphere } from "../systems/earth-sphere.js";
 import { BackgroundMusic } from "../systems/background-music.js";
@@ -34,6 +36,35 @@ async function boot() {
   // A system that needs another's result THIS frame goes after it; say why in a comment.
 
   /*
+    The player. FIRST of the per-frame systems, because it is what moves the camera:
+    everything below reads the camera's world pose (the sky pins itself to it, the sway
+    reads this frame's rig velocity, the weapon hangs off gunRoot). In A-Frame this order
+    was expressed by attaching ut-jump only after the scene had loaded, so its tick landed
+    behind movement-controls'; here the whole player is one update() in one file.
+
+    It takes over game.camera: the constructor re-parents it under the rig's head node.
+    Nothing else may re-parent or rotate it — the shake writes the camera's own local
+    transform, which is the reason index.html's #view-shake node no longer exists.
+  */
+  // No options: every number the controller runs on is a GAME_CONFIG.MOVEMENT default
+  // inside it, exactly as the A-Frame schema defaults were, and the entry point has
+  // nothing to override. Passing MOVEMENT through here would only be a second spelling
+  // of the same values that could drift.
+  game.player = game.register("player", new PlayerController(game));
+  game.rig = game.player.rig;
+  game.scene.add(game.rig);
+
+  /*
+    The OFFLINE / pre-hello placement, NOT awaited — as the old main.js had it. In CTF the
+    server owns the spawn point and hands it back in `hello.spawn` (the team base behind
+    our own tower); whichever of the two lands second used to win, which could drag the
+    player from their base to the middle of the map. It is settled inside spawn.js
+    instead: applyLocalSpawn marks the server spawn as applied, and this placement then
+    leaves the rig where it is rather than being ordered around it.
+  */
+  placePlayerOnNavmesh(game).catch((e) => handleError(e, "spawn placement"));
+
+  /*
     Sky: the CTF-Face skybox, the planet in it, and the coronas on the towers.
 
     The signature of the original map is a slowly ROTATING star skybox (lifted from the
@@ -45,9 +76,9 @@ async function boot() {
 
     THAT PIN IS WHY THEY GO HERE, near the end: they read the camera's world position
     (and the coronas its distance to each tower), so they must run after everything that
-    moves the camera — the player controller, the jump/ground offset and the view shake.
-    Those are not ported yet, so the placeholder above stays and these sit at the end of
-    the list; when the player lands it goes in above them, not below.
+    moves the camera — the player controller, the jump/ground offset and the view shake,
+    all three of which are the one `player` system registered above. The weapons and
+    effects still to be ported also go above these, not below.
 
     space-environment also OWNS scene.background: scene/world.js paints the same #000006
     early so nothing flashes, and this overwrites it with the same value.
