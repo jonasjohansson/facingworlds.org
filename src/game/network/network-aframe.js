@@ -1,63 +1,47 @@
-// network.js (ES module) — the wire. No entities, no selectors, no waiting for a scene.
+// network-aframe.js — THE FROZEN A-FRAME COPY of network.js, kept alive only so
+// index.html stays playable until the swap (Task 16 of the three.js migration deletes
+// this file together with src/game/core/main.js and the rest of the A-Frame build).
 //
-// The protocol handling below is the same switch it has always been, message for message.
-// What changed is everything it used to reach for through the DOM: `startNetwork(game)`
-// is handed the engine (src/game/engine/game.js) and talks to the ported systems by
-// method call. The old→new mapping, in one place:
+// src/game/network/network.js is the SAME protocol handling ported to three: no entities,
+// no selectors, `startNetwork(game)`. Fix protocol bugs THERE. This copy exists because
+// the port could not keep both scene graphs in one file, and index.html without a network
+// layer would not be "playable until parity" — it would be a single-player walk.
 //
-//   the #rig lookup                     game.rig
-//   the rig entity's object3D pose      game.rig.position / game.rig.rotation.y
-//   ut-jump's visualOffset() on the rig game.player.visualOffset()
-//   the #cam entity's own yaw           gone: the controller puts yaw on the RIG and
-//   (look-controls put mouse yaw there) pitch on the head, so the wire yaw is
-//                                       game.rig.rotation.y alone
-//   writing the rig's position attr     game.player.spawnAt(x, y, z, yaw), which also
-//                                       resets the navmesh clamp (see the "EVERY
-//                                       TELEPORT" block in player/controller.js)
-//   #rig's dataset.playerId             game.rig.userData.playerId
-//   spawnRemote(): two entities + data-*  remoteAvatars.spawn(publicPlayer)
-//   remotes (id -> rig element)         remoteAvatars.get(id) -> RemoteAvatar
-//   the [remote-avatar] child lookup    the RemoteAvatar itself
-//   component.setNetPose(p)             avatar.setPose(p)
-//   the entity's "sethp" event          avatar.setHp(hp) / the local player's Health
-//   the entity's data-name attribute    avatar.name / avatar.setName(n)
-//   scene.emit(name, detail)            game.events.emit(name, detail) — same names,
-//                                       same payloads, same listeners
-//   hitscan(scene, …, {excludeEl, …})   traceShot(game, …, {maxDist, excludeId})
-//   drawHitscanShot(scene, …)           game.systems.get("ut-effects").…
-//   spawnProjectile(scene, m) etc.      game.systems.get("ut-projectiles").…
-//
-// index.html still runs on A-Frame until the swap; its copy of this file is frozen beside
-// it as network-aframe.js. Protocol fixes belong HERE.
-import * as THREE from "three";
-import { getWebSocketUrl } from "../utils/environment.js";
+// (Originally: robust init: waits for DOM, scene, and #soldier)
+import { waitForElement, waitForSceneLoaded as waitForScene, createEntity, addClass, setDataAttribute } from "../utils/dom-helpers.js";
+import { modelUrl, skinUrls, modelYaw, weaponOffset } from "../../shared/characters.js";
+import { createEuler } from "../utils/three-helpers.js";
+import { getWebSocketUrl, log } from "../utils/environment.js";
+import { handleError, wrapAsync } from "../utils/error-handler.js";
 import { GAME_CONFIG } from "../config/game-config.js";
-import { markServerSpawnApplied } from "../player/spawn.js";
+import { markServerSpawnApplied } from "../core/spawn.js";
 import { DEFAULT_WEAPON, weapon } from "../../shared/weapons.js";
-import { announce } from "../systems/announcer.js";
-import { traceShot } from "../systems/hitscan.js";
+import { announce } from "../components/announcer.js";
+import {
+  spawnProjectile,
+  bounceProjectile,
+  removeProjectile,
+  clearProjectiles,
+  playPickupSound,
+} from "../components/ut-projectiles.js";
+import { hitscan } from "../components/hitscan.js";
+import { drawHitscanShot, ejectShell, playWeaponSoundAt } from "../components/ut-effects.js";
 
 // ---- reconnect tuning ----
 const RECONNECT_BASE = 500; // ms before the first retry
 const RECONNECT_MAX = 15000; // ms ceiling on the backoff
 const RECONNECT_JITTER = 0.3; // ±30% so a server restart doesn't stampede every client
 
-/**
- * @param {object} game the engine handle: needs `events`, `rig`, `player` and the
- *   `remote-avatars` / `ut-effects` / `ut-projectiles` systems. The three systems are
- *   looked up LAZILY, not here: core/main-three.js starts the network where the old
- *   main.js did — right after the player, before the offline navmesh placement — and the
- *   rest of the registry is filled in on the same synchronous run, long before a socket
- *   can deliver anything.
- */
-export function startNetwork(game) {
+export function startNetwork() {
   const WS_URL = getWebSocketUrl();
-  const events = game.events;
   let ws,
     myId = null;
+  let scene = null;
+  let me = null;
   // CTF: the team the server put us on. Null until `hello` (and for spectators).
   // It is only ever set from a server message — the client never picks a side.
   let myTeam = null;
+  const remotes = new Map();
   // Which weapon each player is holding, kept from the loadout broadcasts the server
   // already sends for everyone. Used only to pick the right FIRE SOUND for someone
   // else's shot: the damage was never the client's to know, and still is not.
@@ -69,55 +53,44 @@ export function startNetwork(game) {
   let closedByUs = false;
   let statusEl = null;
 
-  // ---- the systems this file speaks to ----
-  // `remotes` (a Map of id -> rig element) is the registry now. It, and the two effect
-  // systems, are resolved on first use and cached: see the note on startNetwork above.
-  let _avatars = null;
-  let _fx = null;
-  let _pj = null;
-  const avatars = () => _avatars || (_avatars = game.systems.get("remote-avatars") || null);
-  const fx = () => _fx || (_fx = game.systems.get("ut-effects") || null);
-  const pj = () => _pj || (_pj = game.systems.get("ut-projectiles") || null);
-
-  /**
-   * The Health instance behind a player id — the local player's own, or a remote body's.
-   * It is what `targetEntity.components.health` was: `setHp()` is the write (RemoteAvatar
-   * .setHp() is a one-line delegate to this same object) and `hp` the read the kill test
-   * below needs before that write lands.
-   */
-  const healthOf = (id) => {
-    if (id === myId) return (game.player && game.player.health) || null;
-    const a = avatars() && avatars().get(id);
-    return a ? a.health : null;
-  };
-
   // ---- tiny utils ----
+  const waitFor = waitForElement;
   const q2 = (n) => Math.round(n * 100) / 100;
   const q3 = (n) => Math.round(n * 1000) / 1000;
 
   // ---- main init ----
-  // No DOM wait and no scene wait: main-three.js calls this after DOMContentLoaded and
-  // after `await buildWorld()`, so the body, the rig and the player all exist already.
-  const offBus = [
-    events.on("local-fire", onLocalFire),
+  const run = async () => {
+    scene = await waitFor("a-scene");
+    await waitForScene(scene);
+    me = await waitFor("#soldier"); // your local avatar entity
+    const rig = await waitFor("#rig"); // your local rig entity
+
+    // Wire scene events AFTER we have a scene
+    scene.addEventListener("local-fire", onLocalFire);
     // The pickup system asks; the server answers. A refusal is simply silence.
-    events.on("request-pickup", (e) => {
+    scene.addEventListener("request-pickup", (e) => {
       if (e.detail && e.detail.id) send({ type: "takePickup", id: e.detail.id });
-    }),
+    });
     // Same contract as the pickups: the flag system asks when you are standing on a
     // flag, the server decides what that means (take / return / capture) and answers
     // with a `flag` message. A refusal is silence.
-    events.on("request-flag-touch", (e) => {
+    scene.addEventListener("request-flag-touch", (e) => {
       if (e.detail && e.detail.team) send({ type: "touchFlag", team: e.detail.team });
-    }),
-    events.on("local-hit", onLocalHit),
-    events.on("change-name", onNameChange),
-    events.on("local-kill", onLocalKill),
-  ];
+    });
+    scene.addEventListener("local-hit", onLocalHit);
+    scene.addEventListener("change-name", onNameChange);
+    scene.addEventListener("local-kill", onLocalKill);
 
-  createStatusIndicator();
-  connect();
-  startPoseLoop();
+    createStatusIndicator();
+
+    // Connect WS AFTER we have me
+    connect();
+    // Start pose sender when me is ready
+    startPoseLoop(rig);
+  };
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", run, { once: true });
+  else run();
 
   // Best effort: tell the server we are going away so it doesn't wait for a timeout
   window.addEventListener("beforeunload", () => {
@@ -230,17 +203,17 @@ export function startNetwork(game) {
       switch (m.type) {
         case "hello": {
           myId = m.yourId;
-          // The rig carries our id: the flag system reads game.rig.userData.playerId to
-          // answer "is this flag mine" before `player-join` has told it who we are
-          // (ctf-flag.js localId()). It was #rig's dataset.playerId.
-          //
-          // The local BODY no longer carries anything: `.avatar` + dataset.playerId on
-          // #soldier were how the old hitscan found bodies to test, and traceShot reads
-          // the remote-avatars registry instead — it never tested our own body anyway.
-          if (game.rig) game.rig.userData.playerId = myId;
+          if (me) {
+            me.classList.add("avatar");
+            me.dataset.playerId = myId;
+          }
+          // The rig carries it too: the flag system reads #rig's dataset to answer
+          // "is this flag mine" before `player-join` has told it our id.
+          const myRig = document.querySelector("#rig");
+          if (myRig) setDataAttribute(myRig, "playerId", myId);
 
           // The server picked our side before it picked our spawn; everything below
-          // (HUD colours, "is this flag mine") reads from this.
+          // (rig tint, HUD colours, "is this flag mine") reads from this.
           setLocalTeam(m.team || null);
 
           // Stand on the assigned team spawn BEFORE announcing the spawn, so the
@@ -249,7 +222,7 @@ export function startNetwork(game) {
           if (!m.spectator) sendSpawn();
 
           // Emit local player join event for highscore
-          events.emit("player-join", {
+          scene.emit("player-join", {
             id: myId,
             name: getPersistentName(), // Use persistent name
             kills: getPersistentScore(),
@@ -265,24 +238,24 @@ export function startNetwork(game) {
           // The server owns the pickup set. This fires on reconnect too, which is
           // why the system replaces its items wholesale rather than merging: after
           // a drop the ids are the same but availability may not be.
-          events.emit("pickups-init", { pickups: m.pickups || [] });
+          scene.emit("pickups-init", { pickups: m.pickups || [] });
 
           // Anything already in the air. Joining mid-match should show the rocket that
           // is about to land next to you, not just its explosion. Clear first: on a
           // RECONNECT the old drawings are still on screen and their ids may be reused.
-          pj()?.clear();
-          (m.projectiles || []).forEach((pr) => pj()?.spawn(pr));
+          clearProjectiles();
+          (m.projectiles || []).forEach((pr) => spawnProjectile(scene, pr));
 
           // Same wholesale-replace contract for the match: on a reconnect this is
           // the one path that rebuilds both flags and the score from scratch.
-          if (m.ctf) events.emit("ctf-init", { ...m.ctf, myTeam });
+          if (m.ctf) scene.emit("ctf-init", { ...m.ctf, myTeam });
           break;
         }
         case "join":
           if (m.player?.weapon) remoteWeapons.set(m.player.id, m.player.weapon);
           if (m.player?.id !== myId) spawnRemote(m.player);
           // Emit player join event for highscore
-          events.emit("player-join", {
+          scene.emit("player-join", {
             id: m.player.id,
             name: m.player.name,
             team: m.player.team || null,
@@ -293,14 +266,14 @@ export function startNetwork(game) {
           remoteWeapons.delete(m.id);
           removeRemote(m.id);
           // Emit player leave event for highscore
-          events.emit("player-leave", { id: m.id });
+          scene.emit("player-leave", { id: m.id });
           break;
         case "name": {
-          const a = avatars() && avatars().get(m.id);
-          if (a) a.setName(m.name);
+          const e = remotes.get(m.id);
+          if (e) e.setAttribute("data-name", m.name);
 
           // Emit name change event for highscore
-          events.emit("name-change", {
+          scene.emit("name-change", {
             playerId: m.id,
             newName: m.name,
           });
@@ -318,15 +291,15 @@ export function startNetwork(game) {
             // not a spawn assignment, and must not stand down the navmesh placement.
             applyLocalSpawn(p, { authoritative: !isEchoOfRequestedSpawn(p) });
           } else {
-            const a = (avatars() && avatars().get(p.id)) || spawnRemote(p);
-            if (a) a.setPose(p);
+            let e = remotes.get(p.id) || spawnRemote(p);
+            setPose(e, p);
           }
           break;
         }
         case "pose": {
-          const a = avatars() && avatars().get(m.id);
-          if (a) {
-            a.setPose(m);
+          const e = remotes.get(m.id);
+          if (e) {
+            setPose(e, m);
           } else {
             console.warn(`[network] Received pose for unknown player ${m.id}`);
           }
@@ -348,7 +321,7 @@ export function startNetwork(game) {
         // which the local client draws for itself, a projectile is only ever what the
         // server says it is, so there is no `m.id !== myId` guard to write.
         case "projectile": {
-          pj()?.spawn(m);
+          spawnProjectile(scene, m);
           // A rocket raises the arms exactly as a bullet does. There is no `fire` message
           // for a weapon that flies — the server owns the whole shot and announces the
           // projectile instead — so this is the only place the animation can come from.
@@ -357,21 +330,27 @@ export function startNetwork(game) {
           break;
         }
         case "projectile-bounce": {
-          pj()?.bounce(m);
+          bounceProjectile(m);
           break;
         }
         case "projectile-gone": {
-          pj()?.remove(m.id, m);
+          removeProjectile(m.id, m);
           break;
         }
         case "hit": {
-          // Local player or remote body — the same Health object either way now; see
-          // healthOf() above.
-          const health = healthOf(m.victimId);
+          let targetEntity;
+          if (m.victimId === myId) {
+            // Local player - find the soldier entity inside the rig
+            targetEntity = me;
+          } else {
+            // Remote player - find the soldier entity inside the remote rig
+            const rig = remotes.get(m.victimId);
+            targetEntity = rig ? rig.querySelector("[remote-avatar]") : null;
+          }
 
-          if (health) {
-            const oldHp = health.hp;
-            health.setHp(m.hp); // was targetEntity.emit("sethp", …)
+          if (targetEntity && targetEntity.components.health) {
+            const oldHp = targetEntity.components.health.hp;
+            targetEntity.emit("sethp", { hp: m.hp }); // triggers health.js listener
 
             // Check if this was a kill (hp went to 0 or below)
             if (oldHp > 0 && m.hp <= 0) {
@@ -380,7 +359,7 @@ export function startNetwork(game) {
               if (killerId === myId) {
                 // Local player got a kill - use victim name from server
                 const victimName = m.victimName || getVictimName(m.victimId);
-                events.emit("local-kill", { victimId: m.victimId, victimName });
+                scene.emit("local-kill", { victimId: m.victimId, victimName });
               }
             }
           }
@@ -391,29 +370,44 @@ export function startNetwork(game) {
         // into "hit": health.js reads any decrease as damage and flashes the screen for
         // it, so a heal arriving on the damage channel would be shown as being shot.
         case "health": {
-          const health = healthOf(m.id);
-          if (health) health.setHp(m.hp);
+          let targetEntity;
+          if (m.id === myId) {
+            targetEntity = me;
+          } else {
+            const rig = remotes.get(m.id);
+            targetEntity = rig ? rig.querySelector("[remote-avatar]") : null;
+          }
+          if (targetEntity && targetEntity.components.health) {
+            targetEntity.emit("sethp", { hp: m.hp });
+          }
           break;
         }
 
         case "respawn": {
           const p = m.player;
           if (p) {
+            let targetEntity;
             if (p.id === myId) {
               // Local player — reset HP and move rig to spawn position. Same job as
               // the `spawn` handler, and the respawn payload carries `ry` too, so it
               // goes through applyLocalSpawn rather than writing the position alone
               // and leaving us facing whatever way we happened to die.
+              targetEntity = me;
               applyLocalSpawn(p);
+            } else {
+              // Remote player - find the soldier entity inside the remote rig
+              const rig = remotes.get(p.id);
+              targetEntity = rig ? rig.querySelector("[remote-avatar]") : null;
             }
 
-            const health = healthOf(p.id);
-            if (health) health.setHp(p.hp); // reset to full
+            if (targetEntity && targetEntity.components.health) {
+              targetEntity.emit("sethp", { hp: p.hp }); // reset to full
+            }
 
             // Set pose on the rig for remote players
             if (p.id !== myId) {
-              const a = avatars() && avatars().get(p.id);
-              if (a) a.setPose(p);
+              const rig = remotes.get(p.id);
+              if (rig) setPose(rig, p);
             }
           }
           break;
@@ -425,12 +419,12 @@ export function startNetwork(game) {
           // on the map. Once health, armour and weapons joined it, walking over a MedBox
           // while holding a Rocket Launcher put a second, mirrored launcher in the other
           // hand. What you hold is the server's to say, and it says it in `loadout` below.
-          events.emit("pickup-taken", { id: m.id, by: m.by, respawnInMs: m.respawnInMs });
+          scene.emit("pickup-taken", { id: m.id, by: m.by, respawnInMs: m.respawnInMs });
           break;
         }
 
         case "pickup-respawn": {
-          events.emit("pickup-respawn", { id: m.id });
+          scene.emit("pickup-respawn", { id: m.id });
           break;
         }
 
@@ -438,35 +432,34 @@ export function startNetwork(game) {
           // Broadcast for every player, so remote avatars (and the AR spectator
           // table) can show who is dual-wielding.
           if (m.weapon) remoteWeapons.set(m.id, m.weapon);
-          events.emit("player-loadout", { id: m.id, dual: !!m.dual, weapon: m.weapon });
+          scene.emit("player-loadout", { id: m.id, dual: !!m.dual, weapon: m.weapon });
           if (m.id === myId) {
-            events.emit("local-loadout", { dual: !!m.dual, weapon: m.weapon });
+            scene.emit("local-loadout", { dual: !!m.dual, weapon: m.weapon });
             // UT99's own WeaponPickup blip, and only for the player who picked it up —
             // hearing everyone else's across the map would be noise, not information.
-            pj()?.playPickupSound();
+            playPickupSound();
           }
           break;
         }
 
         // ---- CTF ----
         // The server owns every one of these; the client only relays them onto the
-        // bus under the names the flag system and the HUD listen for.
+        // scene under the names the flag system and the HUD listen for.
         case "team": {
           // Sent when the session stash moves a player to the side they had before
           // the drop, which can land a moment after `hello`. Both listeners must
           // tolerate hearing about their own team twice.
-          //
-          // A remote player's own body no longer needs telling separately: the
-          // `player-team` event below is what the avatar registry routes to
-          // avatar.setTeam(), where this used to write data-team on their rig for the
-          // component to read back off the DOM.
           if (m.id === myId) setLocalTeam(m.team || null);
-          events.emit("player-team", { id: m.id, team: m.team || null });
+          else {
+            const rig = remotes.get(m.id);
+            if (rig && m.team) setDataAttribute(rig, "team", m.team);
+          }
+          scene.emit("player-team", { id: m.id, team: m.team || null });
           break;
         }
 
         case "flag": {
-          events.emit("flag-update", {
+          scene.emit("flag-update", {
             team: m.team,
             state: m.state,
             x: m.x,
@@ -485,7 +478,7 @@ export function startNetwork(game) {
         }
 
         case "ctf-score": {
-          events.emit("ctf-score", {
+          scene.emit("ctf-score", {
             scores: m.scores || { red: 0, blue: 0 },
             by: m.by ?? null,
             team: m.team,
@@ -495,7 +488,7 @@ export function startNetwork(game) {
         }
 
         case "match-end": {
-          events.emit("match-end", {
+          scene.emit("match-end", {
             winner: m.winner,
             scores: m.scores || { red: 0, blue: 0 },
             resetInMs: m.resetInMs || 0,
@@ -515,11 +508,11 @@ export function startNetwork(game) {
         case "match-reset": {
           // The server drops everything in the air on a reset; drop the drawings of it
           // too, or a rocket nobody can be hit by keeps flying across the new match.
-          pj()?.clear();
+          clearProjectiles();
           // One reset path: ctf-init rebuilds the flags and the score exactly as it
           // does on connect, then match-reset tells the HUD to drop the end card.
-          if (m.ctf) events.emit("ctf-init", { ...m.ctf, myTeam });
-          events.emit("match-reset", { ...(m.ctf || {}), myTeam });
+          if (m.ctf) scene.emit("ctf-init", { ...m.ctf, myTeam });
+          scene.emit("match-reset", { ...(m.ctf || {}), myTeam });
           break;
         }
 
@@ -529,7 +522,7 @@ export function startNetwork(game) {
         }
         case "player-kill": {
           // Emit kill event for highscore
-          events.emit("player-kill", {
+          scene.emit("player-kill", {
             killerId: m.killerId,
             victimId: m.victimId,
           });
@@ -542,7 +535,7 @@ export function startNetwork(game) {
           const mine = players.find((p) => p.isLocal);
           // Server-counted kills are the truth; mirror them so the UI survives a reload
           if (mine) setPersistentScore(mine.kills || 0);
-          events.emit("highscore-update", { players });
+          scene.emit("highscore-update", { players });
           break;
         }
       }
@@ -552,12 +545,13 @@ export function startNetwork(game) {
       if (stale()) return;
       clearRemotes();
       myId = null;
-      if (game.rig) delete game.rig.userData.playerId;
+      const oldRig = document.querySelector("#rig");
+      if (oldRig) delete oldRig.dataset.playerId;
       // The next connection assigns a team from scratch; holding the old one would
       // colour the HUD for a side we may not be on any more. It has to go through
       // setLocalTeam rather than just clearing the variable: the flag system drops
-      // both flags on `local-team` with a null team, and the document tint has to
-      // come off with it.
+      // both flags on `local-team` with a null team, and the rig / document tint
+      // has to come off with it.
       setLocalTeam(null);
       if (!closedByUs) scheduleReconnect();
     };
@@ -594,8 +588,8 @@ export function startNetwork(game) {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
   }
 
-  // ---- pose loop ----
-  function startPoseLoop() {
+  // ---- pose loop (runs only if #rig exists) ----
+  function startPoseLoop(rig) {
     let lastPosition = { x: 0, y: 0, z: 0 };
     let lastRotation = 0;
     let lastAnimKey = "1,0,0"; // idle by default
@@ -603,30 +597,30 @@ export function startNetwork(game) {
     const threshold = 0.005; // Lower threshold for smoother updates
 
     setInterval(() => {
-      const rig = game.rig;
-      const player = game.player;
-      if (!myId || !rig || !player) return;
+      if (!myId || !rig) return;
+      const o = rig.object3D;
 
       // Get current position and rotation. The rig itself never leaves the
-      // navmesh — a jump raises the rig's CHILDREN by `offset` — so sampling
-      // rig.position.y alone sends a pose that never jumps, and remote players
-      // glide along the ground while the local one is in the air. Add the hop
-      // back in here; it is well under the buffer's 20 m teleport threshold, so
-      // remotes interpolate the arc instead of snapping.
-      // ... and the drawn-floor correction applied beside it, or remotes would draw
-      // this player at the navmesh height while its own eye stands on the floor.
-      // Both are the one number visualOffset() reports (player/controller.js).
-      const hop = player.visualOffset();
+      // navmesh — a jump is ut-jump raising the rig's CHILDREN by `offset` — so
+      // sampling o.position.y alone sends a pose that never jumps, and remote
+      // players glide along the ground while the local one is in the air. Add
+      // the hop back in here; it is well under the buffer's 20 m teleport
+      // threshold, so remotes interpolate the arc instead of snapping.
+      // ... and the drawn-floor correction ut-jump applies beside it, or remotes would
+      // draw this player at the navmesh height while its own eye stands on the floor.
+      const jump = rig.components["ut-jump"];
+      const hop = jump ? (jump.visualOffset ? jump.visualOffset() : jump.airborne ? jump.offset : 0) : 0;
       const currentPosition = {
-        x: rig.position.x,
-        y: rig.position.y + hop,
-        z: rig.position.z,
+        x: o.position.x,
+        y: o.position.y + hop,
+        z: o.position.z,
       };
-      // The rig's own yaw IS the heading now. The old sum `rig.rotation.y +
-      // cam.rotation.y` existed because look-controls put the mouse yaw on the camera
-      // child and the rig only turned on Q/E and spawns; the ported controller puts yaw
-      // on the rig and pitch on the head, so there is no second term to add.
-      const currentRotation = rig.rotation.y;
+      // The rig's own yaw only changes on Q/E and spawns — MOUSE look yaw
+      // lives on the camera child (look-controls on #cam). Remote players face
+      // the sum, or they run sideways staring at their spawn direction.
+      const cam = rig.querySelector("#cam");
+      const camYaw = cam && cam.object3D ? cam.object3D.rotation.y : 0;
+      const currentRotation = o.rotation.y + camYaw;
 
       // Calculate velocity for animation from the real elapsed time, not a constant
       const now = performance.now();
@@ -644,14 +638,14 @@ export function startNetwork(game) {
 
       const rotationChanged = Math.abs(currentRotation - lastRotation) > threshold;
 
-      // Get current animation state from the local body's blend (systems/character.js,
-      // built on game.player.soldier by core/main-three.js once the model has loaded).
-      const character = player.character;
-      const animationState = character
+      // Get current animation state from character component
+      const soldier = rig.querySelector("#soldier");
+      const characterComponent = soldier && soldier.components.character;
+      const animationState = characterComponent
         ? {
-            idle: character.target.Idle || 0,
-            walk: character.target.Walk || 0,
-            run: character.target.Run || 0,
+            idle: characterComponent.target.Idle || 0,
+            walk: characterComponent.target.Walk || 0,
+            run: characterComponent.target.Run || 0,
           }
         : { idle: 1, walk: 0, run: 0 };
 
@@ -683,29 +677,33 @@ export function startNetwork(game) {
 
   // ---- CTF helpers ----
   //
-  // The team is a server fact with two consumers left: the document element (the
-  // `html[data-team="red"|"blue"]` rules in styles.css have always been there with
-  // nothing to switch them), and the event the HUD and the flag system listen on.
-  //
-  // The third — `#rig`'s data-team, which remote-avatar and character tinted the LOCAL
-  // body from — is gone with the DOM. The local body is never tinted (nothing can see
-  // it), and a remote body gets its side from its own publicPlayer payload and the
-  // `player-team` event.
+  // The team is a server fact with three consumers: the rig (so remote-avatar and
+  // character can tint), the document element (the `html[data-team="red"|"blue"]`
+  // rules in styles.css have always been there with nothing to switch them), and
+  // the scene event the HUD listens on.
   function setLocalTeam(team) {
     myTeam = team || null;
+    const rig = document.querySelector("#rig");
+    // Clearing the team has to clear the rig's data-team as well, or the tint
+    // survives the disconnect and the next session starts wearing the old side's
+    // colour until a `team` message happens to overwrite it.
+    if (rig) {
+      if (myTeam) setDataAttribute(rig, "team", myTeam);
+      else delete rig.dataset.team;
+    }
     try {
       if (myTeam) document.documentElement.dataset.team = myTeam;
       else delete document.documentElement.dataset.team;
     } catch {
       /* dataset is always there in a browser; never worth throwing over a colour */
     }
-    events.emit("local-team", { team: myTeam });
+    if (scene) scene.emit("local-team", { team: myTeam });
   }
 
   // The position our last `sendSpawn()` asked for, quantised exactly as it went out.
   // A server that honours the request (the "older server" case below) echoes it
   // straight back to us, and that echo is NOT a server-assigned spawn: treating it
-  // as one permanently suppresses the offline navmesh placement (player/spawn.js) and
+  // as one permanently suppresses the offline navmesh placement (spawn.js) and
   // strands the rig wherever it happened to be — at the origin, in mid-air, on a
   // first join where `hello` carried no spawn.
   let requestedSpawn = null;
@@ -730,16 +728,13 @@ export function startNetwork(game) {
   // was chosen by the server (and so may stand down the offline navmesh placement) or
   // is merely our own request coming back to us.
   function applyLocalSpawn(p, { authoritative = true } = {}) {
-    const player = game.player;
-    if (!player || !p || p.x === undefined || p.z === undefined) return;
+    const rig = document.querySelector("#rig");
+    if (!rig || !p || p.x === undefined || p.z === undefined) return;
     // `p.y || 0` read a legitimate ground-level spawn as a missing one. Ground IS 0
     // on plenty of this map, so test for the value being absent, not falsy.
     const y = p.y === undefined || p.y === null ? 0 : p.y;
-    // spawnAt(), not a position write. It is THE ONLY supported way to move the rig from
-    // outside: it resets the navmesh clamp's cached polygon (which would otherwise drag
-    // the player back across the map on the next step), the movement velocity, the jump
-    // arc and the speed tracker. See the "EVERY TELEPORT" block in player/controller.js.
-    player.spawnAt(p.x, y, p.z, typeof p.ry === "number" ? p.ry : undefined);
+    rig.setAttribute("position", `${p.x} ${y} ${p.z}`);
+    if (typeof p.ry === "number") rig.object3D.rotation.y = p.ry;
     // From here the offline navmesh placement must not move us again: the server
     // owns the spawn point, and its raycast may still be in flight. Only a genuinely
     // server-chosen point earns that — see `requestedSpawn` above.
@@ -750,23 +745,23 @@ export function startNetwork(game) {
   // The server ignores the position now — it seats us on a team spawn — but sending
   // where we believe we are keeps the message honest and works against an older server.
   function sendSpawn() {
-    const rig = game.rig;
+    const rig = document.querySelector("#rig");
     if (!rig) {
       requestedSpawn = null;
       send({ type: "spawn" });
       return;
     }
-    const pos = rig.position;
+    const pos = rig.object3D.position;
     const position = { x: q2(pos.x), y: q2(pos.y), z: q2(pos.z) };
     requestedSpawn = position;
     send({
       type: "spawn",
       position,
-      ry: q3(rig.rotation.y),
+      ry: q3(rig.object3D.rotation.y),
     });
   }
 
-  // ---- bus event handlers ----
+  // ---- scene event handlers ----
   function onLocalFire(ev) {
     const { origin, dir } = ev.detail || {};
     if (!origin || !dir) return;
@@ -816,9 +811,9 @@ export function startNetwork(game) {
 
   function getVictimName(victimId) {
     // Check if victim is a remote player
-    const remotePlayer = avatars() && avatars().get(victimId);
+    const remotePlayer = remotes.get(victimId);
     if (remotePlayer) {
-      return remotePlayer.name || "Unknown Player";
+      return remotePlayer.getAttribute("data-name") || "Unknown Player";
     }
 
     // Check if victim is the local player (shouldn't happen but just in case)
@@ -831,53 +826,121 @@ export function startNetwork(game) {
   }
 
   // ---- remote avatars ----
-  //
-  // What this function used to be: forty lines building an <a-entity> rig, an <a-entity>
-  // soldier inside it, and eight data-* attributes for the component to read back off the
-  // DOM — including the four derived from the character index (model URL, skin list,
-  // model yaw, hand offset). The registry takes the server's publicPlayer payload whole
-  // and resolves those four itself from src/shared/characters.js, which is where the
-  // lookup belonged; `p.character` is the wire fact and everything else follows from it.
   function spawnRemote(p) {
-    const reg = avatars();
-    if (!reg || !p) return null;
-    const avatar = reg.spawn(p);
-    if (!avatar) return null;
-    // The first pose, straight away. The old code had to wait for `componentinitialized`
-    // and then post a second setPose on the next animation frame, because the entity's
-    // component did not exist yet when this returned; the instance is fully built here.
-    avatar.setPose(p);
-    if (p.team) events.emit("player-team", { id: p.id, team: p.team });
-    return avatar;
+    if (!scene || !p) return null;
+
+    // Create rig structure similar to local player
+    const rig = createEntity("a-entity", {
+      id: `remote-rig-${p.id}`,
+    });
+    addClass(rig, "avatar");
+    setDataAttribute(rig, "playerId", p.id);
+    // remote-avatar tints from this on model-loaded; it is set before the rig enters
+    // the scene so the model can never load ahead of knowing its side.
+    if (p.team) setDataAttribute(rig, "team", p.team);
+    // What they are holding, for the THIRD-PERSON mesh in their hand. publicPlayer carries
+    // it on `hello` and `join`, so a player who armed themselves before we connected is
+    // drawn with the right gun rather than empty-handed until their next pickup.
+    // remote-avatar reads it here and keeps it current from `player-loadout`.
+    setDataAttribute(rig, "weapon", p.weapon || DEFAULT_WEAPON);
+    if (p.dual) setDataAttribute(rig, "dual", "1");
+    // Where THIS body's gun hand is. UE1 pawn meshes carry three "special" vertices — the
+    // weapon triangle — that mark where the carried weapon is drawn, and every third-person
+    // weapon glTF was built at the nominal pawn origin instead; characters.js ships the
+    // difference per model as a vector (the soldier's is 16 cm right, 42 cm up, 43 cm
+    // forward of that origin). Computed here for the same reason modelYaw is: characters.js
+    // owns the per-model corrections and network.js is where a character index becomes
+    // something the avatar can use. Static — the base pose's hand; the hand swings through
+    // Walk/Run/Fire and a per-frame anchor is the next step.
+    const off = weaponOffset(p.character);
+    if (off) setDataAttribute(rig, "weaponOffset", off.join(" "));
+
+    // Set initial position if provided
+    if (p.x !== undefined && p.y !== undefined && p.z !== undefined) {
+      rig.setAttribute("position", `${p.x} ${p.y} ${p.z}`);
+    }
+
+    // Which UT99 body this player wears. The server picks it (server/characters.js) so
+    // everyone draws the same person as the same character; here it becomes a model URL
+    // and a list of skin textures, which remote-avatar hangs on the material slots.
+    // An unknown index falls back to the original soldier asset rather than nothing.
+    const url = modelUrl(p.character);
+    const skins = skinUrls(p.character);
+    if (skins.length) setDataAttribute(rig, "skin", skins.join(","));
+
+    // Create soldier entity inside rig.
+    //
+    // The MODEL carries a yaw of its own, and the rig carries the player's heading. They
+    // are different things and must stay on different entities: the rig's rotation.y is
+    // overwritten from the wire on every pose, so a correction written there would be
+    // erased on the next packet. Five of the 23 variants — the Skaarj skins and the cow —
+    // are authored 90 degrees off the rest and used to run sideways.
+    const yaw = modelYaw(p.character);
+    const soldier = createEntity("a-entity", {
+      "gltf-model": url ? `url(${url})` : "#soldier-model",
+      shadow: "cast:true; receive:true",
+      "remote-avatar": "",
+      health: "max:100; current:100",
+      ...(yaw ? { rotation: `0 ${yaw} 0` } : {}),
+    });
+
+    rig.appendChild(soldier);
+    scene.appendChild(rig);
+    remotes.set(p.id, rig);
+
+    // Wait until the component is initialized before setting pose
+    const onInit = (ev) => {
+      if (ev.detail.name === "remote-avatar") {
+        soldier.removeEventListener("componentinitialized", onInit);
+        setPose(rig, p);
+      }
+    };
+    soldier.addEventListener("componentinitialized", onInit);
+
+    requestAnimationFrame(() => setPose(rig, p));
+    if (p.team) scene.emit("player-team", { id: p.id, team: p.team });
+    return rig;
   }
 
   function removeRemote(id) {
-    const reg = avatars();
-    if (reg) reg.remove(id);
+    const e = remotes.get(id);
+    if (!e) return;
+    e.parentNode && e.parentNode.removeChild(e);
+    remotes.delete(id);
   }
 
   // Tear down every remote avatar — on reconnect the server hands out fresh ids, so
-  // anything left over would be a permanent ghost standing in the map. The registry's
-  // own clear() does not emit, so the ids are announced first: the scoreboard and the
-  // flag system both empty themselves off `player-leave`.
+  // anything left over would be a permanent ghost standing in the map.
   function clearRemotes() {
-    const reg = avatars();
-    if (!reg) return;
-    for (const body of reg.bodies()) events.emit("player-leave", { id: body.id });
-    reg.clear();
+    for (const [id, el] of remotes) {
+      el.parentNode && el.parentNode.removeChild(el);
+      if (scene) scene.emit("player-leave", { id });
+    }
+    remotes.clear();
+  }
+
+  function setPose(rig, p) {
+    // Find the soldier entity inside the rig and set pose
+    const soldier = rig.querySelector("[remote-avatar]");
+    const c = soldier && soldier.components["remote-avatar"];
+    if (c && p) {
+      c.setNetPose(p);
+    } else {
+      console.warn(`[network] Could not find remote-avatar component for rig ${rig.id}`);
+    }
   }
 
   // ---- somebody else's trigger ----
   //
   // ONE event for both ways a shot reaches this client: the `fire` message a hitscan
   // weapon sends, and the `projectile` message the server sends for the three that fly.
-  // The avatar registry listens and routes by player id — it is what knows which body
-  // belongs to which player, and this is the only thing network.js has to tell it. The
-  // weapon rides along so the avatar can play the held mesh's own fire sequence without
-  // going back to the map.
+  // remote-avatar.js listens and matches on the rig's player id — it is the component
+  // that knows which body belongs to which player, and this is the only thing network.js
+  // has to tell it. The weapon rides along so the avatar can play the held mesh's own
+  // fire sequence without going back to the map.
   function emitRemoteFire(id) {
-    if (id == null) return;
-    events.emit("remote-fire", { id, weapon: remoteWeapons.get(id) || DEFAULT_WEAPON });
+    if (!scene || id == null) return;
+    scene.emit("remote-fire", { id, weapon: remoteWeapons.get(id) || DEFAULT_WEAPON });
   }
 
   // ---- somebody else's hitscan shot ----
@@ -892,11 +955,11 @@ export function startNetwork(game) {
   //
   // This is drawing only. The server owns the damage; nothing here reports a hit, which is
   // why the old `reportHits` argument is gone — it was never true on this path.
-  const _shotOrigin = new THREE.Vector3();
-  const _shotDir = new THREE.Vector3();
+  const _shotOrigin = new AFRAME.THREE.Vector3();
+  const _shotDir = new AFRAME.THREE.Vector3();
 
   function spawnBulletVisual(origin, dir, ownerId) {
-    if (!origin || !dir) return;
+    if (!scene || !origin || !dir) return;
     const weaponId = remoteWeapons.get(ownerId) || DEFAULT_WEAPON;
     const spec = weapon(weaponId);
     // Rockets, ripper blades and the Redeemer are server-simulated and arrive as
@@ -909,24 +972,20 @@ export function startNetwork(game) {
     if (_shotDir.lengthSq() < 1e-8) return;
     _shotDir.normalize();
 
-    // Exclude the shooter, or a shot fired from inside their own capsule stops at their
-    // chest. One id is enough now: the old call also passed the rig ELEMENT, because the
-    // A-Frame trace walked `.avatar` nodes and matched on identity; traceShot walks the
-    // registry's bodies and matches on `body.id`.
-    const result = traceShot(game, _shotOrigin, _shotDir, {
-      maxDist: GAME_CONFIG.WEAPON.MAX_RANGE,
+    // Exclude the shooter's own rig, or a shot fired from inside their own capsule stops
+    // at their chest. `remotes` holds the rig, which is the element carrying ".avatar".
+    const result = hitscan(scene, _shotOrigin, _shotDir, {
+      maxDistance: GAME_CONFIG.WEAPON.MAX_RANGE,
+      excludeEl: remotes.get(ownerId) || null,
       excludeId: ownerId || null,
     });
 
-    const effects = fx();
-    if (effects) {
-      effects.drawHitscanShot(weaponId, _shotOrigin, result);
-      effects.ejectShell(weaponId, _shotOrigin, _shotDir);
-      effects.playWeaponSoundAt(spec.sound, _shotOrigin);
-    }
+    drawHitscanShot(scene, weaponId, _shotOrigin, result);
+    ejectShell(scene, weaponId, _shotOrigin, _shotDir);
+    playWeaponSoundAt(spec.sound, _shotOrigin);
     // Background music starts on the first shot heard, wherever it came from. The deleted
     // bullet component used to emit this.
-    events.emit("bullet-fired");
+    scene.emit("bullet-fired");
   }
 
   // ---- persistent name and score management ----
@@ -1035,8 +1094,6 @@ export function startNetwork(game) {
 
   window.addEventListener("pagehide", () => {
     clearInterval(claimTimer);
-    for (const off of offBus) off();
-    offBus.length = 0;
     const mine = sessionStorage.getItem(NAME_KEY);
     if (!mine) return;
     const claims = readClaims();

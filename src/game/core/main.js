@@ -62,7 +62,7 @@ import "../components/quality-tier.js";
 import "../components/lighting/bloom.js";
 
 // Import network and spawn modules
-import startNetwork from "../network/network.js";
+import startNetwork from "../network/network-aframe.js";
 import placePlayerOnNavmesh from "./spawn.js";
 
 import { performanceMonitor } from "../utils/performance.js";

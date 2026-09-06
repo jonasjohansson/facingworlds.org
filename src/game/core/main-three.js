@@ -6,9 +6,12 @@
 // loaded so its tick landed behind movement-controls'); here it is written down once.
 import { createGame } from "../engine/game.js";
 import { createInput } from "../engine/input.js";
+import { ASSETS, loadGltf } from "../engine/assets.js";
 import { buildWorld } from "../scene/world.js";
 import { PlayerController } from "../player/controller.js";
 import { placePlayerOnNavmesh } from "../player/spawn.js";
+import { Character } from "../systems/character.js";
+import { Health } from "../systems/health.js";
 import { FirstPersonWeapon } from "../systems/first-person-weapon.js";
 import { UtEffects } from "../systems/ut-effects.js";
 import { UtProjectiles } from "../systems/ut-projectiles.js";
@@ -20,6 +23,11 @@ import { SpaceEnvironment, BaseCoronas } from "../systems/space-environment.js";
 import { EarthSphere } from "../systems/earth-sphere.js";
 import { BackgroundMusic } from "../systems/background-music.js";
 import { Bloom } from "../systems/bloom.js";
+import { Announcer } from "../systems/announcer.js";
+import { HighscoreDisplay } from "../systems/highscore-display.js";
+import { KillNotification } from "../systems/kill-notification.js";
+import { NameChanger } from "../systems/name-changer.js";
+import { startNetwork } from "../network/network.js";
 import { getHud } from "../components/hud/hud-root.js";
 import { handleError } from "../utils/error-handler.js";
 import { performanceMonitor } from "../utils/performance.js";
@@ -44,11 +52,15 @@ async function boot() {
   // 1. World: map, navmesh, lights, env map. Awaited — everything below stands on it.
   await buildWorld(game);
 
-  // 2..N are registered here as they are ported, in THIS order:
-  //   player (movement, jump/ground, look, shake) -> first-person weapon (sway, view
-  //   anim, muzzle) -> effects (ut-effects, ut-projectiles, impact-effects) -> remote
-  //   avatars -> pickups/CTF -> sky/earth camera pin -> bloom (render hook).
+  // 2..N are registered here, in THIS order:
+  //   player (movement, jump/ground, look, shake) -> the local body's animation blend ->
+  //   first-person weapon (sway, view anim, muzzle) -> effects (ut-effects,
+  //   ut-projectiles, impact-effects) -> remote avatars -> pickups/CTF -> sky/earth
+  //   camera pin -> the DOM systems (announcer, scoreboard, kill feed, name dialog) ->
+  //   bloom (render hook).
   // A system that needs another's result THIS frame goes after it; say why in a comment.
+  // The network layer is NOT in this list: it has no update(), it is started below the
+  // player where the old main.js started it, and it reaches everything by method call.
 
   /*
     The player. FIRST of the per-frame systems, because it is what moves the camera:
@@ -68,6 +80,83 @@ async function boot() {
   game.player = game.register("player", new PlayerController(game));
   game.rig = game.player.rig;
   game.scene.add(game.rig);
+
+  /*
+    The local body's idle/walk/run blend — the `character` attribute on #soldier, whose
+    only settings in the markup were Soldier.glb's clip indices, which are systems/
+    character.js's defaults. It is the one system with NO node of its own: the controller
+    owns game.player.soldier and its yaw, and Character only drives the mixer.
+
+    IT IS A SYSTEM RATHER THAN A CALL INSIDE THE CONTROLLER because it is not the
+    player's — remote bodies run the same class from remote-avatars.js — and because it
+    must read this frame's speed, which is the LAST thing the controller writes
+    (updateSpeed()). Registered here, immediately below the player, it does.
+
+    The model is async and the frame loop is not, so the system exists from this line and
+    picks up the Character when the body resolves; until then it does nothing, which is
+    what a body with no mesh should do. The clips come from the same cached glTF
+    attachModel cloned the body out of.
+
+    receiveShadow: FALSE, against Character's own default: controller.hideFromCamera()
+    sets it that way deliberately (nothing can be seen falling on a body that is not
+    drawn) and the Character constructor would otherwise walk the meshes and turn it
+    back on.
+  */
+  const playerCharacter = {
+    character: null,
+    update(dt) {
+      if (this.character) this.character.update(dt, game.player.speedMps);
+    },
+    dispose() {
+      if (this.character) this.character.dispose();
+      this.character = null;
+    },
+  };
+  game.register("player-character", playerCharacter);
+  game.player.ready
+    .then(async (root) => {
+      if (!root) return;
+      const { animations } = await loadGltf(ASSETS.soldierModel);
+      playerCharacter.character = new Character(root, animations, { receiveShadow: false });
+      // network.js's pose loop reads the blend targets off here to tell everyone else
+      // whether this player is idling, walking or running.
+      game.player.character = playerCharacter.character;
+    })
+    .catch((e) => handleError(e, "player character"));
+
+  /*
+    The local player's HP. `health="max:100; current:100"` on #soldier, which is where the
+    floating readout hangs from — over the body, not the camera, exactly as it did (you
+    see your own number by looking up, and always could).
+
+    `local: true` is what gates the screen chrome: the HUD plate, the damage vignette and
+    the death card. It is handed the HUD instance rather than fetching its own, so the
+    page has one singleton and one wiring — see the getHud() call above.
+
+    network.js reaches it as game.player.health for `hit`, `health` and `respawn`; the
+    attach() makes it findable from the node the way el.components.health was.
+  */
+  game.player.health = game.attach(
+    game.player.soldier,
+    "health",
+    new Health(game, game.player.soldier, { local: true, hud: game.hud, max: 100, current: 100 })
+  );
+
+  /*
+    THE SOCKET. Where the old main.js put it: connect FIRST, because it is the slow remote
+    thing and nothing local needs to finish before it opens — waiting on the navmesh here
+    delayed every join by however long it took to load (and forever, if it never did).
+
+    Not awaited, and it does not await anything either. It needs game.rig and game.player,
+    which are three lines up; the systems it talks to (remote-avatars, ut-effects,
+    ut-projectiles) are registered further down this same synchronous run and are looked up
+    lazily, long before a socket can deliver a message.
+  */
+  try {
+    startNetwork(game);
+  } catch (e) {
+    handleError(e, "network");
+  }
 
   /*
     The OFFLINE / pre-hello placement, NOT awaited — as the old main.js had it. In CTF the
@@ -230,6 +319,23 @@ async function boot() {
     "background-music",
     new BackgroundMusic(game, { enabled: true, volume: 0.8, loop: true, autoplay: false, startOnFirstBullet: true })
   );
+
+  /*
+    The 2D half of a match: the voice, the scoreboard, the kill feed, the name dialog.
+    All four are DOM and game.events only — nothing here touches the scene graph, so
+    where they sit in the frame order matters for exactly one thing: the two that read
+    the keyboard must run while the keys they poll are still this frame's.
+
+    ut-announcer keeps its old registered name because that is what it was
+    (sceneEl.systems["ut-announcer"]); network.js calls the module's announce() directly,
+    as it always has, and this instance only warms the audio cache.
+  */
+  game.register("ut-announcer", new Announcer());
+  // Hold TAB. Reads game.input.keys.Tab, whose preventDefault input.js already owns.
+  game.register("highscore-display", new HighscoreDisplay(game, { enabled: true, maxPlayers: 10, updateInterval: 1000 }));
+  game.register("kill-notification", new KillNotification(game, { enabled: true, maxEntries: 4, displayDuration: 4000 }));
+  // Press N. Reads game.input.consumePress("KeyN") — an edge, because this one toggles.
+  game.register("name-changer", new NameChanger(game));
 
   // Bloom LAST: it owns the render hook (game.setRenderHook replaces the loop's
   // renderer.render with composer.render), and it pulls its settings from quality-tier's
