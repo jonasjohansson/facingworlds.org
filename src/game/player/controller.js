@@ -12,8 +12,10 @@
 //                    rotation.y = yaw (mouse, touch drag, and spawns).
 //     hop    Group   position.y = the jump arc + the drawn-floor correction. Nothing
 //                    else ever writes it; visualOffset() reports it on the wire.
-//       soldier Group  the local body. Its meshes are on layer 1, which the camera does
-//                      not draw — this is what invisible-to-player did.
+//       soldier Group  the local body. Its meshes draw with colorWrite and depthWrite
+//                      off, so they leave no trace in the frame but still cast their
+//                      shadow — this is what invisible-to-player did. See
+//                      hideFromCamera() for why it is not a layer.
 //       head   Group   position.y = eye height 1.4 m (index.html had it on #cam).
 //                      rotation.x = pitch.
 //         camera        rotation.z = the shake's roll, position.y = the shake's eye lift.
@@ -90,6 +92,7 @@ import { createUtMovement } from "./ut-movement-model.js";
 import { createViewShake, DEFAULT_SHAKE } from "./view-shake.js";
 import { worldColliders } from "./colliders.js";
 import { createPointerLockPrompt } from "./pointer-lock-prompt.js";
+import { handleError } from "../utils/error-handler.js";
 
 const MOVEMENT = GAME_CONFIG.MOVEMENT;
 
@@ -122,9 +125,10 @@ const FLOOR_LERP = 25.0;
 const MOVE_THRESHOLD = 0.2; // m/s; below this a frame's position delta is noise
 const SPEED_SMOOTH_LERP = 8.0; // per second
 
-// The layer the local body is drawn on, and the one the camera does not draw. See
-// hideFromCamera() for what this costs.
-const BODY_LAYER = 1;
+// The material every mesh of the local body wears: it draws, and writes nothing. See
+// hideFromCamera(). One instance for all of them — it carries no per-mesh state, and
+// skinning comes from `isSkinnedMesh`, not from the material.
+const INVISIBLE_BODY_MATERIAL = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
 const DEFAULTS = {
   enabled: true,
@@ -165,10 +169,18 @@ export class PlayerController {
 
     // The body. Resolves to the loaded root; Task 12's character system attaches to
     // `soldier` and drives the mixer, so nothing here touches animation.
-    this.ready = attachModel(this.soldier, ASSETS.soldierModel).then(({ root }) => {
-      this.hideFromCamera(root);
-      return root;
-    });
+    this.ready = attachModel(this.soldier, ASSETS.soldierModel)
+      .then(({ root }) => {
+        this.hideFromCamera(root);
+        return root;
+      })
+      // A body that fails to load is a player with no shadow and no third-person mesh,
+      // not a player who cannot move — so it is reported and swallowed rather than left
+      // as an unhandled rejection with the game running behind it.
+      .catch((e) => {
+        handleError(e, "player body");
+        return null;
+      });
 
     this.model = createUtMovement(this.data);
     this.viewShake = createViewShake();
@@ -204,33 +216,50 @@ export class PlayerController {
   }
 
   /**
-   * invisible-to-player, as a layer.
+   * invisible-to-player: the body draws, and writes nothing.
    *
-   * The old component set every material to opacity 0, transparent, depthWrite false —
-   * an invisible DEPTH-WRITING mesh wrapped around the camera was stamping near depth
-   * over a large part of the screen and depth-rejecting the stars and the atmosphere
-   * limb behind it, which is what the `depthWrite` line was there to stop. A layer the
-   * camera does not draw skips the object entirely, so that whole class of artefact
-   * cannot come back and the materials are left alone (the body is drawn normally in
-   * anyone else's view of this player — that is a remote avatar, a different node).
+   * Every mesh of the local body gets one shared material with `colorWrite: false` and
+   * `depthWrite: false`. It stays in the opaque pass and is rasterised as usual, but
+   * puts nothing in the colour buffer and nothing in the depth buffer, so there is
+   * simply no trace of it in the rendered frame.
    *
-   * MEASURED CONSEQUENCE: THE LOCAL BODY NO LONGER CASTS A SHADOW. three's shadow pass
-   * tests each object against the RENDER camera's layers, not the shadow camera's
-   * (WebGLShadowMap.js: `const visible = object.layers.test( camera.layers )`, where
-   * `camera` is the camera passed to renderer.render). So a mesh the camera does not
-   * draw is also a mesh no light shadows. The A-Frame build did cast one, because
-   * opacity is not consulted by the depth material. castShadow/receiveShadow are set
-   * below regardless: they cost nothing, they are what character.js set, and if the
-   * self-shadow is wanted back the fix is to drop the layer and go back to the material
-   * trick — one place, this function.
+   * WHY NOT A LAYER. `camera.layers.disable(1)` with the body on layer 1 is the obvious
+   * three answer and it is wrong here, because it also removes the body's SHADOW: the
+   * shadow pass tests every object against the RENDER camera's layers, not the shadow
+   * camera's (WebGLShadowMap.js: `const visible = object.layers.test( camera.layers )`,
+   * where `camera` is the one handed to renderer.render), and nothing downstream of that
+   * gate — onBeforeShadow, customDepthMaterial — ever runs for an object it rejects. The
+   * A-Frame build DID cast the local body's shadow, so a layer would have been a visible
+   * regression. `getDepthMaterial` copies only alphaMap/alphaTest/map/side/displacement
+   * off the material, none of which this one sets, so the shadow is untouched by the
+   * swap. castShadow on, receiveShadow off: nothing can be seen falling on a body that
+   * is not drawn.
+   *
+   * WHY A NEW MATERIAL RATHER THAN EDITING THE MODEL'S. The glTF is loaded once and
+   * cloned per instance, and SkeletonUtils.clone/Object3D.clone SHARE materials — every
+   * remote avatar wears the same MeshStandardMaterial objects as this body. Editing them
+   * in place would make every player on the map invisible.
+   *
+   * VERIFIED IN THE BROWSER, both pages, by toggling this body's castShadow and
+   * diffing the frames: the same shadow appears and disappears on the ground on
+   * play.html and on index.html. It takes a probe to see, because the key light as
+   * shipped throws no visible shadow ANYWHERE on this map — 330x330 units of ortho
+   * frustum over a 933-unit depth range with bias -0.0007 washes out the tower's shadow
+   * as thoroughly as the player's. That is scene/lights.js's number, copied from
+   * index.html, and identical in both builds; it is not this file's to change.
+   *
+   * The old component's `depthWrite: false` line (invisible-to-player.js:62-67) was there
+   * because opacity 0 still leaves a DEPTH-WRITING mesh wrapped around the camera,
+   * stamping near depth over a large moving part of the screen and depth-rejecting every
+   * transparent thing sorted behind it — the stars, the atmosphere limb, the coronas.
+   * That artefact cannot return here: this material writes nothing at all.
    */
   hideFromCamera(root) {
-    this.game.camera.layers.disable(BODY_LAYER);
     root.traverse((o) => {
       if (!o.isMesh) return;
-      o.layers.set(BODY_LAYER);
+      o.material = INVISIBLE_BODY_MATERIAL;
       o.castShadow = true;
-      o.receiveShadow = true;
+      o.receiveShadow = false;
     });
   }
 
@@ -299,7 +328,7 @@ export class PlayerController {
   // 3. JUMP AND FLOOR
   // -------------------------------------------------------------------------
   jump() {
-    if (this.airborne) return;
+    if (this.airborne || !this.data.enabled) return;
     this.airborne = true;
     this.verticalSpeed = this.data.jumpVelocity;
     this.game.events.emit("jump", null);
@@ -334,21 +363,32 @@ export class PlayerController {
    * (GROUND_LERP 25/s) so a step does not pop.
    */
   groundToFloor(dt) {
-    const meshes = worldColliders(this.game);
-    let want = 0;
-    if (meshes.length) {
-      const p = this.rig.position;
-      this._rayOrigin.set(p.x, p.y + FLOOR_PROBE_UP, p.z);
-      this._ray.set(this._rayOrigin, this._down);
-      this._ray.far = FLOOR_PROBE_UP + FLOOR_BELOW;
-      const hits = this._ray.intersectObjects(meshes, false);
-      if (hits.length) {
-        const d = hits[0].point.y - p.y;
-        if (d >= -FLOOR_BELOW && d <= FLOOR_ABOVE) want = d;
-      }
-    }
+    const want = this.probeFloor();
     this.groundOffset += (want - this.groundOffset) * (1 - Math.exp(-FLOOR_LERP * dt));
     if (Math.abs(this.groundOffset - want) < 0.001) this.groundOffset = want;
+  }
+
+  /**
+   * The correction groundToFloor() is easing toward: how far the drawn floor is from the
+   * navmesh height under the rig, or 0 where there is no floor in the window (and 0
+   * before the map's meshes exist, which is the first few frames after boot).
+   *
+   * Separate from the easing because a TELEPORT must not ease. spawnAt() snaps the offset
+   * to this value: the standing correction is a fifth to half a metre on this map, so
+   * easing into it from zero would drop the camera through the floor and climb back over
+   * a fifth of a second, on every respawn.
+   */
+  probeFloor() {
+    const meshes = worldColliders(this.game);
+    if (!meshes.length) return 0;
+    const p = this.rig.position;
+    this._rayOrigin.set(p.x, p.y + FLOOR_PROBE_UP, p.z);
+    this._ray.set(this._rayOrigin, this._down);
+    this._ray.far = FLOOR_PROBE_UP + FLOOR_BELOW;
+    const hits = this._ray.intersectObjects(meshes, false);
+    if (!hits.length) return 0;
+    const d = hits[0].point.y - p.y;
+    return d >= -FLOOR_BELOW && d <= FLOOR_ABOVE ? d : 0;
   }
 
   updateJump(dt) {
@@ -482,8 +522,14 @@ export class PlayerController {
     }
     this.model.reset();
     this.cancelJump();
-    this.groundOffset = 0;
-    this.hop.position.y = 0;
+    // SNAP, do not ease. The old teleport path (network.js applyLocalSpawn -> ut-jump's
+    // cancel()) left groundOffset alone entirely, so a respawn kept whatever correction
+    // was already applied; zeroing it here dropped the camera by the standing offset
+    // (about half a metre in the middle of this map) and eased it back over ~0.2 s on
+    // every single respawn. The rig has just been moved, so the probe is taken here,
+    // after the position is set.
+    this.groundOffset = this.probeFloor();
+    this.hop.position.y = this.groundOffset;
     this.lastGroundY = y;
     this._prevX = x;
     this._prevZ = z;
@@ -508,9 +554,14 @@ export class PlayerController {
   dispose() {
     if (this.prompt) this.prompt.dispose();
     this.prompt = null;
-    // Hand the camera back to the scene, or disposing the player would take the view
-    // with it.
-    if (this.game.camera.parent === this.head) this.game.scene.add(this.game.camera);
+    // Hand the camera back to the scene, level and centred: the shake's roll and eye
+    // lift live on the camera's own local transform (see updateShake), and leaving a
+    // half-decayed excursion baked into it would tilt whatever renders next. Its layers
+    // are untouched — nothing here has ever changed them, see hideFromCamera.
+    const camera = this.game.camera;
+    camera.rotation.z = 0;
+    camera.position.y = 0;
+    if (camera.parent === this.head) this.game.scene.add(camera);
     if (this.rig.parent) this.rig.parent.remove(this.rig);
   }
 }

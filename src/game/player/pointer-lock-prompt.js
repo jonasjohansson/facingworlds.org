@@ -20,6 +20,12 @@
 // It lives beside the player rather than in systems/ because what it reflects is an INPUT
 // state (`game.input.pointerLocked`), and because it has no per-frame work at all: the
 // player controller owns one and disposes it, and nothing calls it every frame.
+//
+// TASK 14 MUST NOT CREATE A SECOND ONE. The migration plan lists pointer-lock-prompt
+// under Task 14 as `systems/pointer-lock-prompt.js`; it was ported here instead, with
+// Task 8, because it belongs with the input state it reflects and has no update(). Two
+// of these would put two signs on the screen, one of them never dismissed. That row of
+// the plan is done.
 
 export function createPointerLockPrompt(game, { enabled = true } = {}) {
   const el = document.createElement("div");
