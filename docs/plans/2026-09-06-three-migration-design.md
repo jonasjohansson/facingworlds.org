@@ -236,6 +236,43 @@ is a way to get shot: a respawn is a hundred-metre teleport that arrives in a sa
 heading walked wrong, and `setHp(0)` written by hand can be overwritten by an incoming
 `health` before the HUD has redrawn. Both are now detected and the sample retaken.
 
+## Behaviour changes found on the way
+
+Things the port does differently from the A-Frame build, found while sweeping the ported
+files. Everything here is deliberate or already shipped; none of it is a parity regression.
+
+- **The shot leaves the shaken eye.** `fireBullet()` traces from `game.camera`'s world
+  position, which carries the view shake's vertical jolt; the old code read the un-shaken
+  camera ENTITY. Up to ~14 cm of origin per shot (the Sniper's `vert: 8` jolt, smoothed —
+  ~6 cm for the Enforcer). A fix, not a regression: the eye is where the crosshair projects
+  from, so the trace and the crosshair now agree.
+- **The hp number over other players is readable.** The old A-Frame `text` label was drawn
+  nearly edge-on by the `look-at` leak — a measured 15 mm wide, i.e. effectively invisible.
+  The canvas sprite faces the camera, so the number is legible for the first time. Whether
+  to KEEP it is a design call (a `showNames`-style one-liner on `RemoteAvatar` would hide
+  it), not a port question.
+- **The N name-change dialog is live for the first time.** `components/name-changer.js` was
+  imported by `core/main.js` but never attached to an entity in `index.html`, so it never
+  ran. `main-three.js` registers `NameChanger` as a system, so N opens the dialog.
+- **Remote shots drawn locally pass through the local body.** `bodies()` holds only remote
+  avatars, so a tracer drawn for someone else's shot at you does not stop on you. Visual
+  only — the server owns damage and never consulted this list.
+- **Touch look is back at A-Frame's rate, and pitches.** `engine/input.js` pre-scales a
+  touch drag to look-controls' PI-radians-per-canvas-WIDTH; the first port fed raw pixels
+  through the mouse rate, which was 3.9x slower on a 400 px phone. Pitch is new (A-Frame's
+  touch path had none) and takes the mouse's sign.
+- **The key light casts no visible shadow — in EITHER build.** Its frustum is a 330x330
+  ortho box over 933 units of depth with `shadowBias: -0.0007`, copied across verbatim; at
+  that depth range and bias nothing in the scene resolves a shadow on either page. Pre-
+  existing, not introduced here. Tightening to +/-20, near 300, far 400, bias 0 makes
+  shadows appear; NOT done, because parity is the bar for this migration.
+- **Plan erratum.** `getWorldColliders` traverses `game.map` (its `userData.mesh`), not
+  `game.world` as the plan says. `game.world` also holds the hidden navmesh, the pickups
+  and the flags, none of which a shot should stop on.
+- **The shell-casing pool is 6.** `GAME_CONFIG.EFFECTS.UT_MAX_SHELLS` is 6, which sustained
+  fire runs dry — ~12 is what it wants. Left at 6: it is the old BUDGET value and parity is
+  the bar.
+
 ## Risks
 
 - **r164 → r180 differences**: light units (see above), `outputColorSpace` defaults, addon
