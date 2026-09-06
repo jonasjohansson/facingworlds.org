@@ -65,6 +65,8 @@ await browser.close();
 // ---------------------------------------------------------------------------
 
 async function runProbe() {
+  // Boot registers bloom last: once it is there, every system main-three.js builds is in.
+  await page.waitForFunction(() => window.__fw && window.__fw.systems.has("bloom"), null, { timeout: 40000 });
   await page.waitForFunction(() => window.__fw && window.__fw.map && window.__fw.map.userData.mesh, null, {
     timeout: 30000,
   });
@@ -72,10 +74,13 @@ async function runProbe() {
   const spawned = await page.evaluate(
     async ({ START, CHARACTER, GROUND_SPEED }) => {
       const THREE = window.__fw.THREE;
-      const { RemoteAvatars } = await import("/src/game/systems/remote-avatars.js");
       const game = window.__fw;
-      const avatars = new RemoteAvatars(game);
-      game.register("remote-avatars", avatars);
+      // main-three.js registers the registry at boot; only build one if it did not.
+      let avatars = game.systems.get("remote-avatars");
+      if (!avatars) {
+        const { RemoteAvatars } = await import("/src/game/systems/remote-avatars.js");
+        avatars = game.register("remote-avatars", new RemoteAvatars(game));
+      }
       window.__avatars = avatars;
 
       // Where the floor actually is under a point, so the poses we feed are the poses the
